@@ -1,0 +1,3380 @@
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1
+
+
+                                .z80
+  0000'                         aseg
+                                org	100h
+                                ;(c) Y23VO
+                                ;Stand: 22.9.89
+                                ;public domain
+                                
+                                	TITLE	"CBIOS Y23VO"
+                                
+                                ;DEFINITION VON KONSTANTEN
+                                ;Schalter
+  0001                          GC	EQU	1		;Grafik mituebersetzen
+  0000                          V24	EQU	0		;LST := V24-Drucker oder IFSS
+  0000                          CNTR	EQU	0		;LST := CENTRONICS-Schnittstelle
+  0001                          Z1013	EQU	1		;oder Y23VO
+                                
+                                ;Speicheradressen
+                                if	z1013
+  DA00                          BIOS	EQU	0DA00h		;56K-cpm
+                                else
+                                BIOS	EQU	0DE00h		;57K-cpm
+                                endif
+  CC00                          BDOS	EQU	BIOS-0E00H
+  C400                          CCP	EQU	BIOS-1600H
+  F600                          gdcram	equ	0F600h		;Ramtabelle Grafik-Controller
+  FC00                          BRAM	EQU	0FC00h		;BILDSCHIRM-RAM
+  0003                          IOBYT	EQU	3		;Zuweisung In-/Out-Geraete
+                                
+                                ;Adressen von Pheripherieschaltkreisen
+                                ;PIO auf CPU-Karte
+                                if	z1013
+  0002                          PIOBD	EQU	2		;DATENEINGABE KANAL B
+  0003                          PIOBC	EQU	3		;STEUERADRESSE KANAL B
+  0008                          Latch	equ	8		;Tastaturlatch (A47)
+                                else
+                                PIOAD	EQU	0FCH		;DATENAUSGABE KANAL A
+                                PIOBD	EQU	0FDH		;EINGABEDATEN tatatur
+                                PIOAC	EQU	0FEH		;STEUERADRESSE KANAL A
+                                PIOBC	EQU	0FFH		;STEUERADRESSE KANAL B
+                                endif
+                                
+                                ;Grafik-Display-Controller 7220	;lesen		schreiben
+  008E                          gdcc	equ	8eh		;status		daten 
+  008F                          gdcd	equ	8fh		;daten 		kommando
+                                
+                                ;CTC-SIO-Karte
+  006C                          ctca	equ	6ch		;taktgeber fuer sio a
+  006D                          ctcb	equ	6dh		;taktgeber fuer sio b
+  006F                          ctcd	equ	6fh		;zeitgeber uhr
+  0078                          sioad	equ	78h		;sio kanal a: v24/kassette
+  0079                          siobd	equ	79h		;sio kanal b: stromschleife
+  007A                          sioac	equ	7ah
+  007B                          siobc	equ	7bh
+                                
+                                ;Floppy-Disk-Controller 8272/765
+  0040                          CFDC	EQU	40H		;STEUERUNG FDC
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-1
+
+
+  0041                          DFDC	EQU	41H		;DATEN FDC
+  0050                          TC	EQU	50H		;TERMINAL COUNT (ENDE-IMPULS) 
+                                
+                                ;2PIO-Karte, Centronics-Schnittstelle 
+  00AC                          p1ad	equ	0ACh		;Daten 
+  00AD                          p1bd	equ	0ADh		;Steuerung Drucker
+  00AE                          p1ac	equ	0AEh
+  00AF                          p1bc	equ	0AFh
+                                
+                                ;sonstiges
+  0003                          NDISK	EQU	3		;ANZAHL LAUFWERKE
+                                
+                                ;CP/M UND SYSTEMKONSTANTEN
+  0400                          BLKSIZ	EQU	1024	;PUFFERLAENGE
+  0400                          HSTSIZ	EQU	1024	;DISKSEKTORLAENGE
+  0005                          HSTSPT	EQU	5	;DISKSEKTOREN PRO SPUR
+  0008                          HSTBLK	EQU	HSTSIZ/128	;CP/M-SEKT. je DISKSEKTOR
+  0028                          CPMSPT	EQU	HSTBLK*HSTSPT	;CP/M-SEKTOREN je SPUR
+  0007                          SECMSK	EQU	HSTBLK-1	;SEKTORMASKE
+                                ;BDOS-KONSTANTEN BEIM SCHREIBEINTRITT
+  0001                          WRDIR	EQU	1		;VERZEICHNIS SCHREIBEN
+  0002                          WRUAL	EQU	2		;UNDEFINIERT SCHREIBEN
+                                
+                                ;hochkopieren
+                                .phase	8500h
+  8500    21 850B               	ld	hl,cbanf	;Lader-Adresse !
+  8503    11 DA00               	ld	de,bios		;Ziel im Ram
+  8506    01 1FFF               	ld	bc,01FFFH	;Laenge 8k
+  8509    ED B0                 	ldir
+  850B                          cbanf	equ	$
+                                .dephase
+                                .phase	bios
+                                
+  DA00    C3 DB60               BOT:	JP	BOOT 	;Kaltstart (nach RESET)
+  DA03    C3 DBE4               WBOTE:	JP	WBOOT	;"Warmstart"
+  DA06    C3 DFA3               	JP	CONST	;Consolstatus
+  DA09    C3 DFBF               cci:	JP	CONIN	;Zeicheneingabe (A) von Tastatur
+  DA0C    C3 DF38               cco:	JP	CONOUT	;Zeichenausgabe (C) auf Bildschirm
+  DA0F    C3 DF5D               	JP	LIST	;Zeichenausgabe (C) auf Druckerkanal
+  DA12    C3 DF50               	JP	PUNCH	;Zeichenausgabe (C) auf Datenkanal PUN:
+  DA15    C3 DF43               	JP	READER	;Zeicheneingabe (A) von Datenkanal RDR:
+  DA18    C3 DB52               	JP	HOME 	;Diskettenspur 0 einstellen
+  DA1B    C3 DB18               	JP	SELDSK	;Diskettenlaufwerk
+  DA1E    C3 DB55               	JP	SETTRK	;Spur einstellen
+  DA21    C3 DB4D               	JP	SETSEC 	;Sektor einstellen
+  DA24    C3 DB5A               	JP	SETDMA 	;Pufferspeicher festlegen
+  DA27    C3 DC06               	JP	DREAD 	;einen Sektor von Diskette lesen
+  DA2A    C3 DC1D               	JP	WRIT	;einen Sektor auf Diskette schreiben
+  DA2D    C3 DB46               	JP	LISTST	;Druckerstatus
+  DA30    C3 DB49               	JP	SECTRAN	;Sektortransformation
+                                ;-----------------------------------------------------------
+  DA33                          DPBAS	EQU	$
+                                ;1. Laufwerk
+  DA33    0000                  DPHA:	DEFW	0	;Adresse Konvertierungstabelle
+  DA35    0000                  	DEFW	0	;Notizspeicher BDOS
+  DA37    0000                  	DEFW	0
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-2
+
+
+  DA39    0000                  	DEFW	0
+  DA3B    E58D                  	DEFW	DIRBF	;Adresse Directory-Puffer
+  DA3D    DA63                  	DEFW	DPBA	;Laufwerkbeschreibung
+  DA3F    E475                  	DEFW	CHK0	;Adresse Prueffeld
+  DA41    E425                  	DEFW	ALL0	;Adresse Belegungsfeld
+  DA43    0000                  DPHB:	DEFW	0	;2.Laufwerk
+  DA45    0000                  	DEFW	0
+  DA47    0000                  	DEFW	0
+  DA49    0000                  	DEFW	0
+  DA4B    E58D                  	DEFW	DIRBF
+  DA4D    DA63                  	DEFW	DPBA
+  DA4F    E515                  	DEFW	CHK1
+  DA51    E4C5                  	DEFW	ALL1
+  DA53    0000                  DPHC:	DEFW	0	;RAMDISK
+  DA55    0000                  	DEFW	0
+  DA57    0000                  	DEFW	0
+  DA59    0000                  	DEFW	0
+  DA5B    E58D                  	DEFW	DIRBF
+  DA5D    DA81                  	DEFW	DPBC
+  DA5F    E585                  	DEFW	CHK2
+  DA61    E565                  	DEFW	ALL2
+                                
+                                ;DISK-PARAMETER-BLOCK FLOPPYLAUFWERKE 5,25 ZOLL
+                                ;doppelte Dichte (DD), doppelseitig (DS), 80 Spuren (96TPI)
+                                ;780 k
+  DA63    0028                  DPBA:	DEFW	40		;40LOGISCHE*5 PHYSISCHE SEKTOREN/SPUR
+  DA65    04                    	DB	4		;1K-BLOECKE
+  DA66    0F                    	DB	0FH
+  DA67    00                    	DB	0
+  DA68    0185                  	DEFW	0185H
+  DA6A    007F                  	DEFW	07Fh
+  DA6C    00C0                  	DEFW	0C0H
+  DA6E    0020                  	DEFW	20H
+  DA70    0004                  	DEFW	4		;SYSTEMSPUREN
+                                ;800 k
+  DA72    0028                  DPBB:	DEFW	40
+  DA74    04                    	DB	4
+  DA75    0F                    	DB	0FH
+  DA76    00                    	DB	0
+  DA77    018F                  	DEFW	018FH
+  DA79    007F                  	DEFW	07Fh
+  DA7B    00C0                  	DEFW	0C0H
+  DA7D    0020                  	DEFW	20H
+  DA7F    0000                  	DEFW	0		;SYSTEMSPUREN
+  DA81    0010                  DPBC:	DEFW	16
+  DA83    03                    	DB	3
+  DA84    07                    	DB	07H
+  DA85    00                    	DB	0
+  DA86    00FF                  	DEFW	0255
+  DA88    003F                  	DEFW	03Fh
+  DA8A    00C0                  	DEFW	0C0H
+  DA8C    0000                  	DEFW	0
+  DA8E    0000                  	DEFW	0		;SYSTEMSPUREN
+                                ;Steuertabellen fuer Floppycontroller
+  DA90    C6                    CTAB:	DB	0c6H		;MFM LESEN
+  DA91    00                    UNIT:	DB	0		;LAUFWERK A VOREINGESTELLT
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-3
+
+
+  DA92    00                    TRCK:	DB	0		;SPUR
+  DA93    00                    HED:	DB	0		;DISK-SEITE
+  DA94    01                    HSTSEC:	DB	1		;SEKTOR
+  DA95    03                    N:	DB	3		;N=3=1024 BYTES
+  DA96    05                    EOT:	DB	5		;5 SECTOREN JE SPUR
+  DA97    1B                    GPL:	DB	1BH		;LUECKE
+  DA98    FF                    DTL:	DB	0FFH    	
+  DA99    00                    RESLT:	DB	0		;STD. RESULT TAB F.FDC
+  DA9A    00                    	DB	0		;ST1
+  DA9B    00                    	DB	0		;ST2
+  DA9C    00                    	DB	0		;CYLINDER
+  DA9D    00                    	DB	0		;HEAD
+  DA9E    00                    	DB	0		;RECORD
+  DA9F    00                    	DB	0		;N
+  DAA0    00                    SEKDSK:	DB	0
+  DAA1    00                    SEKTRK:	DB	0
+  DAA2    00                    HEAD:	DB	0
+  DAA3    00                    SEKHST:	DB	0
+  DAA4    00                    HSTDSK:	DB	0
+  DAA5    00                    HSTTRK:	DB	0
+  DAA6    00                    WRTYPE:	DB	0
+  DAA7    00                    WRFLG:	DB	0
+  DAA8    00                    inibit:	DB	0
+  DAA9    01                    SEKSEC:	DB	1		;BDOS-SEKTOR
+  DAAA    0080                  DMAADR:	DW	80H		;BDOS-DMA
+  DAAC    E60E                  DSKBUf:	DW	HSTBUF
+                                ;-----------------------------------------------------------
+                                ;sonstige Konstanten
+  DAAE    FC00                  curs:	DW	BRAM		;Cursor=Bildschir-ram
+  DAB0    00                    pos1:	db	0		;Cursorpositionierung
+  DAB1    80                    pos2:	db	80h		;Cursor ein/aus
+  DAB2    18                    ZK:	DB	18H		;30 F.50 BAUD
+  DAB3    01                    	DB	01		;2 F. 50 BAUD
+  DAB4    00                    FLGIO:	DB	0		;steuerung in/out-geraete
+                                ;-----------------------------------------------------------
+                                ;TEXTE
+  DAB5    0A 0D 59 32           MSG1:	DB	0AH,0DH,'Y23VO CP/Y2 V.3 780K',0dh,0ah,0
+  DAB9    33 56 4F 20           
+  DABD    43 50 2F 59           
+  DAC1    32 20 56 2E           
+  DAC5    33 20 37 38           
+  DAC9    30 4B 0D 0A           
+  DACD    00                    
+  DACE    0D 0A 4C 61           MSG2:	DB	0dh,0ah,'Laufwerk nicht bereit.'
+  DAD2    75 66 77 65           
+  DAD6    72 6B 20 6E           
+  DADA    69 63 68 74           
+  DADE    20 62 65 72           
+  DAE2    65 69 74 2E           
+  DAE6    0A 0D 61 62           MSG5:	DB	0AH,0DH,'abbrechen  j/n ?',0dh,0ah,0
+  DAEA    62 72 65 63           
+  DAEE    68 65 6E 20           
+  DAF2    20 6A 2F 6E           
+  DAF6    20 3F 0D 0A           
+  DAFA    00                    
+  DAFB    0D 0A 46 65           MSG3:	DB	0dh,0ah,'Fehler nicht zu beheben.',0dh,0ah,0
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-4
+
+
+  DAFF    68 6C 65 72           
+  DB03    20 6E 69 63           
+  DB07    68 74 20 7A           
+  DB0B    75 20 62 65           
+  DB0F    68 65 62 65           
+  DB13    6E 2E 0D 0A           
+  DB17    00                    
+                                ;-----------------------------------------------------------
+                                ;LAUFWERK AUSWAEHLEN
+                                ;IN:C LAUFWERK (A ODER B)
+                                ;OUT:HL DPH-VEKTOR
+  DB18    21 0000               SELDSK:	LD 	HL,0
+  DB1B    79                    	LD	A,C
+  DB1C    FE 03                 	CP	ndisk
+  DB1E    D0                    	ret	NC
+  DB1F    32 DAA0               	LD	(SEKDSK),A
+  DB22    6F                    	LD	L,A
+  DB23    29                    	ADD	HL,HL
+  DB24    29                    	ADD	HL,HL
+  DB25    29                    	ADD	HL,HL
+  DB26    29                    	ADD	HL,HL		;*16
+  DB27    11 DA33               	LD	DE,DPBAS	;DPH-VECTOR 1.LW
+  DB2A    19                    	ADD	HL,DE
+  DB2B    E6 03                 	and	3		;Test lw b
+  DB2D    C8                    	ret	z		;nein
+  DB2E    FE 02                 	cp	2		;test lw c
+  DB30    C8                    	ret	z		;nein
+  DB31    E5                    	push	hl
+  DB32    21 DAA8               	ld	hl,inibit	;test ob 1.mal
+  DB35    CB 46                 	bit	0,(hl)
+  DB37    20 0B                 	jr	nz,sdsk1	;nein, kein recal noetig
+  DB39    3E FF                 	ld	a,0ffh		;markieren
+  DB3B    77                    	ld	(hl),a
+  DB3C    3E 01                 	ld	a,1
+  DB3E    32 DA91               	ld	(unit),a
+  DB41    CD DDA9               	call	recal
+  DB44    E1                    sdsk1:	pop	hl
+  DB45    C9                    	RET
+  DB46    3E FF                 LISTST:	ld	a,0ffh		;ohne Kontrolle!
+  DB48    C9                    	RET			;LISTER STATUS
+                                ;SECTOR TRANSFORMATION
+                                ;IN: BC LOG. SECTOR
+                                ;    DE = 0 = keine Transformation
+  DB49    60                    SECTRAN:LD	H,B
+  DB4A    69                    	LD	L,C
+  DB4B    23                    	INC	HL
+  DB4C    C9                    	RET
+                                ;SECTOR EINSTELLEN
+                                ;IN: C SECTOR
+                                ;OUT: (SEKSEC) =C
+  DB4D    21 DAA9               SETSEC:	LD	HL,SEKSEC
+  DB50    71                     	LD	(HL),C
+  DB51    C9                    	RET
+                                ;KOPF AUF SPUR NULL STELLEN
+  DB52    01 0000               HOME:	LD	BC,0
+                                ;SPUR ANWAEHLEN
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-5
+
+
+                                ;IN: C SPUR
+                                ;OUT (SECTRK)=C
+  DB55    79                    SETTRK:	LD	A,C
+  DB56    32 DAA1               	LD	(SEKTRK),A
+  DB59    C9                    	RET
+                                ;DMA SETZEN
+                                ;IN: BC DMA
+  DB5A    60                    SETDMA:	LD	H,B
+  DB5B    69                    	LD	L,C
+  DB5C    22 DAAA               	LD	(DMAADR),HL
+  DB5F    C9                    	RET
+                                ;-----------------------------------------------------------
+                                ;Kaltstart, nur nach RESET
+                                ;CCP UND BDOS VON SPUR 2 DER DISKETTE LADEN
+  DB60    3E 71                 BOOT:	ld	a,71h		;cpurom aus
+  DB62    D3 F7                 	out	(0f7h),a
+  DB64    D3 31                 	out	(31h),a		;dram ein
+  DB66    3E C3                 	LD	A,0C3H
+  DB68    32 0000               	LD	(0),A
+  DB6B    21 DA03               	LD	HL,WBOTE
+  DB6E    22 0001               	LD	(1),HL
+  DB71    32 0005               	LD	(5),A
+  DB74    21 CC06               	LD	HL,BDOS+6
+  DB77    22 0006               	LD	(6),HL
+  DB7A    31 0080               	LD	SP,80H
+  DB7D    CD DEE5               	CALL	INIT
+  DB80    CD DD78               	call	dskini
+  DB83    21 DAB5               	LD	HL,MSG1
+  DB86    CD DF99               	CALL	STR
+  DB89    AF                    	XOR	A
+  DB8A    32 E41C               	LD	(HSTACT),A
+  DB8D    32 E41E               	LD	(UNACNT),A
+  DB90    32 0004               	LD	(4),A
+  DB93    CD DD8F               	CALL	INIFD		;INITIALISIERUNG FLOPPY-CONTROLLER
+  DB96    0E 00                 	LD	C,0		;LAUFWERK A VOREINGESTELLT
+  DB98    CD DB18               	CALL	SELDSK
+  DB9B    06 2C                 	LD	B,2CH
+  DB9D    0E 02                 	LD	C,2		;SECTORZAEHLER
+  DB9F    CD DB55               	CALL	SETTRK		;SPUR-NR.
+  DBA2    16 02                 	LD	D,2		;SEKTOR
+  DBA4    21 C400               	LD	HL,CCP		;LADEZIEL
+  DBA7    C5                    SLOAD1:	PUSH	BC		;NAECHSTEN SEKTOR
+  DBA8    D5                    	PUSH	DE
+  DBA9    E5                    	PUSH	HL
+  DBAA    4A                    	LD	C,D
+  DBAB    CD DB4D               	CALL	SETSEC		;NEUEN SECT.ANWAEHLEN
+  DBAE    C1                    	POP	BC		;BC=LADEADRESSE
+  DBAF    C5                    	PUSH	BC		;LADEADR RETTEN
+  DBB0    CD DB5A               	CALL	SETDMA
+  DBB3    CD DC06               	CALL	DREAD		;SYSTEM RAUFSCHREIBEN: WFLOP EINSETZEN
+  DBB6    FE 00                 	CP	0				;FEHLER?
+  DBB8    C4 DF8F               	CALL	NZ,RESTR		;JA
+  DBBB    E1                    	POP	HL
+  DBBC    11 0080               	LD	DE,128
+  DBBF    19                    	ADD	HL,DE		;LADEADR.ERHOEHEN
+  DBC0    D1                    	POP	DE
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-6
+
+
+  DBC1    C1                    	POP	BC
+  DBC2    05                    	DEC	B		;SEKTORZAHL - 1
+  DBC3    28 14                 	JR	Z,BOOT1		;ccp-kopie anlegen
+  DBC5    14                    	INC	D		;NAECHSTEN SEKT.
+  DBC6    7A                    	LD	A,D
+  DBC7    FE 29                 	CP	29H		;LETZTER SEKTOR PER TRACK
+  DBC9    38 DC                 	JR	C,SLOAD1
+  DBCB    16 01                 	LD	D,1		;1.SEKT.NAECHST.SPUR
+  DBCD    0C                    	INC	C
+  DBCE    C5                    	PUSH	BC
+  DBCF    D5                    	PUSH	DE
+  DBD0    E5                    	PUSH	HL
+  DBD1    CD DB55               	CALL	SETTRK
+  DBD4    E1                    	POP	HL
+  DBD5    D1                    	POP	DE
+  DBD6    C1                    	POP	BC
+  DBD7    18 CE                 	JR	SLOAD1
+                                ;-----------------------------------------------------------
+  DBD9    21 C400               BOOT1:	ld	hl,ccp		;ccp-kopie anlegen
+  DBDC    11 EA0F               	ld	de,kopie
+  DBDF    01 0880               	ld	bc,128*17
+  DBE2    ED B0                 	ldir
+                                ;-----------------------------------------------------------
+  DBE4    21 EA0F               wboot:	ld	hl,kopie	;Warmstart:ccp kopieren
+  DBE7    11 C400               	ld	de,ccp
+  DBEA    01 0880               	ld	bc,128*17
+  DBED    ED B0                 	ldir
+  DBEF    AF                    	XOR	A
+  DBF0    32 E41C               	LD	(HSTACT),A
+  DBF3    32 E41E               	LD	(UNACNT),A
+  DBF6    31 0080               	ld	sp,80h
+  DBF9    01 0080               	LD	BC,80H
+  DBFC    CD DB5A               	CALL	SETDMA
+  DBFF    3A 0004               	LD	A,(4)		;AKTUELLES LAUFWERK HOLEN
+  DC02    4F                    	LD	C,A
+  DC03    C3 C400               	JP	CCP
+                                ;====================================================================
+                                ;BLOCKBILDUNG FUER SEKTOREN FUER CP/M 2.0
+  DC06    3A DAA0               DREAD:	LD	A,(sekdsk)		;Test auf RAM-Disk
+  DC09    FE 02                 	cp	2
+  DC0B    CA DD41               	jp	z,lese		;ram-disk
+  DC0E    3E 01                 	LD	A,1		;Sektor von Diskette lesen
+  DC10    32 E424               	LD	(READOP),A	;LESEFUNKTION
+  DC13    32 E423               	LD	(RSFLAG),A	;DATEN LESEN
+  DC16    3E 02                 	LD	A,WRUAL
+  DC18    32 DAA6               	LD	(WRTYPE),A	;ALS NICHT DEF. BEHANDELN
+  DC1B    18 6D                 	JR	RWOPER
+  DC1D    3A DAA0               WRIT:	LD	A,(sekdsk)		;Test auf RAM-Disk
+  DC20    FE 02                 	cp	2
+  DC22    CA DD48               	jp	z,schr			;ja
+  DC25    AF                    	XOR	A
+  DC26    32 E424               	LD	(READOP),A	;SCHREIBEN DES ANGEWEHLTEN CP/M-SEKTORS
+  DC29    79                    	LD	A,C		;SCHREIBTYP IN A
+  DC2A    32 DAA6               	LD	(WRTYPE),A
+  DC2D    FE 02                 	cp	WRUAL		;ORT DEFINIERT ?
+  DC2F    20 17                 	jr	nz,CHKUNA	;ORT TESTEN
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-7
+
+
+                                ;UNDEFINIERT SCHREIBEN
+  DC31    3E 08                 	LD	A,BLKSIZ/128	;NAECHSTE UNBELEGTE SAETZE
+  DC33    32 E41E               	LD	(UNACNT),A
+  DC36    3A DAA0               	LD	A,(SEKDSK)
+  DC39    32 E41F               	LD	(UNADSK),A	;ZU SUCHENDES LAUFWERK
+  DC3C    3A DAA1               	LD	A,(SEKTRK)	;ZU SUCHENDE SPUR
+  DC3F    32 E420               	LD	(UNATRK),A
+  DC42    3A DAA9               	LD	A,(SEKSEC)	;ZU SUCHENDER SEKTOR
+  DC45    32 E421               	LD	(UNASEC),A
+  DC48    3A E41E               CHKUNA:	LD	A,(UNACNT)	;TEST AUF SCHREIBEN IN UNBELEGTEN SEKTOR
+  DC4B    B7                    	OR	A
+  DC4C    28 34                 	JR	Z,ALLOC		;SPRUNG WENN NICHT VORHANDEN
+                                ;ES SIND UNBELEGTE DATENSAETZE VORHANDEN
+  DC4E    3D                    	DEC	A		;HERUNTERZAEHLEN
+  DC4F    32 E41E               	LD	(UNACNT),A
+  DC52    3A DAA0               	LD	A,(SEKDSK)	;GLEICHES LAUFWERK?
+  DC55    21 E41F               	LD	HL,UNADSK
+  DC58    BE                    	CP	(HL)
+  DC59    20 27                 	JR	NZ,ALLOC	;WENN NEIN, SPRUNG
+                                ;DIE LAUFWERKE SIND DIE GLEICHEN
+  DC5B    21 E420               	LD	HL,UNATRK
+  DC5E    3A DAA1               	LD	A,(SEKTRK)	;GLEICHE SPUR
+  DC61    BE                    	CP	(HL)
+  DC62    20 1E                 	JR	NZ,ALLOC	;WENN NEIN, SPRUNG
+                                ;DIE SPUREN SIND DIE GLEICHEN
+  DC64    3A DAA9               	LD	A,(SEKSEC)	;GLEICHER SEKTOR
+  DC67    21 E421               	LD	HL,UNASEC
+  DC6A    BE                    	CP	(HL)
+  DC6B    20 15                 	JR	NZ,ALLOC	;WENN NICHT, SPRUNG
+                                ;UEBEREINSTIMMUNG, UEBERGANG ZUM NAECHSTEN SEKTOR
+  DC6D    34                    	INC	(HL)		;UNASEC=UNASEC+1
+  DC6E    7E                    	LD	A,(HL)		;SPURENDE ?
+  DC6F    FE 28                 	CP	CPMSPT		;CP/M-SEKTOREN/SPUR
+  DC71    38 09                 	JR	C,NOOVF		;SPRUNG WENN KEIN UEBERLAUF
+                                ;UEBERLAUF, NAECHSTE SPUR
+  DC73    36 00                 	LD	(HL),0		;UNASEC = 0
+  DC75    3A E420               	LD	A,(UNATRK)
+  DC78    3C                    	INC	A
+  DC79    32 E420               	LD	(UNATRK),A	;UNATRK=UNATRK+1
+  DC7C    AF                    NOOVF:	XOR	A		;UEBEREINSTIMMUNG GEFUNDEN.
+  DC7D    32 E423               	LD	(RSFLAG),A	;UNBEDINGTE LESEOPERATION
+  DC80    18 08                 	JR	RWOPER		;SCHREIBEN DURCHFUEHREN
+  DC82    AF                    ALLOC:	XOR	A		;KEIN UNBELEGTER DATENSATZ.
+  DC83    32 E41E               	LD	(UNACNT),A	;VORHERIGES LESEN NOTWENDIG
+  DC86    3C                    	INC	A
+  DC87    32 E423               	LD	(RSFLAG),A	;RSFLAG = 1
+                                ;GEMEINSAMER KODE FUER LESEN UND SCHREIBEN
+  DC8A    AF                    RWOPER:	XOR	A
+  DC8B    32 E422               	LD	(ERFLAG),A	;FEHLER ZURUECKSETZEN
+  DC8E    3A DAA9               	LD	A,(SEKSEC)	;DISKSEKTOR BERECHNEN
+  DC91    06 01                 	LD	B,1
+  DC93    D6 08                 SC1:	SUB	8
+  DC95    28 06                 	JR	Z,SC2
+  DC97    FA DC9D               	JP	M,SC2
+  DC9A    04                    	INC	B
+  DC9B    18 F6                 	JR	SC1
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-8
+
+
+  DC9D    78                    SC2:	LD	A,B
+  DC9E    32 DAA3               	LD	(SEKHST),A	;ZU SUCHENDER DISKSEKTOR
+                                ;DISKSEKTOR AKTIV ?
+  DCA1    21 E41C               	LD	HL,HSTACT
+  DCA4    7E                    	LD	A,(HL)
+  DCA5    36 01                 	LD	(HL),1
+  DCA7    B7                    	OR	A		;BEREITS GESETZT
+  DCA8    28 24                 	JR	Z,FILHST	;SPEICHER FUELLEN
+                                ;AKTIVER PUFFER GLEICH GESUCHTEM ?
+  DCAA    3A DAA0               	LD	A,(SEKDSK)
+  DCAD    21 DAA4               	LD	HL,HSTDSK	;GLEICHE LAUFWERKE
+  DCB0    BE                    	CP	(HL)
+  DCB1    20 12                 	JR	NZ,NOMATC
+                                ;GLEICHE SPUR ?
+  DCB3    3A DAA1               	LD	A,(SEKTRK)
+  DCB6    21 DAA5               	LD	HL,HSTTRK
+  DCB9    BE                    	CP	(HL)
+  DCBA    20 09                 	JR	NZ,NOMATC
+                                ;GLEICHER PUFFER
+  DCBC    3A DAA3               	LD	A,(SEKHST)
+  DCBF    21 DA94               	LD	HL,HSTSEC	;SEKHST=HSTSEC ?
+  DCC2    BE                    	CP	(HL)
+  DCC3    28 26                 	JR	Z,MATCH		;WENN JA, SPRUNG
+  DCC5    3A E41D               NOMATC:	LD	A,(HSTWRT)	;DISKSEKTOR GESCHRIEBEN ?
+                                ;RICHTIGES LAUFWERK, ABER NICHT GLEICHER SEKTOR
+  DCC8    B7                    	OR	A
+  DCC9    28 03                 	JR	Z,FILHST
+  DCCB    CD DDCD               	CALL	WRIHST		;DISKPUFFER LEEREN
+  DCCE    3A DAA0               FILHST:	LD	A,(SEKDSK)
+                                ;DISKPUFFER FUELLEN
+  DCD1    32 DAA4               	LD	(HSTDSK),A
+  DCD4    3A DAA1               	LD	A,(SEKTRK)
+  DCD7    32 DAA5               	LD	(HSTTRK),A
+  DCDA    3A DAA3               	LD	A,(SEKHST)
+  DCDD    32 DA94               	LD	(HSTSEC),A
+  DCE0    3A E423               	LD	A,(RSFLAG)	;LESEN NOTWENDIG
+  DCE3    B7                    	OR	A
+  DCE4    C4 DDDB               	CALL	NZ,REAHST
+  DCE7    AF                    	XOR	A
+  DCE8    32 E41D               	LD	(HSTWRT),A	;KEIN SCHREIBEN
+  DCEB    3A DAA9               MATCH:	LD	A,(SEKSEC)
+  DCEE    E6 07                 	AND	SECMSK
+  DCF0    FE 00                 	CP	0
+  DCF2    20 02                 	JR	NZ,MATCH2
+  DCF4    3E 08                 	LD	A,8
+  DCF6    21 E58E               MATCH2:	LD	HL,HSTBUF-128
+  DCF9    47                    	ld	b,a
+  DCFA    11 0080               	ld	de,080h
+  DCFD    19                    match1:	add	hl,de
+  DCFE    10 FD                 	djnz	match1
+  DD00    EB                    	ex	de,hl
+  DD01    2A DAAA               	ld	hl,(dmaadr)
+  DD04    0E 80                 	ld	c,128
+  DD06    3A E424               	ld	a,(readop)
+  DD09    B7                    	or	a
+  DD0A    20 06                 	jr	nz,rwmove
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-9
+
+
+  DD0C    3E 01                 	ld	a,1
+  DD0E    32 E41D               	ld	(hstwrt),a
+  DD11    EB                    	EX	DE,HL		;QUELLE/SENKE TAUSCHEN
+  DD12    1A                    RWMOVE:	LD	A,(DE)		;QUELLZEICHEN
+  DD13    13                    	INC	DE
+  DD14    77                    	LD	(HL),A		;ZUR SENKE
+  DD15    23                    	INC	HL
+  DD16    0D                    	DEC	C		;128*
+  DD17    20 F9                 	JR	NZ,RWMOVE
+                                ;DATENTRANSFER BEENDET
+  DD19    3A DAA0               	LD	A,(SEKDSK)
+  DD1C    32 E41F               	LD	(UNADSK),A
+  DD1F    3A DAA1               	LD	A,(SEKTRK)
+  DD22    32 E420               	LD	(UNATRK),A
+  DD25    3A DAA9               	LD	A,(SEKSEC)
+  DD28    32 E421               	LD	(UNASEC),A
+  DD2B    3A DAA6               	LD	A,(WRTYPE)	;SCHREIBTYP HOLEN
+  DD2E    FE 01                 	CP	WRDIR		;IHV-EINTRAG ?
+  DD30    3A E422               	LD	A,(ERFLAG)	;FEHLERFLAG HOLEN
+  DD33    C0                    	RET	NZ		;KEIN IHV, ZURUECK
+                                ;FREMPUFFER LEEREN (Verzeichnis-EINTRAG)
+  DD34    B7                    	OR	A		;FEHLER ?
+  DD35    C0                    	RET	NZ		;ZURUECK FALLS JA
+  DD36    AF                    	XOR	A
+  DD37    32 E41D               	LD	(HSTWRT),A	;PUFFER GESCHRIEBEN
+  DD3A    CD DDCD               	CALL	WRIHST
+  DD3D    3A E422               	LD	A,(ERFLAG)
+  DD40    C9                    	RET
+                                
+                         C      include MPRDSK.MAC
+                         C      ;ramdisk nach "Mikroprozessortechnik" 3/88
+                         C      .z80
+  0098                   C      gadr	equ	98h	;Basisadresse der Karte
+                         C      
+  DD41    CD DD4F        C      lese:	call	adre
+  DD44    ED B2          C      	inir
+  DD46    AF             C      	xor	a
+  DD47    C9             C      	ret
+  DD48    CD DD4F        C      schr:	call	adre
+  DD4B    ED B3          C      	otir
+  DD4D    AF             C      	xor	a
+  DD4E    C9             C      	ret
+  DD4F    3A DAA1        C      adre:	ld	a,(sektrk)
+  DD52    6F             C      	ld	l,a
+  DD53    26 00          C      	ld	h,0
+  DD55    29             C      	add	hl,hl		;Umwandlung in Sektore
+  DD56    29             C      	add	hl,hl
+  DD57    29             C      	add	hl,hl
+  DD58    29             C      	add	hl,hl
+  DD59    3A DAA9        C      	ld	a,(seksec)	;aktuelle Sektor dazu
+  DD5C    5F             C      	ld	e,a
+  DD5D    16 00          C      	ld	d,0
+  DD5F    19             C      	add	hl,de
+  DD60    AF             C      	xor	a
+  DD61    CB 1C          C      	rr	h
+  DD63    CB 1D          C      	rr	l
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-10
+
+
+  DD65    CB 1F          C      	rr	a
+  DD67    D3 9F          C      	out	(gadr+7),a	;low-adr
+  DD69    7D             C      	ld	a,l
+  DD6A    D3 9E          C      	out	(gadr+6),a	;mittlere adr
+  DD6C    7C             C      	ld	a,h		;Bank
+  DD6D    E6 03          C      	and	3
+  DD6F    F6 98          C      	or	gadr
+  DD71    4F             C      	ld	c,a
+  DD72    06 80          C      	ld	b,128
+  DD74    2A DAAA        C      	ld	hl,(dmaadr)
+  DD77    C9             C      	ret
+                         C      ;Ramdisk loeschen (mit E5)
+  DD78    AF             C      dskini:	xor	a
+  DD79    4F             C      	ld	c,a
+  DD7A    D3 9E          C      	out	(gadr+6),a
+  DD7C    AF             C      dskin1:	xor	a
+  DD7D    47             C      	ld	b,a
+  DD7E    D3 9F          C      	out	(gadr+7),a
+  DD80    3E E5          C      	ld	a,0e5h
+  DD82    D3 98          C      dskin2:	out	(gadr),a
+  DD84    10 FC          C      	djnz	dskin2
+  DD86    0C             C      	inc	c
+  DD87    79             C      	ld	a,c
+  DD88    D3 9E          C      	out	(gadr+6),a
+  DD8A    FE 09          C      	cp	9
+  DD8C    18 EE          C      	jr	dskin1
+  DD8E    C9             C      	ret
+                         C      	
+                         C      		
+                         C      	include FDC780.MAC
+                         C      ;====================================================================
+                         C      ;TREIBER MIT U8272
+                         C      ;-----------------------------------------------------------
+                         C      ;(c) Y23VO 1989
+                         C      ;public domain
+                         C      ;-----------------------------------------------------------
+  DD8F    CD DDC5        C      INIFD:	CALL	TCPLS
+  DD92    06 00          C      INI1:	LD	B,0		;INITIALISIERUNG P8272
+  DD94    10 FE          C      	DJNZ	INI1+2
+  DD96    DB 40          C      	IN	A,(CFDC)
+  DD98    FE 80          C      	CP	80H
+  DD9A    28 04          C      	JR	Z,SPEZI
+  DD9C    DB 41          C      	IN	A,(DFDC)
+  DD9E    18 F2          C      	JR	INI1
+  DDA0    21 DDC2        C      SPEZI:	LD	HL,STAB-1	;PARAMETER LADEN
+  DDA3    01 0303        C      	LD	BC,0303H	;SPECIFY-COMM 3BYTES
+  DDA6    CD DE6B        C      	CALL	WCOM1		;SCHREIBEN COMM
+  DDA9    01 0207        C      RECAL:	LD	BC,0207H	;SPUR 0 EINSTELLEN
+  DDAC    CD DE42        C      	CALL	RDY		;DRIVE READY?
+                         C      ;-----------------------------------------------------------
+  DDAF    01 0108        C      SENSE:	LD	BC,0108H	;PRUEFE INTERRUPT STATUS
+  DDB2    CD DE68        C      	CALL	WCOM
+  DDB5    CD DE87        C      	CALL	RBYTE		;RESULT REG 0:IC1,IC2,SE,EC,NR,HD,US1,US2
+  DDB8    47             C      	LD	B,A
+  DDB9    FE 80          C      	CP	80H
+  DDBB    C4 DE87        C      	CALL	NZ,RBYTE	;PCN HOLEN
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-11
+
+
+  DDBE    CB 68          C      	BIT	5,B		;SEEK ENDE?
+  DDC0    28 ED          C      	JR	Z,SENSE
+  DDC2    C9             C      	RET
+  DDC3    DF             C      STAB:	DB	0dfH		;XXXX=SRT,XXXX=HUT
+  DDC4    33             C      	DB	33H		;XXXXXXX=HLT,X=ND
+                         C      ;df,33 mit kopfladen,e1,3 ohne 
+                         C      ;-----------------------------------------------------------
+  DDC5    D3 50          C      TCPLS:	OUT	(TC),A		;ENDEIMPULS EIN
+  DDC7    CD DE80        C      	CALL	DELAY
+  DDCA    DB 50          C      	IN	A,(TC)
+  DDCC    C9             C      	RET
+                         C      ;-----------------------------------------------------------
+                         C      ;SEKTOR SCHREIBEN/LESEN IN BETRIEBSART OHNE DMA-SCHALTKREIS
+                         C      ;SECTOR IN (HSTSEC)
+                         C      ;SPUR  IN (HSTTRK)
+                         C      ;AKT.LAUFWERK IN (HSTDSK)
+                         C      ;ZIEL-/QUELLADRESSE = HSTBUF
+                         C      ;KILL: A B DE HL
+  DDCD    CD DE28        C      WRIHST:	call	sds
+  DDD0    CB 77          C      	bit	6,a		;Schreibschutz ?
+  DDD2    20 39          C      	jr	nz,rwerr
+  DDD4    11             C      wrhst1:	DB	11H		;CODE LD DE,...
+  DDD5    ED A3          C      	OUTI			;WRITE DATA
+  DDD7    3E C5          C      	LD	A,0c5H		;SCHREIBKOMMANDO
+  DDD9    18 05          C      	JR	RWIT
+                         C      ;-----------------------------------------------------------
+  DDDB    11             C      REAHST:	DB	11H		;CODE LD DE,...
+  DDDC    ED A2          C      	INI
+  DDDE    3E C6          C      	LD	A,0c6H		;LESEKOMMANDO
+  DDE0    32 DA90        C      RWIT:	LD	(CTAB),A
+  DDE3    ED 53 DE20     C      	LD	(MODE),DE	;EINTRAGEN INI/OUTI-OP-CODE
+  DDE7    CD DEBC        C      	call	heads
+  DDEA    CD DE32        C      	CALL	SEEK
+  DDED    06 0A          C      	ld	b,10
+  DDEF    C5             C      RWOP:	PUSH	BC
+  DDF0    F3             C      	DI
+  DDF1    06 09          C      	LD	B,9		;9COMMANDOBYTES
+  DDF3    3A DA90        C      	LD	A,(CTAB)
+  DDF6    4F             C      	LD	C,A
+  DDF7    CD DE42        C      	CALL	RDY		;AUSGABE KOMMANDO
+  DDFA    2A DAAC        C      	LD	HL,(DSKBUF)	;Ladeadresse
+  DDFD    0E 41          C      	LD	C,DFDC
+  DDFF    CD DE13        C      	CALL	RW
+  DE02    CD DDC5        C      	CALL	TCPLS		;ENDE-IMPULS
+  DE05    CD DE90        C      	CALL	RRSLT
+  DE08    FB             C      	EI
+  DE09    C1             C      	POP	BC
+  DE0A    C8             C      	RET	Z		;ST0=0=KEINE FEHLER
+  DE0B    10 E2          C      	DJNZ	RWOP
+  DE0D    3E 01          C      rwerr:	LD	A,1
+  DE0F    32 E422        C      	ld	(erflag),a
+  DE12    C9             C      	RET			;ERROR
+                         C      ;-----------------------------------------------------------
+                         C      ;SCHREIBEN ODER LESEN 1024 BYTES
+                         C      ;IN: HL QUELLE ODER ZIEL
+                         C      ; C: DATENPORT
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-12
+
+
+  DE13    06 04          C      RW:	LD	B,4
+  DE15    C5             C      RW2:	PUSH	BC
+  DE16    06 00          C      	LD	B,0		;256 BYTES
+  DE18    DB 40          C      RW1:	IN	A,(CFDC)
+  DE1A    07             C      	RLCA			;RQM-TEST
+  DE1B    30 FB          C      	JR	NC,RW1
+  DE1D    07             C      	RLCA			;DIO
+  DE1E    07             C      	RLCA			;NON-DMA
+  DE1F    D0             C      	RET	NC		;FERTIG?
+  DE20    ED A2          C      MODE:	INI			;INI BEI READ DATA SONST OUTI
+  DE22    20 F4          C      	JR	NZ,RW1
+  DE24    C1             C      	POP	BC
+  DE25    10 EE          C      	DJNZ	RW2
+  DE27    C9             C      	RET
+                         C      ;-----------------------------------------------------------
+  DE28    01 0204        C      SDS:	LD	BC,0204H	;PRUEFE LAUFWERK STATUS
+  DE2B    CD DE68        C      	CALL	WCOM
+  DE2E    CD DE87        C      	CALL	RBYTE		;STATUS REG 3:FAULT,WP,RDY,T0,TS,HD,US1,U
+  DE31    C9             C      	RET
+                         C      ;-----------------------------------------------------------
+  DE32    01 030F        C      SEEK:	LD	BC,030FH	;COMM SPUR EINSTELLEN
+  DE35    CD DE42        C      	CALL	RDY
+  DE38    CD DDAF        C      	CALL	SENSE
+  DE3B    DB 40          C      SKBSY:	IN	A,(CFDC)
+  DE3D    E6 0F          C      	AND	0FH
+  DE3F    20 FA          C      	JR	NZ,SKBSY
+  DE41    C9             C      	RET
+                         C      ;-----------------------------------------------------------
+  DE42    C5             C      RDY:	PUSH	BC		;LAUFWERK BETRIEBSFAEHIG ?
+  DE43    21 7FFF        C      	ld	hl,7fffh	;Wartezeit auf Bereitschaft
+  DE46    E5             C      nrdy:	push	hl
+  DE47    CD DE28        C      	CALL	SDS		;nicht 
+  DE4A    E1             C      	pop	hl
+  DE4B    CB 6F          C      	BIT	5,A		;READY-BIT IN STATUSREG.3
+  DE4D    20 18          C      	JR	NZ,RDY1
+  DE4F    2B             C      	dec	hl
+  DE50    CD DE80        C      	call	delay
+  DE53    7D             C      	ld	a,l
+  DE54    B4             C      	or	h
+  DE55    20 EF          C      	jr	nz,nrdy
+  DE57    21 DACE        C      	LD	HL,MSG2		;FEHLERMELDUNG
+  DE5A    CD DF99        C      	CALL	STR
+  DE5D    CD DA09        C      	CALL	CCI
+  DE60    FE 6A          C      	CP	'j'		
+  DE62    20 E2          C      	JR	NZ,NRDY
+  DE64    C3 DF8F        C      	jp	restr		;Abbruch
+  DE67    C1             C      RDY1:	POP	BC
+                         C      ;-----------------------------------------------------------
+  DE68    21 DA90        C      WCOM:	LD	HL,CTAB		;COMM IN FDC SCHREIBEN
+  DE6B    F3             C      WCOM1:	DI			;IN: B ANZAHL D. BYTES,C COMM
+  DE6C    CD DE80        C      	CALL	DELAY
+  DE6F    DB 40          C      	IN	A,(CFDC)
+  DE71    E6 C0          C      	AND	0C0H
+  DE73    FE 80          C      	CP	80H		;RQM,DIO=OUT
+  DE75    20 F4          C      	JR	NZ,WCOM1
+  DE77    79             C      	LD	A,C
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-13
+
+
+  DE78    D3 41          C      	OUT	(DFDC),A
+  DE7A    23             C      	INC	HL
+  DE7B    4E             C      	LD	C,M
+  DE7C    10 ED          C      	DJNZ	WCOM1
+  DE7E    FB             C      	EI
+  DE7F    C9             C      	RET
+                         C      ;-----------------------------------------------------------
+  DE80    C5             C      DELAY:	PUSH	BC		;VERZOEGERUNG F.STATUSFLAG 8272
+  DE81    06 0F          C      	LD	B,0FH
+  DE83    10 FE          C      DEL1:	DJNZ	DEL1
+  DE85    C1             C      	POP	BC
+  DE86    C9             C      	RET
+                         C      ;-----------------------------------------------------------
+  DE87    CD DE80        C      RBYTE:	CALL	DELAY		;1 BYTE LESEN
+  DE8A    CD DEA6        C      	CALL	IRDY
+  DE8D    DB 41          C      	IN	A,(DFDC)
+  DE8F    C9             C      	RET
+                         C      ;-----------------------------------------------------------
+  DE90    06 06          C      RRSLT:	LD	B,6		;LESE 7 RESULT BYTES
+  DE92    CD DE87        C      	CALL	RBYTE
+  DE95    21 DA99        C      	LD	HL,RESLT
+  DE98    77             C      	LD	M,A
+  DE99    E6 C0          C      	AND	0C0H		;ERROR?
+  DE9B    4F             C      	LD	C,A
+  DE9C    CD DE87        C      RESL1:	CALL	RBYTE
+  DE9F    23             C      	INC	HL
+  DEA0    77             C      	LD	M,A
+  DEA1    10 F9          C      	DJNZ	RESL1
+  DEA3    79             C      	LD	A,C		;FEHLERMELDUNG STATUS REG 0
+  DEA4    B7             C      	OR	A
+  DEA5    C9             C      	RET
+                         C      ;-----------------------------------------------------------
+  DEA6    DB 40          C      IRDY:	IN	A,(CFDC)	;BEREIT F.DATENEINGABE ?
+  DEA8    07             C      	RLCA
+  DEA9    30 FB          C      	JR	NC,IRDY
+  DEAB    E6 80          C      	AND	80H
+  DEAD    07             C      	RLCA
+  DEAE    D8             C      	RET	C
+                         C      ;-----------------------------------------------------------
+                         C      ;FEHLERBEHANDLUNG
+  DEAF    C3 DF8F        C      ERM:	jp	restr		;SPRUNG IN MONITOR
+                         C      ;-----------------------------------------------------------
+                         C      ;KOMMANDO READ ID
+  DEB2    01 024A        C      RDID:	LD	BC,024AH
+  DEB5    CD DE42        C      	CALL	RDY
+  DEB8    CD DE90        C      	CALL	RRSLT
+  DEBB    C9             C      	RET
+                         C      ;-----------------------------------------------------------
+  DEBC    B7             C      HEADS:	or	a		;Carry-Flag loeschen
+  DEBD    3A DAA5        C      	LD	A,(HSTTRK)
+  DEC0    4F             C      	LD	C,A
+  DEC1    3A DAA4        C      	LD	A,(HSTDSK)
+  DEC4    CB 19          C      	RR	C
+  DEC6    38 0E          C      	JR	C,UNTEN
+  DEC8    E6 F3          C      	AND	0F3H
+  DECA    32 DA91        C      	LD	(UNIT),A
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-14
+
+
+  DECD    79             C      	LD	A,C
+  DECE    32 DA92        C      	LD	(TRCK),A
+  DED1    AF             C      	XOR	A
+  DED2    32 DA93        C      	LD	(HED),A
+  DED5    C9             C      	RET
+  DED6    F6 04          C      UNTEN:	OR	4
+  DED8    32 DA91        C      	LD	(UNIT),A
+  DEDB    79             C      	LD	A,C
+  DEDC    32 DA92        C      	LD	(TRCK),A
+  DEDF    3E 01          C      	LD	A,1
+  DEE1    32 DA93        C      	LD	(HED),A
+  DEE4    C9             C      	ret
+                                if	z1013
+                         C      include ZBIO.MAC
+                         C      .z80
+                         C      ;Ein- /Ausgaberoutinen Pheripherieschaltkreise
+                         C      ;PROGRAMMIERUNG PIO FUER MATRIXTASTATUR
+  DEE5                   C      init:
+                         C      if	z1013
+  DEE5    21 DF27        C      	ld	hl,tpiob
+  DEE8    0E 03          C      	ld	c,piobc
+  DEEA    06 03          C      	ld	b,lpiob
+  DEEC    ED B3          C      	otir
+                         C      else
+                         C      	LD	B,LPIOA		;LAENGE
+                         C      	LD	C,PIOAC		;ADRESSE PORT A COMMANDO
+                         C      	LD	HL,TPIOA	;TAB.-ANFANG
+                         C      	OTIR
+                         C      	LD	B,LPIOB
+                         C      	INC	C
+                         C      	OTIR
+                         C      endif
+                         C      ;Initialisierung SIOA f.V24 AUSGABE
+                         C      ;1200 Baud 8 Bit 
+  DEEE    3E 05          C      	ld	a,5		;Bytes f}r CTC
+  DEF0    D3 6C          C      	out	(ctca),a
+  DEF2    3E 0D          C      	ld	a,13	
+  DEF4    D3 6C          C      	out	(ctca),a
+  DEF6    06 07          C      	ld	b,lsioa		;Anzahl Bytes f}r SIO
+  DEF8    0E 7A          C      	ld	c,sioac		;Zieladresse SIO
+  DEFA    ED B3          C      	otir
+                         C      ;Rechnerkopplung mit Stromschleife 20mA; 600 Baud 
+                         C      ;SIOB
+  DEFC    3E 05          C      	LD	A,5		;Initialisierung CTC 
+  DEFE    D3 6D          C      	OUT	(CTCb),A
+  DF00    3E 08          C       	LD	A,8		
+  DF02    D3 6D          C      	OUT	(CTCb),A
+  DF04    06 07          C      	LD	B,lsiob		;Initialisierung SIO
+  DF06    0E 7B          C      	LD	C,SIObC		;Statusport
+  DF08    ED B3          C      	OTIR
+                         C      if	cntr	
+                         C      ;drucker mit CENTRONICS-Schnittstelle
+                         C      ;2-PIO-Karte
+                         C      	ld	a,0cfh
+                         C      	out	(p1ac),a
+                         C      	xor	a
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-15
+
+
+                         C      	out	(p1ac),a
+                         C      	ld	a,0cfh
+                         C      	out	(p1bc),a
+                         C      	ld	a,2
+                         C      	out	(p1bc),a
+                         C      	ld	a,3
+                         C      	out	(p1ac),a
+                         C      	out	(p1bc),a
+                         C      	ld	a,0ffh
+                         C      	out	(p1bd),a
+                         C      endif	
+                         C      ;test, ob grafik-kontroller vorhanden ist
+  DF0A    DB 8E          C      	in	a,(gdcc)
+  DF0C    E6 02          C      	and	2
+  DF0E    20 0E          C      	jr	nz,init1
+                         C      if	gc
+  DF10    21 E41C        C      	ld	hl,gdcanf
+  DF13    11 F600        C      	ld	de,gdcram
+  DF16    01 08A9        C      	ld	bc,lgdc
+  DF19    ED B0          C      	ldir
+  DF1B    CD F600        C      	call	gdcini		;wenn vorhanden
+                         C      endif	
+  DF1E    0E 0C          C      init1:	ld	c,0ch		;bildsch. loeschen
+  DF20    CD DF38        C      	call	CONOUT
+  DF23    C9             C      	RET
+                         C      ;pio-tabellen
+  DF24    CF C0 07       C      TPIOA:	DB	0CFH,0C0H,7
+  0003                   C      LPIOA	EQU	$-TPIOA
+  DF27    CF FF 07       C      TPIOB:	DB	0CFH,0FFH,7
+  0003                   C      LPIOB	EQU	$-TPIOB   
+                         C      ;sio-tabellen
+  DF2A    18 04 44 03    C      TSIOA:	DEFB 	18h,4,044H,3,0c1H,5,68H	;Cx16, 1 Stop, 8bit, keine parit{t
+  DF2E    C1 05 68       C      
+  0007                   C      lsioa	equ	$-tsioa
+  DF31    18 04 C4 05    C      Tsiob:	db	18h,4,0C4h,5,28h,3,41h	;Cx64, 1 Stop, 7Bit, keine Parit{t
+  DF35    28 03 41       C      
+  0007                   C      lsiob	equ	$-tsiob
+                         C      ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+                         C      ;SUBR. ZUR AUSGABE UEBER BILDSCHIRM MIT TEST AUF CTRL/C
+                         C      ;***IN: C...ZEICHEN
+                         C      ;**OUT: -
+                         C      ;*KILL: A,F
+  DF38    3A 0003        C      CONOUT:	ld	a,(iobyt)
+  DF3B    E6 01          C      	and	1		
+  DF3D    C2 F603        C      	JP	nz,gdcram+3	;Grafikbildschirm	
+  DF40    C3 E2E0        C      	jp	bs1co		;alphanumerischer Bildschirm
+                         C      ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+                         C      ;EINGABE EINES ZEICHENS UEBER DAS GERAET RDR:
+                         C      ;***IN: -
+                         C      ;**OUT: A...ZEICHEN
+  DF43                   C      READER	EQU	$
+                         C      ;EINGABE SIO KANAL B, STROMSCHLEIFE
+  DF43    CD DF81        C      esio:	call	break
+  DF46    DB 7B          C      	IN 	A,(SIOBC)	;statusabfrege
+  DF48    0F             C      	RRCA
+  DF49    30 F8          C      	JR	NC,esio
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-16
+
+
+  DF4B    DB 79          C      	IN	A,(SIOBD)	;zeicheneingabe
+  DF4D    E6 7F          C      	AND 	7FH
+  DF4F    C9             C      	RET
+                         C      ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+                         C      ;Ausgabe eines Zeichens ueber Geraet pun:
+                         C      ;***IN: C...ZEICHEN
+                         C      ;**OUT: -
+                         C      ;*KILL: A,F
+  DF50                   C      PUNCH	EQU	$
+                         C      ;AUSGABE sio KANAL B, stromschleife, ZEICHEN IN C
+  DF50    CD DF81        C      asio:	call	break
+  DF53    DB 7B          C      	IN	A,(SIOBC)
+  DF55    E6 04          C      	AND	4
+  DF57    28 F7          C      	JR	Z,asio
+  DF59    79             C      	LD	A,C
+  DF5A    D3 79          C      	OUT	(SIOBD),A
+  DF5C    C9             C      	RET
+                         C      ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+                         C      ;AUSGABE UEBER GERAE "LST:" MIT TEST AUF CTRL/C
+                         C      ;***IN: C...ZEICHEN
+                         C      ;**OUT: -
+                         C      ;*KILL: A,F
+  DF5D                   C      LIST	EQU	$
+                         C      if	V24
+                         C      ;Druckprogramm V24, 1200 Baud
+                         C      ;in:	Zeichen in C
+                         C      ;out:	A=C
+                         C      ;kill:	A,F
+                         C      lstv24:	push	bc
+                         C      v241:	in	a,(sioac)
+                         C      	and	4		;Sendepuffer leer ?
+                         C      	jr	z,v241
+                         C      lst2:	call	break
+                         C      	ld	a,10h
+                         C      	out	(sioac),a	;reset extern status
+                         C      	in	a,(sioac)	;status lesen
+                         C      	and	20h		;CTS-Test
+                         C      	jr	nz,lst2		;warten auf Freigabe
+                         C      	ld	a,c
+                         C      	out	(sioad),a	;Zeichenausgabe
+                         C      	pop	bc
+                         C      	ret
+                         C      else	
+                         C      ;Drucker mit IFSS-Schnittstelle 1200 Baud
+  DF5D    C5             C      SD1152:	PUSH	BC
+  DF5E    DB 7A          C      	IN	A,(SIOAC)
+  DF60    CB 47          C      	BIT	0,A
+  DF62    28 12          C      	JR	Z,SDR3
+  DF64    DB 78          C      SDR1:	IN	A,(SIOAD)
+  DF66    FE 91          C      	CP	91H		;Freigabe Drucker
+  DF68    28 0C          C      	JR	Z,SDR3
+  DF6A    FE 94          C      	CP	94H		;Status Drucker
+  DF6C    28 11          C      	JR	Z,SDR4
+  DF6E    DB 7A          C      SDR2:	IN 	A,(SIOAC)	;
+  DF70    CB 47          C      	BIT	0,A
+  DF72    28 FA          C      	JR	Z,SDR2
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-17
+
+
+  DF74    18 EE          C      	JR	SDR1
+  DF76    DB 7A          C      SDR3:	IN	A,(SIOAC)
+  DF78    CB 57          C      	BIT	2,A		;Sendepuffer leer ?
+  DF7A    28 FA          C      	JR	Z,SDR3
+  DF7C    79             C      	LD	A,C
+  DF7D    D3 78          C      	OUT	(SIOAD),A	;Zeichenausgabe
+  DF7F    C1             C      SDR4:	POP	BC
+  DF80    C9             C      	RET
+                         C      endif
+                         C      if	cntr
+                         C      ;Drucker mit CENTRONICS-Schnittstelle
+                         C      ;2-PIO-Karte
+                         C      ;Drucker an pio1,Kanal a Daten, Kanal b Steuerung
+                         C      centr:	call	break
+                         C      	in	a,(p1bd)	;warten auf Fertigmeldung des Druckers
+                         C      	rra
+                         C      	rra
+                         C      	jr	c,centr
+                         C      	ld	a,c
+                         C      	out	(p1ad),a	;Ausgabedaten
+                         C      	ld	a,02fh
+                         C      centr1:	dec	a
+                         C      	jr	nz,centr1
+                         C      	ld	a,0		;Abtastimpuls erzeugen
+                         C      	out	(p1bd),a
+                         C      	dec	a
+                         C      	out	(p1bd),a
+                         C      	ret
+                         C      endif
+                         C      ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+                         C      ;SUBR. ZUM TEST, OB UNTERBRECHUNG EINGEGEBEN WURDE
+                         C      ;***IN: -
+                         C      ;**OUT: A=0...KEIN ZEICHEN
+                         C      ;       A SONST...ZEICHEN
+                         C      ;*KILL: A,F
+  DF81    CD DFA3        C      BREAK:	CALL	CONST
+  DF84    B7             C      	OR	A
+  DF85    C8             C      	RET	Z
+  DF86    CD DFBF        C      	call	conin
+  DF89    FE 03          C      	cp	3
+  DF8B    C0             C      	ret	nz
+  DF8C    C3 0000        C      	jp	0
+                         C      ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+                         C      ;Abbruch bei nicht behebbarem Fehler
+  DF8F    31 0080        C      restr:	ld	sp,80h
+  DF92    21 DAFB        C      	ld	hl,msg3		;Fehlermeldung
+  DF95    CD DF99        C      	call	str		;Ausgabe
+  DF98    76             C      	halt
+                         C      ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+                         C      ;SUBROUTINE ZUR AUSGABE EINER ZEICHENFOLGE,ABSCHLUSS DER FOLGE MIT 00
+                         C      ;***IN: ANFANGSADR. IN HL
+                         C      ;**OUT: -
+                         C      ;*KILL: AF,HL
+  DF99    7E             C      STR:	LD	A,(HL)
+  DF9A    4F             C      	LD	C,A
+  DF9B    23             C      	INC	HL
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-18
+
+
+  DF9C    B7             C      	OR	A
+  DF9D    C8             C      	RET	Z
+  DF9E    CD DF38        C      	CALL	CONOUT
+  DFA1    18 F6          C      	JR	STR
+                         C      
+                         C      	include Z13CI40A.MAC
+                         C      ;TASTATURSTEUERUNG
+  0004                   C      HWMODI	equ	4		;LATCHADRESSE HARDWAREMODIF.
+  0004                   C      ZKPOS	equ	4		;ZEITK.POSITIV-ENTPRELLUNG
+  0004                   C      ZKNEG	equ	4		;ZEITK.NEGATIV-ENTPRELLUNG
+  0001                   C      K7659	EQU	1		;1 BEI TASTATUR K7659
+  0000                   C      K7652	EQU	0		;1 BEI TASTATUR K7652
+                         C      ;
+                         C      ;************************************************************
+                         C      ;--TASTATURABFRAGE FUER K 7652/59 MIT HARDWARE NACH MP 7/88-- 
+                         C      ;************************************************************
+                         C      ;
+                         C      ;MODEFLAGS
+                         C      ;BIT 0 : LANGE REPEATVERZ.DURCHLAUFEN
+                         C      ;    1 : STRINGAUSGABE
+                         C      ;    2 : GRAFIKMODE ON
+                         C      ;    3 : LEER
+                         C      ;    4 : CAPS
+                         C      ;    5 : TASTATURBEEP ON
+                         C      ;    6 : LEER
+                         C      ;    7 : TASTE BETAETIGT
+                         C      ;
+                         C      ;TASTATURSTATUS
+                         C      ;
+  DFA3    F3             C      CONST:	DI
+  DFA4    E5             C      	PUSH	HL
+  DFA5    D5             C      	PUSH	DE
+  DFA6    C5             C      	PUSH	BC
+  DFA7    3E 0F          C      	LD	A,0FH
+  DFA9    D3 08          C      	OUT	(LATCH),A
+  DFAB    21 E2D4        C      	LD	HL,MOFL
+  DFAE    CD DFE4        C      	CALL	MINIT
+  DFB1    21 E2D3        C      	LD	HL,MLZ
+  DFB4    36 00          C      	LD	M,0
+  DFB6    B7             C      	OR	A
+  DFB7    C1             C      	POP	BC
+  DFB8    D1             C      	POP	DE
+  DFB9    E1             C      	POP	HL
+  DFBA    FB             C      	EI
+  DFBB    C8             C      	RET	Z
+  DFBC    3E FF          C      	LD	A,0FFH		;TASTE GEDR.
+  DFBE    C9             C      	RET
+                         C      
+                         C      ;
+                         C      ;ZEICHEN VON TASTATUR 'A' MIT WARTEN AUF BETAETIGUNG
+                         C      ;
+  DFBF    F3             C      CONIN:	DI
+  DFC0    E5             C      	PUSH	HL
+  DFC1    D5             C      	PUSH	DE
+  DFC2    C5             C      	PUSH	BC
+  DFC3    CD DFD8        C      	CALL	TAST
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-19
+
+
+  DFC6    B7             C      	OR	A
+  DFC7    CC DFD1        C      	CALL	Z,SETO
+  DFCA    C1             C      	POP	BC
+  DFCB    D1             C      	POP	DE
+  DFCC    E1             C      	POP	HL
+  DFCD    FB             C      	EI
+  DFCE    28 EF          C      	JR	Z,CONIN
+  DFD0    C9             C      	RET
+                         C      ;
+  DFD1    F5             C      SETO:	PUSH	AF
+  DFD2    AF             C      	XOR	A
+  DFD3    32 E2D3        C      	LD	(MLZ),A
+  DFD6    F1             C      	POP	AF
+  DFD7    C9             C      	RET
+                         C      ;
+                         C      ;TASTATURPOLLING
+                         C      ; 
+  DFD8    3E 0F          C      TAST:	LD	A,0FH
+  DFDA    D3 08          C      	OUT	(LATCH),A
+  DFDC    21 E2D4        C      	LD	HL,MOFL
+  DFDF    CB 4E          C      	BIT	1,M		;STRINGMODE?
+  DFE1    C2 E111        C      	JP	NZ,AUSG$
+  DFE4    DB 02          C      MINIT:	IN	A,(PIOBD)
+  DFE6    2F             C      	CPL
+  DFE7    E6 0F          C      	AND	0FH		;MASKE
+  DFE9    20 0A          C      	JR	NZ,MSTA1
+  DFEB    CB 86          C      	RES	0,M		;RUECKSETZEN REPEATKENNZ.
+  DFED    CB BE          C      	RES	7,M		;KEINE BETAETIGUNG
+  DFEF    32 E2D3        C      	LD	(MLZ),A
+  DFF2    D3 08          C      	OUT	(LATCH),A
+  DFF4    C9             C      	RET
+  DFF5    3A E2D3        C      MSTA1:	LD	A,(MLZ)		;LETZTES ZEICHEN=0?
+  DFF8    B7             C      	OR	A
+  DFF9    28 33          C      	JR	Z,MP1
+  DFFB    CB 46          C      	BIT	0,M		; =1 WENN VORHER REPEAT
+  DFFD    28 0B          C      	JR	Z,MR0
+                         C      ;
+                         C      ;KLEINE REPEATVERZ.
+                         C      ;
+  DFFF    06 1C          C      	LD	B,28
+  E001    0E 00          C      MKV1:	LD	C,0
+  E003    0D             C      MKV2:	DEC	C
+  E004    20 FD          C      	JR	NZ,MKV2
+  E006    10 F9          C      	DJNZ	MKV1
+  E008    18 24          C      	JR	MP1
+                         C      ;
+                         C      ;GROSSE REPEATVERZ.+NEGATIV ENTPRELLUNG
+                         C      ; 
+  E00A    06 80          C      MR0:	LD	B,080H
+  E00C    0E 00          C      MR1:	LD	C,0
+  E00E    DB 02          C      MR2:	IN	A,(PIOBD)
+  E010    2F             C      	CPL
+  E011    E6 0F          C      	AND	0FH
+  E013    28 09          C      	JR	Z,MR3
+  E015    0D             C      	DEC	C
+  E016    20 F6          C      	JR	NZ,MR2
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-20
+
+
+  E018    10 F2          C      	DJNZ	MR1
+  E01A    CB C6          C      	SET	0,M
+  E01C    18 10          C      	JR	MP1
+  E01E    06 04          C      MR3:	LD	B,ZKNEG		;NEG. ENTPRELLZ. B*5ms
+  E020    0E 00          C      MR4:	LD	C,00H
+  E022    DB 02          C      MR5:	IN	A,(PIOBD)
+  E024    2F             C      	CPL
+  E025    E6 0F          C      	AND	0FH
+  E027    20 E1          C      	JR	NZ,MR0
+  E029    0D             C      	DEC	C
+  E02A    20 F6          C      	JR	NZ,MR5
+  E02C    10 F2          C      	DJNZ	MR4
+                         C      ;
+                         C      ;SPALTENABTESTUNG
+                         C      ; 
+  E02E    CB 7E          C      MP1:	BIT	7,M		;ENTPRELLUNG?
+  E030    20 0F          C      	JR	NZ,MP0
+  E032    06 04          C      	LD	B,ZKPOS		;POS-ENTPRELLZ. B*5ms
+  E034    0E 80          C      ENTPR:	LD	C,80H
+  E036    DB 02          C      ZS11:	IN	A,(PIOBD)
+  E038    2F             C      	CPL
+  E039    E6 0F          C      	AND	0FH
+  E03B    C8             C      	RET	Z
+  E03C    0D             C      	DEC	C
+  E03D    20 F7          C      	JR	NZ,ZS11
+  E03F    10 F3          C      	DJNZ	ENTPR
+  E041    AF             C      MP0:	XOR	A
+  E042    FE 07          C      MP5:	CP	7
+  E044    20 02          C      	JR	NZ,MP2
+  E046    C6 01          C      	ADD	A,1
+  E048    D3 08          C      MP2:	OUT	(LATCH),A
+  E04A    57             C      	LD	D,A
+  E04B    DB 02          C      MP3:	IN	A,(PIOBD)
+  E04D    2F             C      	CPL
+  E04E    E6 0F          C      	AND	0FH
+  E050    20 0B          C      	JR	NZ,MP4
+  E052    7A             C      	LD	A,D
+  E053    C6 01          C      	ADD	A,1H
+  E055    FE 0C          C      	CP	12		;12 SPALTEN
+  E057    20 E9          C      	JR	NZ,MP5
+  E059    CB 86          C      	RES	0,M
+  E05B    AF             C      FZUE:	XOR	A
+  E05C    C9             C      	RET
+                         C      ;
+                         C      ;ERMITTLUNG TASTENPOSITION
+                         C      ; 
+  E05D    01 0708        C      MP4:	LD	BC,708H
+  E060    ED 41          C      	OUT	(C),B		;SPALTE 7 AKT.
+  E062    CB 22          C      	SLA	D
+  E064    CB 22          C      	SLA	D
+  E066    CB 22          C      	SLA	D		;MULT.SPALTE MIT 8
+  E068    3D             C      	DEC	A
+  E069    82             C      	ADD	A,D
+  E06A    5F             C      	LD	E,A		;E=INTERNER TASTENCODE 0-95
+                         C      ;
+                         C      ;AUSWERTUNG SHIFT
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-21
+
+
+                         C      ; 
+  E06B    32 E2D3        C      	LD	(MLZ),A
+  E06E    DB 02          C      	IN	A,(PIOBD)
+  E070    E6 0F          C      	AND	0FH
+  E072    EE 08          C      	XOR	8
+  E074    7B             C      	LD	A,E
+  E075    20 03          C      	JR	NZ,FKTZU
+  E077    C6 60          C      	ADD	A,60H
+  E079    5F             C      	LD	E,A
+                         C      ;
+                         C      ;FUNKTIONSZUORDNUNG
+                         C      ;
+  E07A    2A E2DB        C      FKTZU:	LD	HL,(FTPOI)	;FUNKT.-TASTENTAB.-POINTER
+  E07D    ED 4B E2D9     C      	LD	BC,(LFTB)	;LAENGE TABELLE
+  E081    ED B1          C      	CPIR			;SUCHEN TAST.POS.
+  E083    20 5B          C      	JR	NZ,MP21
+  E085    2B             C      	DEC	HL
+  E086    ED 4B E2DB     C      	LD	BC,(FTPOI)
+  E08A    ED 42          C      	SBC	HL,BC		;HL:=GEF.POS.REL.
+  E08C    CB 25          C      	SLA	L		;*2
+  E08E    ED 4B E2DD     C      	LD	BC,(FTAPO)	;F-TASTEN-ADRESS-TB
+  E092    09             C      	ADD	HL,BC
+  E093    4E             C      	LD	C,M
+  E094    23             C      	INC	HL
+  E095    66             C      	LD	H,M
+  E096    69             C      	LD	L,C		;HL=UP-ADRESSE
+  E097    01 E2D4        C      	LD	BC,MOFL		;MODEFLAGS
+  E09A    0A             C      	LD	A,(BC)
+  E09B    CB 87          C      	RES	0,A		;LOESCHEN LANGE REPEAT
+  E09D    CB 7F          C      	BIT	7,A
+  E09F    C2 E05B        C      	JP	NZ,FZUE
+  E0A2    CB FF          C      	SET	7,A
+  E0A4    02             C      	LD	(BC),A
+  E0A5    E9             C      	JP	(HL)
+                         C      ;
+  E0A6    31 0080        C      J100:	LD	SP,80H
+  E0A9    C3 0100        C      	JP	100H
+  E0AC    2E 04          C      GRF:	LD	L,4	
+  E0AE    18 06          C      	JR	AUSF	
+  E0B0    2E 20          C      BEEP:	LD	L,20H	
+  E0B2    18 02          C      	JR	AUSF
+  E0B4    2E 10          C      SLOCK:	LD	L,10H	
+  E0B6    0A             C      AUSF:	LD	A,(BC)
+  E0B7    AD             C      	XOR	L	
+  E0B8    02             C      	LD	(BC),A
+  E0B9    AF             C      	XOR	A
+  E0BA    5F             C      	LD	E,A	
+  E0BB    C3 E183        C      	JP	SETFF
+  E0BE    AF             C      MONRET:	XOR	A
+  E0BF    D3 04          C      	OUT	(HWMODI),A
+  E0C1    C3 F000        C      	JP	0F000H		;ROM START
+  E0C4    2E 80          C      B3264:	LD	L,80H	
+  E0C6    18 02          C      	JR	AUSF1
+  E0C8    2E 20          C      ZGUM:	LD	L,20H	
+  E0CA    DB 04          C      AUSF1:	IN	A,(HWMODI)
+  E0CC    AD             C      	XOR	L
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-22
+
+
+  E0CD    18 0A          C      	JR	AUSF2
+  E0CF    DB 04          C      F2MHZ:	IN	A,(HWMODI)
+  E0D1    E6 BF          C      	AND	0BFH
+  E0D3    18 04          C      	JR	AUSF2
+  E0D5    DB 04          C      F4MHZ:	IN	A,(HWMODI)
+  E0D7    F6 40          C      	OR	40H
+  E0D9    D3 04          C      AUSF2:	OUT	(HWMODI),A
+  E0DB    AF             C      AUSF3:	XOR	A
+  E0DC    32 E2D3        C      	LD	(MLZ),A
+  E0DF    C9             C      	RET
+                         C      ;
+                         C      ;ZEICHEN AUS TABELLE
+                         C      ;
+  E0E0    2A E2D5        C      MP21:	LD	HL,(TAPOI)
+  E0E3    16 00          C      	LD	D,0
+  E0E5    19             C      	ADD	HL,DE		;BERECHN. TABELLENPOS.
+  E0E6    7E             C      	LD	A,M		;HOLEN ZEICHEN TABELLE 
+  E0E7    5F             C      	LD	E,A
+                         C      ;
+                         C      ;CONTROL FUNKTION
+                         C      ;
+  E0E8    DB 02          C      	IN	A,(PIOBD)
+  E0EA    CB 5F          C      	BIT	3,A		;ABFRAGE CTRL-TASTE
+  E0EC    20 0E          C      	JR	NZ,F$		;NEIN
+  E0EE    7B             C      	LD	A,E
+  E0EF    E6 9F          C      	AND	9FH
+  E0F1    5F             C      	LD	E,A
+  E0F2    DB 02          C      	IN	A,(PIOBD)
+  E0F4    E6 0F          C      	AND	0FH
+  E0F6    20 04          C      	JR	NZ,F$
+  E0F8    3E 80          C      	LD	A,80H
+  E0FA    83             C      	ADD	A,E
+  E0FB    5F             C      	LD	E,A
+                         C      ;
+                         C      ;STRING FUNKTION
+                         C      ;
+  E0FC    CB 7B          C      F$:	BIT	7,E
+  E0FE    28 28          C      	JR	Z,MNULL	
+  E100    32 E2D3        C      	LD	(MLZ),A	
+  E103    2A E2D7        C      	LD	HL,(PO$TA)
+  E106    7E             C      F$1:	LD	A,M
+  E107    B7             C      	OR	A	
+  E108    28 1E          C      	JR	Z,MNULL	
+  E10A    23             C      	INC	HL	
+  E10B    BB             C      	CP	E
+  E10C    20 F8          C      	JR	NZ,F$1	
+  E10E    22 E2D1        C      	LD	(NEXT$),HL
+  E111    2A E2D1        C      AUSG$:	LD	HL,(NEXT$)	;NAECHSTES STR.ZEICHEN
+  E114    7E             C      	LD	A,M	
+  E115    23             C      	INC	HL
+  E116    22 E2D1        C      	LD	(NEXT$),HL
+  E119    21 E2D4        C      	LD	HL,MOFL		
+  E11C    CB CE          C      	SET	1,M	
+  E11E    CB 7F          C      	BIT	7,A	
+  E120    20 02          C      	JR	NZ,AUSGE	
+  E122    B7             C      	OR	A		
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-23
+
+
+  E123    C0             C      	RET	NZ
+  E124    CB 8E          C      AUSGE:	RES	1,M
+  E126    AF             C      	XOR	A	
+  E127    C9             C      	RET
+                         C      ;
+                         C      ;GRAFIK-MODE?
+                         C      ;
+  E128    21 E2D4        C      MNULL:	LD	HL,MOFL
+  E12B    7B             C      	LD	A,E
+  E12C    CB 56          C      	BIT	2,M		;GRAFIKMODE?
+  E12E    28 0B          C      	JR	Z,MSM1
+  E130    FE 08          C      	CP	8	
+  E132    28 07          C      	JR	Z,MSM1
+  E134    FE 09          C      	CP	9	
+  E136    28 03          C      	JR	Z,MSM1		;CL+CR KEIN GRFK.Z.
+  E138    C6 80          C      	ADD	A,80H		;SONST 80H ADDIEREN
+  E13A    5F             C      	LD	E,A
+                         C      ;
+                         C      ;CAPS-TASTATURUMSCHALTUNG
+                         C      ; 
+  E13B    CB 66          C      MSM1:	BIT	4,M
+  E13D    28 19          C      	JR	Z,MTE		;KEINE UMSCHAL. BIT 4=0
+  E13F    7B             C      	LD	A,E
+  E140    FE 41          C      	CP	41H		;C-FLAG GES. FUER A<41H
+  E142    38 14          C      	JR	C,MTE
+                         C      ;
+                         C      ;KONVERTIERUNG GROSS <-> KLEIN
+                         C      ;
+  E144    FE 5E          C      MT5:	CP	5EH		;C-FLAG GESETZT FUER A<5BH
+  E146    30 05          C      	JR	NC,MT61
+  E148    C6 20          C      	ADD	A,20H
+  E14A    5F             C      	LD	E,A
+  E14B    18 0B          C      	JR	MTE
+  E14D    FE 61          C      MT61:	CP	61H		;C-FLAG GES. FUER A<61H (a)
+  E14F    38 07          C      	JR	C,MTE
+  E151    FE 7E          C      	CP	7EH		;C-FLAG GES. FUER A<7BH
+  E153    30 03          C      	JR	NC,MTE
+  E155    D6 20          C      	SUB	20H
+  E157    5F             C      	LD	E,A
+                         C      ;
+                         C      ;TASTATURBEEPIMPULS
+                         C      ; 
+  E158    7B             C      MTE:	LD	A,E
+  E159    32 E2D3        C      	LD	(MLZ),A		;LETZTES ZEICHEN =(0004)
+  E15C    CB FE          C      	SEt	7,M
+  E15E    CB 6E          C      	BIT	5,M		;BEEP ON?
+  E160    28 3A          C      	JR	Z,MLED1
+  E162    01 2039        C      	LD	BC,2039H	;ZK
+  E165    C5             C      PEEP:	PUSH	BC
+  E166    C5             C      MPE3:	PUSH	BC
+  E167    79             C      	LD	A,C		;TONH.=0->PAUSE
+  E168    B7             C      	OR	A
+  E169    3E 0F          C      	LD	A,0FH
+  E16B    28 02          C      	JR	Z,MPE4
+  E16D    3E 0E          C      	LD	A,0EH
+  E16F    D3 08          C      MPE4:	OUT	(LATCH),A
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-24
+
+
+  E171    C1             C      	POP	BC		;C=f, B=t
+  E172    C5             C      	PUSH	BC
+  E173    0D             C      MPE1:	DEC	C		;NEGATIVE HALBWELLE
+  E174    20 FD          C      	JR	NZ,MPE1
+  E176    3E 0F          C      	LD	A,0FH
+  E178    D3 08          C      	OUT	(LATCH),A
+  E17A    C1             C      	POP	BC
+  E17B    C5             C      	PUSH	BC
+  E17C    0D             C      MPE2:	DEC	C		;POSITIVE HALBWELLE
+  E17D    20 FD          C      	JR	NZ,MPE2
+  E17F    C1             C      	POP	BC
+  E180    10 E4          C      	DJNZ	MPE3
+  E182    C1             C      	POP	BC
+                         C      ;
+                         C      ;NEUSETZEN FLIP-FLOP's
+                         C      ;
+  E183    E5             C      SETFF:	PUSH	HL
+  E184    21 E2D4        C      	LD	HL,MOFL
+  E187    3E 0E          C      	LD	A,0EH		;LED-FLIP-FLOP
+  E189    D3 08          C      	OUT	(LATCH),A	;NEU SETZEN 
+  E18B    CB 5E          C      	BIT	3,M
+  E18D    28 04          C      	JR	Z,MGR
+  E18F    3E 0C          C      	LD	A,0CH
+  E191    D3 08          C      	OUT	(LATCH),A
+  E193    CB 66          C      MGR:	BIT	4,M
+  E195    E1             C      	POP	HL
+  E196    28 04          C      	JR	Z,MLED1
+  E198    3E 0D          C      	LD	A,0DH
+  E19A    D3 08          C      	OUT	(LATCH),A
+  E19C    3E 07          C      MLED1:	LD	A,7H
+  E19E    D3 08          C      	OUT	(LATCH),A
+  E1A0    7B             C      	LD	A,E
+  E1A1    B7             C      	OR	A
+  E1A2    C9             C      	RET
+                         C      ;
+                         C      	IF	K7652
+                         C      ;
+                         C      ;FUNKTIONSTASTEN-POS.TABELLE
+                         C      ;
+                         C      FTAB:	DB	2EH		;GRAFIK ON/OFF
+                         C      	DB	35H		;SHIFT-LOCK
+                         C      	DB	41H+60H		;BEEP ON/OFF
+                         C      	DB	43H		;MON-RET/RST 38H
+                         C      	DB	48H		;32/64
+                         C      	DB	4CH		;ZG-UMSCH.
+                         C      	DB	0ABH		;2 MHZ
+                         C      	DB	0ACH		;4 MHZ
+                         C      	DB	0ADH		;JMP 100
+                         C      ;
+                         C      ;FUNKTIONSTASTEN-ADRESSTABELLE
+                         C      ;
+                         C      FATAB:	DW	GRF
+                         C      	DW	SLOCK
+                         C      	DW	BEEP
+                         C      	DW	MONRET
+                         C      	DW	B3264
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-25
+
+
+                         C      	DW	ZGUM
+                         C      	DW	F2MHZ
+                         C      	DW	F4MHZ
+                         C      	DW	J100
+                         C      ;
+                         C      ;TASTENBELEGUNGSTABELLE
+                         C      ;ERSTE SHIFTEBENE
+                         C      ; 
+                         C      TAB:	DB	31H		;A4/1
+                         C      	DB	51H		;B2/Q
+                         C      	DB	41H		;C2/A
+                         C      	DB	59H		;D3/Y
+                         C      	DB	32H		;A5/2
+                         C      	DB	57H		;B3/W
+                         C      	DB	53H		;C3/S
+                         C      	DB	58H		;D4/X
+                         C      	DB	33H		;A6/3
+                         C      	DB	45H		;B4/E
+                         C      	DB	44H		;C4/D
+                         C      	DB	43H		;D5/C
+                         C      	DB	34H		;A7/4
+                         C      	DB	52H		;B5/R
+                         C      	DB	46H		;C5/F
+                         C      	DB	56H		;D6/V
+                         C      	DB	35H		;A8/5
+                         C      	DB	54H		;B6/T
+                         C      	DB	47H		;C6/G
+                         C      	DB	42H		;D7/B
+                         C      	DB	36H		;A9/6
+                         C      	DB	5AH		;B7/Z
+                         C      	DB	48H		;C7/H
+                         C      	DB	4EH		;D8/N
+                         C      	DB	37H		;A10/7
+                         C      	DB	55H		;B8/U
+                         C      	DB	4AH		;C8/J
+                         C      	DB	4DH		;D9/M
+                         C      	DB	38H		;A11/8
+                         C      	DB	49H		;B9/I
+                         C      	DB	4BH		;C9/K
+                         C      	DB	2CH		;D10/,
+                         C      	DB	39H		;A12/9
+                         C      	DB	4FH		;B10/O
+                         C      	DB	4CH		;C10/L
+                         C      	DB	2EH		;D11/.
+                         C      	DB	30H		;A13/0
+                         C      	DB	50H		;B11/P
+                         C      	DB	5CH		;C11/\ oder OE	
+                         C      	DB	2DH		;D12/-
+                         C      	DB	7EH		;A14/~ oder SZ	
+                         C      	DB	5DH		;B12/] oder UE
+                         C      	DB	5BH		;C12/[ oder AE
+                         C      	DB	60H		;A15/` 
+                         C      	DB	2BH		;B13/+
+                         C      	DB	23H		;C13/DOPPELKREUZ
+                         C      	DB	0		;A3/GRAPHIK
+                         C      	DB	40H		;D2/KOMMERZIELLES A
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-26
+
+
+                         C      	DB	3EH		;A16/>
+                         C      	DB	0DH		;D14/ENTER/CTRL-M
+                         C      	DB	5		;E2/CURSOR HOCH /CTRL-E
+                         C      	DB	8		;E6/CURSOR LINKS /CTRL-H
+                         C      	DB	20H		;E4/LEERTASTE
+                         C      	DB	0		;B1/CAPS ON/OFF
+                         C      	DB	18H		;E1/CURSOR RUNTER /CTRL-J
+                         C      	DB	4		;E7/CURSOR RECHTS /CTRL-D
+                         C      	DB	0
+                         C      	DB	0
+                         C      	DB	0
+                         C      	DB	0
+                         C      	DB	0
+                         C      	DB	0
+                         C      	DB	0		;D1,D13/SHIFT
+                         C      	DB	0		;C1/CTRL-TASTE
+                         C      	DB	0		;A2/SLOW-FAST
+                         C      	DB	7		;B14/DEL /CTRL-G
+                         C      	DB	3		;A17/BREAK /CTRL-C	
+                         C      	DB	0		;A1/MONITORRUECKKEHR
+                         C      	DB	82H		;S4/'B:'
+                         C      	DB	81H		;S3/'A:'
+                         C      	DB	9		;E5/TAB /CTRL-I
+                         C      	DB	1BH		;E3/ESC
+                         C      	DB	12H		;S1/CTRL-R (32/64-ZEICHEN)
+                         C      	DB	83H		;S5/'BIOS'  
+                         C      	DB	92H		;S7/'DIR'
+                         C      	DB	16H		;S9/INS /CTRL-V
+                         C      	DB	13H		;S2/CTRL-S (2.ZG)
+                         C      	DB	84H		;S6/'D:'
+                         C      	DB	88H		;S8/'COPY'
+                         C      	DB	7FH		;S10/DEL
+                         C      	DB	0
+                         C      	DB	0
+                         C      	DB	0
+                         C      	DB	0
+                         C      	DB	0
+                         C      	DB	0
+                         C      	DB	0
+                         C      	DB	0
+                         C      	DB	0
+                         C      	DB	0
+                         C      	DB	0
+                         C      	DB	0
+                         C      	DB	0
+                         C      	DB	0
+                         C      	DB	0
+                         C      	DB	0
+                         C      ;
+                         C      ;ZWEITE SHIFTEBENE
+                         C      ; 
+                         C      TAB2:	DB	21H		;A4/!
+                         C      	DB	71H		;B2/q
+                         C      	DB	61H		;C2/a
+                         C      	DB	79H		;D3/y
+                         C      	DB	22H		;A5/"
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-27
+
+
+                         C      	DB	77H		;B3/w
+                         C      	DB	73H		;C3/s
+                         C      	DB	78H		;D4/x
+                         C      	DB	40H		;A6/@
+                         C      	DB	65H		;B4/e
+                         C      	DB	64H		;C4/d
+                         C      	DB	63H		;D5/c
+                         C      	DB	24H		;A7/DOLLAR
+                         C      	DB	72H		;B5/r
+                         C      	DB	66H		;C5/f
+                         C      	DB	76H		;D6/v
+                         C      	DB	25H		;A8/%
+                         C      	DB	74H		;B6/t
+                         C      	DB	67H		;C6/g
+                         C      	DB	62H		;D7/b
+                         C      	DB	26H		;A9/&
+                         C      	DB	7AH		;B7/z
+                         C      	DB	68H		;C7/h
+                         C      	DB	6EH		;D8/n
+                         C      	DB	2FH		;A10//
+                         C      	DB	75H		;B8/u
+                         C      	DB	6AH		;C8/j
+                         C      	DB	6DH		;D9/m
+                         C      	DB	28H		;A11/(
+                         C      	DB	69H		;B9/i
+                         C      	DB	6BH		;C9/k
+                         C      	DB	3BH		;D10/;
+                         C      	DB	29H		;A12/)
+                         C      	DB	6FH		;B10/o
+                         C      	DB	6CH		;C10/l
+                         C      	DB	3AH		;D11/:
+                         C      	DB	3DH		;A13/=
+                         C      	DB	70H		;B11/p
+                         C      	DB	7CH		;C11/| oder oe
+                         C      	DB	5FH		;D12/_
+                         C      	DB	3FH		;A14/?
+                         C      	DB	7DH		;B12/} oder ue
+                         C      	DB	7BH		;C12/{ oder ae
+                         C      	DB	5EH		;A15/CONTROL ZEICHEN ^
+                         C      	DB	2AH		;B13/*
+                         C      	DB	27H		;C13/'
+                         C      	DB	0		;A3/INVERS
+                         C      	DB	1EH		;D2/NL
+                         C      	DB	3CH		;A16/<
+                         C      	DB	0DH		;D14/ENTER/CR
+                         C      	DB	0BH		;E2/C.HOCH
+                         C      	DB	8H		;E6/C.LINKS
+                         C      	DB	20H		;E4/LEERTASTE
+                         C      	DB	0		;B1/CAPS
+                         C      	DB	0AH		;E1/C.RUNTER
+                         C      	DB	9H		;E7/C.RECHTS
+                         C      	DB	0
+                         C      	DB	0
+                         C      	DB	0
+                         C      	DB	0
+                         C      	DB	0
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-28
+
+
+                         C      	DB	0
+                         C      	DB	0		;D1,D13/SHIFT
+                         C      	DB	0		;C1/CTRL-TASTE
+                         C      	DB	0		;A2/J 100
+                         C      	DB	0		;B14/BEEP
+                         C      	DB	10H		;A17/HARDCOPY /CTRL-P
+                         C      	DB	0		;A1/
+                         C      	DB	94H		;S4/'TYPE' 
+                         C      	DB	90H		;S3/'POWER' 
+                         C      	DB	14H		;E5/AB C. LOESCHEN
+                         C      	DB	19H		;E3/DELLINE /CTRL-Y
+                         C      	DB	0		;S1/2 MHZ
+                         C      	DB	8FH		;S5/'POWER COPY'
+                         C      	DB	85H		;S7/'EXIT'
+                         C      	DB	87H		;S9/'GROUP'
+                         C      	DB	0		;S2/4 MHZ
+                         C      	DB	86H		;S6/'POWER STAT'
+                         C              DB	99H		;S8/'TEST'
+                         C      	DB	9AH		;S10/'POWER SIZE ***'
+                         C      	DB	0		
+                         C      	DB	0
+                         C      	DB	0
+                         C      	DB	0
+                         C      	DB	0
+                         C      	DB	0
+                         C      	DB	0
+                         C      	DB	0
+                         C      	DB	0
+                         C      	DB	0
+                         C      	DB	0
+                         C      	DB	0
+                         C      	DB	0
+                         C      	DB	0
+                         C      	DB	0
+                         C      	DB	0
+                         C      ;
+                         C      	ENDIF
+                         C      ;
+                         C      	IF 	K7659
+                         C      ;
+                         C      ;FUNKTIONSTASTEN-POS.TABELLE
+                         C      ;
+  E1A3    52             C      FTAB:	DB	52H		;GRAFIK ON/OFF
+  E1A4    35             C      	DB	35H		;SHIFT-LOCK
+  E1A5    55             C      	DB	55H		;BEEP ON/OFF
+  E1A6    47             C      	DB	47H		;2 MHz
+  E1A7    48             C      	DB	48H		;4 MHz
+  E1A8    49             C      	DB	49H		;32*32/16*64
+  E1A9    4A             C      	DB	4AH		;ALTERNATIV-ZG
+  E1AA    43             C      	DB	43H		;MON-RET/RST 38H
+  E1AB    A7             C      	DB	0A7H		;JMP 100H
+                         C      ;
+                         C      ;FUNKTIONSTASTEN-ADRESSTABELLE
+                         C      ;
+  E1AC    E0AC           C      FATAB:	DW	GRF
+  E1AE    E0B4           C      	DW	SLOCK
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-29
+
+
+  E1B0    E0B0           C      	DW	BEEP
+  E1B2    E0CF           C      	DW	F2MHZ
+  E1B4    E0D5           C      	DW	F4MHZ
+  E1B6    E0C4           C      	DW	B3264
+  E1B8    E0C8           C      	DW	ZGUM
+  E1BA    E0BE           C      	DW	MONRET
+  E1BC    E0A6           C      	DW	J100
+                         C      ;
+                         C      ;TASTENBELEGUNGSTABELLE
+                         C      ;ERSTE SHIFTEBENE
+                         C      ;
+  E1BE    31             C      TAB:	DB	31H		;E0/1
+  E1BF    51             C      	DB	51H		;D1/Q
+  E1C0    41             C      	DB	41H		;C1/A
+  E1C1    59             C      	DB	59H		;B1/Y
+  E1C2    32             C      	DB	32H		;E2/2
+  E1C3    57             C      	DB	57H		;D2/W
+  E1C4    53             C      	DB	53H		;C2/S
+  E1C5    58             C      	DB	58H		;B2/X
+  E1C6    33             C      	DB	33H		;E3/3
+  E1C7    45             C      	DB	45H		;D3/E
+  E1C8    44             C      	DB	44H		;C3/D
+  E1C9    43             C      	DB	43H		;B3/C
+  E1CA    34             C      	DB	34H		;E4/4
+  E1CB    52             C      	DB	52H		;D4/R
+  E1CC    46             C      	DB	46H		;C4/F
+  E1CD    56             C      	DB	56H		;B4/V
+  E1CE    35             C      	DB	35H		;E5/5
+  E1CF    54             C      	DB	54H		;D5/T
+  E1D0    47             C      	DB	47H		;C5/G
+  E1D1    42             C      	DB	42H		;B5/B
+  E1D2    36             C      	DB	36H		;E6/6
+  E1D3    5A             C      	DB	5AH		;D6/Z
+  E1D4    48             C      	DB	48H		;C6/H
+  E1D5    4E             C      	DB	4EH		;A6/N
+  E1D6    37             C      	DB	37H		;E7/7
+  E1D7    55             C      	DB	55H		;D7/U
+  E1D8    4A             C      	DB	4AH		;C7/J
+  E1D9    4D             C      	DB	4DH		;B7/M
+  E1DA    38             C      	DB	38H		;E8/8
+  E1DB    49             C      	DB	49H		;D8/I
+  E1DC    4B             C      	DB	4BH		;C8/K
+  E1DD    2C             C      	DB	2CH		;B8/,
+  E1DE    39             C      	DB	39H		;E9/9
+  E1DF    4F             C      	DB	4FH		;D9/O
+  E1E0    4C             C      	DB	4CH		;C9/L
+  E1E1    2E             C      	DB	2EH		;B9/.
+  E1E2    30             C      	DB	30H		;E10/0
+  E1E3    50             C      	DB	50H		;D10/P
+  E1E4    5C             C      	DB	5CH		;C10/OE
+  E1E5    2D             C      	DB	2DH		;B10/-
+  E1E6    7E             C      	DB	7EH		;E11/SZ
+  E1E7    5D             C      	DB	5DH		;D11/UE
+  E1E8    5B             C      	DB	5BH		;C11/AE
+  E1E9    3C             C      	DB	3CH		;E12/<
+  E1EA    2B             C      	DB	2BH		;D12/+
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-30
+
+
+  E1EB    23             C      	DB	23H		;C12/DOPPELKREUZ
+  E1EC    5E             C      	DB	5EH		;E00/CTRL-ZEICHEN
+  E1ED    40             C      	DB	40H		;B0/KOMMERZIELLES A
+  E1EE    3E             C      	DB	3EH		;E13/>
+  E1EF    0D             C      	DB	0DH		;B13/ENTER/CTRL-M
+  E1F0    05             C      	DB	5		;A1/CURSOR HOCH /CTRL-E
+  E1F1    08             C      	DB	8		;A10/CURSOR LINKS /CTRL-H
+  E1F2    20             C      	DB	20H		;A5/LEERTASTE
+  E1F3    00             C      	DB	0		;D0/CAPS ON/OFF
+  E1F4    18             C      	DB	18H		;A0/CURSOR RUNTER /CTRL-X
+  E1F5    04             C      	DB	4		;A11/CURSOR RECHTS /CTRL-D
+  E1F6    00             C      	DB	0
+  E1F7    00             C      	DB	0
+  E1F8    00             C      	DB	0
+  E1F9    00             C      	DB	0
+  E1FA    00             C      	DB	0
+  E1FB    00             C      	DB	0
+  E1FC    00             C      	DB	0		;B99,B11/SHIFT
+  E1FD    00             C      	DB	0		;C0/CTRL-TASTE
+  E1FE    00             C      	DB	0
+  E1FF    07             C      	DB	7		;D13/ROTES C /DEL=^G
+  E200    09             C      	DB	9		;E14/ROTES L /TAB
+  E201    00             C      	DB	0		;F01/MONITORRUECKKEHR
+  E202    1B             C      	DB	1BH		;F02/ESCAPE
+  E203    7B             C      	DB	7BH		;F03/GESCHW.KLAMMER AUF
+  E204    7D             C      	DB	7DH		;F04/     -"-       ZU
+  E205    00             C      	DB	0		;F06/2MHz
+  E206    00             C      	DB	0		;F07/4MHz
+  E207    00             C      	DB	0		;F08/32/64 
+  E208    00             C      	DB	0		;F09/ZG-UMSCHALTUNG
+  E209    15             C      	DB	15H		;F10/CTRL-U
+  E20A    19             C      	DB	19H		;F11/CTRL-Y
+  E20B    16             C      	DB	16H		;F12/CTRL-R/INSERT=^V
+  E20C    7F             C      	DB	7FH		;F13/CTRL-P/DEL
+  E20D    03             C      	DB	3H		;F14/BREAKTASTE /CTRL-C
+  E20E    06             C      	DB	6H		;F05/CTRL-F
+  E20F    00             C      	DB	0
+  E210    00             C      	DB	0		;F53/GRAFIK ON/OFF
+  E211    00             C      	DB	0		;E53
+  E212    00             C      	DB	0		;D53/
+  E213    00             C      	DB	0		;C53/PEEP ON/OFF 
+  E214    00             C      	DB	0
+  E215    13             C      	DB	13H		;E95/CTRL-S=STOP
+  E216    1D             C      	DB	1DH		;F95/CTRL-]
+  E217    00             C      	DB	0
+  E218    00             C      	DB	0
+  E219    00             C      	DB	0
+  E21A    12             C      	DB	12H		;D,C95/WIPPE + /^R
+  E21B    00             C      	DB	0
+  E21C    03             C      	DB	3		;B95/WIPPE - /^C
+  E21D    00             C      	DB	0
+                         C      ;
+                         C      ;ZWEITE SHIFTEBENE
+                         C      ;
+  E21E    21             C      TAB2:	DB	21H		;E1/!
+  E21F    71             C      	DB	71H		;D1/q
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-31
+
+
+  E220    61             C      	DB	61H		;C1/a
+  E221    79             C      	DB	79H		;B1/y
+  E222    22             C      	DB	22H		;E2/"
+  E223    77             C      	DB	77H		;D2/w
+  E224    73             C      	DB	73H		;C2/s
+  E225    78             C      	DB	78H		;B2/x
+  E226    40             C      	DB	40H		;E3/@
+  E227    65             C      	DB	65H		;D3/e
+  E228    64             C      	DB	64H		;C3/d
+  E229    63             C      	DB	63H		;B3/c
+  E22A    24             C      	DB	24H		;E4/DOLLAR
+  E22B    72             C      	DB	72H		;D4/r
+  E22C    66             C      	DB	66H		;C4/f
+  E22D    76             C      	DB	76H		;B4/v
+  E22E    25             C      	DB	25H		;E5/%
+  E22F    74             C      	DB	74H		;D5/t
+  E230    67             C      	DB	67H		;C5/g
+  E231    62             C      	DB	62H		;B5/b
+  E232    26             C      	DB	26H		;E6/&
+  E233    7A             C      	DB	7AH		;D6/z
+  E234    68             C      	DB	68H		;C6/h
+  E235    6E             C      	DB	6EH		;B6/n
+  E236    2F             C      	DB	2FH		;E7//
+  E237    75             C      	DB	75H		;D7/u
+  E238    6A             C      	DB	6AH		;C7/j
+  E239    6D             C      	DB	6DH		;B7/m
+  E23A    28             C      	DB	28H		;E8/(
+  E23B    69             C      	DB	69H		;D8/i
+  E23C    6B             C      	DB	6BH		;C8/k
+  E23D    3B             C      	DB	3BH		;B8/;
+  E23E    29             C      	DB	29H		;E9/)
+  E23F    6F             C      	DB	6FH		;D9/o
+  E240    6C             C      	DB	6CH		;C9/l
+  E241    3A             C      	DB	3AH		;B9/:
+  E242    3D             C      	DB	3DH		;E10/=
+  E243    70             C      	DB	70H		;D10/p
+  E244    7C             C      	DB	7CH		;C10/oe
+  E245    5F             C      	DB	5FH		;B10/_
+  E246    3F             C      	DB	3FH		;E11/?
+  E247    7D             C      	DB	7DH		;D11/}
+  E248    7B             C      	DB	7BH		;C11/{
+  E249    5B             C      	DB	5BH		;E12/ECK.KLAMMER AUF
+  E24A    2A             C      	DB	2AH		;D12/*
+  E24B    27             C      	DB	27H		;C12/'
+  E24C    7C             C      	DB	7CH		;E0/SENKR.STRICH
+  E24D    5C             C      	DB	5CH		;B0/NEG.SCHRAEGSTRICH
+  E24E    5D             C      	DB	5DH		;E13/ECK.KLAMMER ZU
+  E24F    0D             C      	DB	0DH		;C,B13/ENTER/CR
+  E250    05             C      	DB	05H		;A01/C.HOCH CPM
+  E251    13             C      	DB	13H		;A10/C.LINKS CPM
+  E252    20             C      	DB	20H		;A05/LEERTASTE
+  E253    00             C      	DB	0		;D00/SM-TAST. ON/OFF
+  E254    18             C      	DB	18H		;A00/C.RUNTER CPM
+  E255    04             C      	DB	04H		;A11/C.RECHTS CPM
+  E256    00             C      	DB	0
+  E257    00             C      	DB	0
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-32
+
+
+  E258    00             C      	DB	0
+  E259    00             C      	DB	0
+  E25A    00             C      	DB	0
+  E25B    00             C      	DB	0
+  E25C    00             C      	DB	0		;B99/B11/SHIFT
+  E25D    00             C      	DB	0		;C00/CTRL-TASTE
+  E25E    00             C      	DB	0
+  E25F    07             C      	DB	7H		;D13/ROTES C/CTRL-G
+  E260    13             C      	DB	13H		;E14/ROTES L/CTRL-S
+  E261    00             C      	DB	0		;F01/MON.RUECK.
+  E262    1B             C      	DB	1BH		;F02/ESCAPE 
+  E263    60             C      	DB	60H		;F03/NEG.ANSTRICH 
+  E264    7E             C      	DB	7EH		;F04
+  E265    00             C      	DB	0		;F06/JMP 100H
+  E266    00             C      	DB	0		;F07
+  E267    00             C      	DB	0		;F08
+  E268    00             C      	DB	0		;F09
+  E269    0F             C      	DB	0FH		;F10/CTRL-O
+  E26A    18             C      	DB	18H		;F11/CTRL-X
+  E26B    11             C      	DB	11H		;F12/CTRL-Q
+  E26C    1F             C      	DB	1FH		;F13
+  E26D    03             C      	DB	3H		;F14/BREAKTASTE /CTRL-C
+  E26E    1E             C      	DB	1EH		;F05/NL(SIF1000)
+  E26F    00             C      	DB	0
+  E270    00             C      	DB	0		;F53/GRAFIK ON/OFF
+  E271    00             C      	DB	0		;E53
+  E272    00             C      	DB	0		;D53
+  E273    00             C      	DB	0		;C53/PEEP ON/OFF
+  E274    00             C      	DB	0
+  E275    1C             C      	DB	1CH		;E95/
+  E276    1D             C      	DB	1DH		;F95/
+  E277    00             C      	DB	0
+  E278    00             C      	DB	0
+  E279    00             C      	DB	0
+  E27A    19             C      	DB	19H		;D,C95/WIPPE +/CTRL-Y
+  E27B    00             C      	DB	0
+  E27C    18             C      	DB	18H		;B95/WIPPE - /CTRL-X
+  E27D    00             C      	DB	0
+                         C      	ENDIF
+                         C      ;
+  E27E    81             C      SFELD:	DB	81H
+  E27F    41 3A 0D       C      	DB	'A:',0DH
+  E282    82             C      	DB	82H
+  E283    42 3A 0D       C      	DB	'B:',0DH
+  E286    83             C      	DB	83H
+  E287    43 3A 0D       C      	DB	'C:',0DH
+  E28A    84             C      	DB	84H 
+  E28B    44 49 52 0D    C      	DB	'DIR',0DH
+  E28F    85             C      	DB	85H 
+  E290    45 58 49 54    C      	DB	'EXIT',0DH    
+  E294    0D             C      
+                         C      	
+  E295    91             C      	DB	91H		;Q
+  E296    0B 51 4A       C      	DB	0BH,'QJ'
+  E299    86             C      	DB	86H		;S
+  E29A    53 54 41 54    C      	DB	'STAT',0DH
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-33
+
+
+  E29E    0D             C      
+                         C      	
+  E29F    8A             C      	DB	8AH		;$
+  E2A0    53 49 5A 45    C      	DB	'SIZE ***',0DH
+  E2A4    20 2A 2A 2A    C      
+  E2A8    0D             C      
+                         C      	
+  E2A9    94             C      	DB	94H		;T
+  E2AA    54 59 50 45    C      	DB	'TYPE'
+  E2AE    90             C      	DB	90H		;P
+  E2AF    50 4F 57 45    C      	DB	'POWER'
+  E2B3    52             C      
+                         C      
+  E2B4    8F             C      	DB	8FH		;O
+  E2B5    43 4F 50 59    C      	DB	'COPY',0DH
+  E2B9    0D             C      
+                         C      
+  E2BA    80             C              DB      80H             ;->
+  E2BB    04 04 04 04    C      	DB	4,4,4,4,4,4,4,4,4,4
+  E2BF    04 04 04 04    C      
+  E2C3    04 04          C      
+                         C      
+  E2C5    88             C              DB      88H             ;<-
+  E2C6    08 08 08 08    C              DB      8,8,8,8,8,8,8,8,8,8
+  E2CA    08 08 08 08    C      
+  E2CE    08 08          C      
+                         C      
+  E2D0    00             C      END$F:	DB	0		
+                         C      ;Arbeitszellen fuer Tastatur
+  E2D1    0000           C      NEXT$:	DW	0		;STRING-ARBEITSZELLE
+  E2D3    00             C      MLZ:	DB	0		;MERKE LETZTES ZEICHEN TASTATUR
+  E2D4    00             C      MOFL:	DB	0		;MODEFLAGS
+                         C      ;POINTERFELD
+                         C      
+  E2D5    E1BE           C      TAPOI:	DW	TAB		;TASTATURTAB.-POINTER
+  E2D7    E27E           C      PO$TA:	DW	SFELD		;STRINGTAB.-POINTER
+  E2D9    0009           C      LFTB:	DW	FATAB-FTAB	;LAENGE FU-TASTENTAB.
+  E2DB    E1A3           C      FTPOI:	DW	FTAB		;FU-TASTENPOS.-TAB.POINTER
+  E2DD    E1AC           C      FTAPO:	DW	FATAB		;FU-TASTENADR.-TAB.POINTER
+  E2DF    C9             C      ton:	db	0c9h		;Kutzschluss fuer Piep
+                         C      
+                                else
+                                include	BIO.MAC
+                                include CI80.MAC
+                                include TTAB80.MAC
+                                endif
+                         C      include	BCCO.MAC
+                         C      ;Bildschirmausgabe alphanumerisch BS1K
+                         C      ;IN:	Zeichen in C
+                         C      
+  0040                   C      ZL	EQU	40H		;ZEILENLAENGE
+  0010                   C      ZZ	EQU	10H		;ZEILENZAHL
+                         C      
+  E2E0    F5             C      BS1CO:	push	af
+  E2E1    C5             C      	push	bc
+  E2E2    D5             C      	push	de
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-34
+
+
+  E2E3    E5             C      	push	hl
+  E2E4    CD E2EC        C      	call	bcco
+  E2E7    E1             C      	pop	hl
+  E2E8    D1             C      	pop	de
+  E2E9    C1             C      	pop	bc
+  E2EA    F1             C      	pop	af
+  E2EB    C9             C      	ret
+  E2EC    21 E327        C      bcco:	LD	HL,CO15
+  E2EF    E5             C      	PUSH	HL
+  E2F0    2A DAAE        C      	LD	HL,(CURS)
+  E2F3    CB BE          C      	RES	7,M
+  E2F5    3A DAB0        C      	LD	A,(POS1)	;LAEUFT POSITIONIERUNG?
+  E2F8    B7             C      	OR	A
+  E2F9    20 35          C      	JR	NZ,M0044		;JA
+  E2FB    79             C      	LD	A,C
+  E2FC    FE 20          C      	CP	20H		;STEUERZEICHEN?
+  E2FE    38 55          C      	JR	C,M0049
+  E300    FE 7F          C      	CP	7FH
+  E302    30 51          C      	JR	NC,M0049
+  E304    77             C      M0042:	LD	M,A
+  E305    EB             C      	EX	DE,HL
+  E306    13             C      CO9:	INC	DE		;15H
+  E307    7B             C      	ld	a,e
+  E308    B2             C      	or	d
+  E309    EB             C      	EX	DE,HL
+  E30A    C0             C      	ret	nz
+  E30B    11 FFBF        C      	LD	DE,BRAM +zl*zz-ZL-1
+  E30E    D5             C      M0043:	PUSH	DE		;scroll
+  E30F    21 FC40        C      	LD	HL,bram+zl	
+  E312    11 FC00        C      	LD	DE,BRAM
+  E315    01 03C0        C      	LD	BC,zz*zl-ZL
+  E318    ED B0          C      	LDIR
+  E31A    2B             C      	DEC	HL
+  E31B    36 00          C      	LD	M,00H
+  E31D    11 FFFE        C      	LD	DE,bram+zz*zl-2	
+  E320    01 003F        C      	LD	BC,ZL-1
+  E323    ED B8          C      	LDDR
+  E325    E1             C      	POP	HL
+  E326    C9             C      	RET
+  E327    22 DAAE        C      CO15:	LD	(CURS),HL	;Ende der Ausgabe
+  E32A    3A DAB1        C      	LD	A,(POS2)
+  E32D    B6             C      	OR	M
+  E32E    77             C      	LD	M,A
+  E32F    C9             C      	RET
+                         C      ;CURSORPOSITIONIERUNG
+                         C      ;IN:	A ZEILE,C SPALTE mit gesetztem 7. bit
+                         C      ;	HL BRAM,DE ZEILENLAENGE
+                         C      ;out:	hl Cursorposition
+  E330    CB B9          C      M0044:	RES	7,C
+  E332    3D             C      	DEC	A
+  E333    32 DAB0        C      	LD	(POS1),A
+  E336    28 13          C      	JR	Z,spalte
+  E338    3E 0F          C      	LD	A,0fH
+  E33A    B9             C      	CP	C
+  E33B    38 01          C      	JR	C,zeile
+  E33D    79             C      	LD	A,C
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-35
+
+
+  E33E    21 FC00        C      zeile:	LD	HL,BRAM
+  E341    B7             C      	OR	A
+  E342    C8             C      	RET	Z
+  E343    11 0040        C      	LD	DE,ZL
+  E346    47             C      	LD	B,A
+  E347    19             C      zeil1:	ADD	HL,DE
+  E348    10 FD          C      	DJNZ	zeil1
+  E34A    C9             C      	RET
+  E34B    3E 3F          C      spalte:	LD	A,ZL-1
+  E34D    B9             C      	CP	C
+  E34E    30 01          C      	JR	NC,spalt1
+  E350    4F             C      	LD	C,A
+  E351    06 00          C      spalt1:	LD	B,00H
+  E353    09             C      	ADD	HL,BC
+  E354    C9             C      	RET
+                         C      ;-----------------------------------------------------------
+                         C      ;STEUERZEICHENAUSWERTUNG
+  E355    EB             C      M0049:	EX	DE,HL
+  E356    21 E40D        C      	LD	HL,bstab
+  E359    01 000F        C      	LD	BC,lbstab	;ANZAHL STEUERZEICHEN
+  E35C    ED B1          C      	CPIR
+  E35E    28 0F          C      	JR	Z,M004B
+  E360    EB             C      	EX	DE,HL
+  E361    FE 84          C      	CP	84H
+  E363    D8             C      	RET	C
+  E364    FE 88          C      	CP	88H
+  E366    38 03          C      	JR	C,M004A
+  E368    FE B0          C      	CP	0B0H
+  E36A    D8             C      	RET	C
+  E36B    CB BF          C      M004A:	RES	7,A
+  E36D    18 95          C      	JR	M0042
+  E36F    21 E40C        C      M004B:	LD	HL,BSTAB-1	;Steuerzeichen gefunden
+  E372    AF             C      	XOR	A
+  E373    ED 42          C      	SBC	HL,BC
+  E375    ED 42          C      	SBC	HL,BC
+  E377    46             C      	LD	B,M
+  E378    2B             C      	DEC	HL
+  E379    4E             C      	LD	C,M
+  E37A    C5             C      	PUSH	BC
+  E37B    6B             C      	LD	L,E
+  E37C    62             C      	LD	H,D
+  E37D    C9             C      	RET
+  E37E    01 0040        C      bcr:	LD	BC,ZL		;Wagenruecklauf
+  E381    21 FFFF        C      	LD	HL,bram+zl*zz-1	
+  E384    ED 42          C      bcr1:	SBC	HL,BC
+  E386    E5             C      	PUSH	HL
+  E387    ED 52          C      	SBC	HL,DE
+  E389    E1             C      	POP	HL
+  E38A    30 F8          C      	JR	NC,bcr1
+  E38C    23             C      	INC	HL
+  E38D    C9             C      	RET
+  E38E    21 FFBF        C      blf:	LD	HL,bram+zz*zl-zl-1	;Zeilenvorschub	
+  E391    ED 52          C      	SBC	HL,DE
+  E393    DA E30E        C      	JP	C,M0043
+  E396    21 0040        C      	LD	HL,ZL
+  E399    19             C      	ADD	HL,DE
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-36
+
+
+  E39A    C9             C      	RET
+  E39B    12             C      bdel:	LD	(DE),A		;linkes Zeichen loeschen
+  E39C    21 FC00        C      bbs:	LD	HL,BRAM		;backspace
+  E39F    ED 52          C      	SBC	HL,DE
+  E3A1    EB             C      	EX	DE,HL
+  E3A2    C8             C      	RET	Z
+  E3A3    2B             C      	DEC	HL
+  E3A4    C9             C      	RET
+  E3A5    11 FC00        C      blhm:	LD	DE,BRAM		;Bildschirm loeschen
+  E3A8    21 FFFF        C      CO8:	LD	HL,bram+zz*zl-1	;ab Cursor loeschen
+  E3AB    ED 52          C      	SBC	HL,DE
+  E3AD    EB             C      	EX	DE,HL
+  E3AE    77             C      	LD	M,A
+  E3AF    C8             C      	RET	Z
+  E3B0    E5             C      	PUSH	HL
+  E3B1    42             C      	LD	B,D
+  E3B2    4B             C      	LD	C,E
+  E3B3    54             C      	LD	D,H
+  E3B4    5D             C      	LD	E,L
+  E3B5    13             C      	INC	DE
+  E3B6    ED B0          C      	LDIR
+  E3B8    E1             C      	POP	HL
+  E3B9    C9             C      	RET
+  E3BA    21 FC00        C      CHOME:	LD	HL,BRAM		;cursor home
+  E3BD    C9             C      	RET
+  E3BE    21 FC3F        C      CUP:	LD	HL,BRAM+ZL-1	;cursor hoch
+  E3C1    ED 52          C      	SBC	HL,DE
+  E3C3    EB             C      	EX	DE,HL
+  E3C4    D0             C      	RET	NC
+  E3C5    11 FFC0        C      	LD	DE,bram+zz*zl-zl	
+  E3C8    19             C      	ADD	HL,DE
+  E3C9    C9             C      	RET
+  E3CA    CD E37E        C      M004E:	CALL	bcr
+  E3CD    EB             C      	EX	DE,HL
+  E3CE    D5             C      CO10:	PUSH	DE
+  E3CF    CD E37E        C      	CALL	bcr
+  E3D2    09             C      	ADD	HL,BC
+  E3D3    AF             C      	XOR	A
+  E3D4    ED 52          C      	SBC	HL,DE
+  E3D6    12             C      M004F:	LD	(DE),A
+  E3D7    13             C      	INC	DE
+  E3D8    2D             C      	DEC	L
+  E3D9    20 FB          C      	JR	NZ,M004F
+  E3DB    E1             C      	POP	HL
+  E3DC    C9             C      	RET
+  E3DD    3E 02          C      CO11:	LD	A,02H
+  E3DF    32 DAB0        C      	LD	(POS1),A
+  E3E2    C9             C      	RET
+  E3E3    3E 80          C      CO13:	LD	A,80H
+  E3E5    18 01          C      	JR	M0051
+  E3E7    AF             C      M0050:	XOR	A
+  E3E8    32 DAB1        C      M0051:	LD	(POS2),A
+  E3EB    C9             C      	RET
+  E3EC    C3 E2DF        C      bell:	jp	ton
+                         C      ;--------------------------------------------------------------------
+                         C      ;ADRESSEN
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-37
+
+
+  E3EF    E37E E38E      C      	DW	BCR,blf,bbs,blhm,chome,CUP,BDEL,CO8
+  E3F3    E39C E3A5      C      
+  E3F7    E3BA E3BE      C      
+  E3FB    E39B E3A8      C      
+  E3FF    E306 E3CE      C      	DW	CO9,CO10,M004E,CO11,bell,CO13,M0050
+  E403    E3CA E3DD      C      
+  E407    E3EC E3E3      C      
+  E40B    E3E7           C      
+                         C      ;STEUERZEICHEN
+  E40D    0D 0A 08 0C    C      bstab:	DB	0DH,0AH,8,0CH,1,1AH,7FH,14H,15H,16H,18H,1BH,7,82H,83H
+  E411    01 1A 7F 14    C      
+  E415    15 16 18 1B    C      
+  E419    07 82 83       C      
+  000F                   C      lbstab	equ	$-bstab
+                                
+                                ;Diskettenpuffer
+  E41C                          hstact	equ	$		;AKTIVIERUNGSFLAG
+  E41D                          HSTWRT	equ	hstact+1	;SCHREIBFLAG
+  E41E                          UNACNT	equ	hstwrt+1	;ZAEHLER FUER N. BELEGTE SAETZE
+  E41F                          UNADSK	equ	unacnt+1	;LETZTES NICHT BELEGTES LAUFWERK
+  E420                          UNATRK	equ	unadsk+1	;LETZTE NICHT BELEGTE SPUR
+  E421                          UNASEC	equ	unatrk+1	;LETZTER NICHT BELEGTER SEKTOR
+  E422                          ERFLAG	equ	unasec+1	;FEHLERCODE
+  E423                          RSFLAG	equ	erflag+1	;LESEFLAG
+  E424                          READOP	equ	rsflag+1	;1 BEI LESEOPERATION
+  E425                          ALL0	equ	readop+1
+  E475                          CHK0	equ	all0+80
+  E4C5                          ALL1	equ	chk0+80
+  E515                          CHK1	equ	all1+80
+  E565                          ALL2	equ	chk1+80
+  E585                          CHK2	equ	all2+32
+  E58D                          DIRBF	equ	chk2+8		;Inhaltsverzeichnis Diskette
+  E60E                          HSTBUF	equ	dirbf+129	;Zwischenspeicher fuer Diskette
+  EA0F                          kopie	equ	hstbuf+1025	;ccp-kopie
+                                if	gc
+  E41C                          gdcanf	equ	$
+                                .dephase
+                                .phase	gdcram
+                         C      include	GRAFIK.MAC
+                         C      .z80
+                         C      ;Programm fuer Grafik-Display-Controller U82720/pD7220
+                         C      ;(c) Y23VO
+                         C      ;erstellt 	17.9.87
+                         C      ;aktualisiert 	19.5.88
+                         C      ;public domain
+                         C      ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+                         C      ;einspruenge fuer grafik-display-controller 82720/7220
+  F600    C3 F693        C      gdcini:	jp	inigdc		;initialisierung
+  F603    C3 F69F        C      gdcco:	jp	hp		;zeichenausgabe
+  F606    C3 F94D        C      	jp      pixel 		;punkt zeichnen /loeschen
+  F609    C3 F968        C      	jp	draw		;linie zeichnen
+  F60C    C3 F980        C      	jp	prbox		;rechteck zeichnen
+  F60F    C3 F9C6        C      	jp	hpr		;bildschirmzeile ruecklesen
+  F612    C3 F9F9        C      	jp	hpw		;bildschirmzeile in speicher bringen
+                         C      ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+                         C      ;ram-tabellen fuer graphic-display-controller 7220
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-38
+
+
+                         C      ;Bereich mit Daten zum Zeichnen(draw,prbox,circle)
+  F615    00 00          C      x1:	db	0,0
+  F617    00 00          C      y1:	db	0,0
+  F619    0A 00          C      x2:	db	10,0
+  F61B    0A 00          C      y2:	db	10,0
+  F61D    00             C      rotat:	db	0		;fuer prbox
+  F61E    FBA9           C      zgadr:	dw	zganf	;Adresse des Zeichengenerators
+  F620    00 FD          C      pber:	db	0,0fdh		;Adr. des Copybereichs im RAM(27fh lang)
+  F622    01 20          C      dwdat:	db	1,20h		;Pattern-Pixel Linienart beim
+  F624    03 78 FF FF    C      dpram:	db	3,78h,0ffh,0ffh	;Zeichnen
+  F628    04 49          C      dcurs:	db	4,49h
+  F62A    00 00          C      dpos:	db	0,0
+  F62C    00             C      dpix:	db	0
+  F62D    0C 4C          C      dfigs:	db	0ch,4ch
+  F62F    08 00 00 00    C      drich:	db	8,0,0,0,0,0,0,0,0,0ffh,0ffh
+  F633    00 00 00 00    C      
+  F637    00 FF FF       C      
+  F63A    01 6C FF       C      	db	1,6ch,0ffh
+  F63D    00 00          C      dx:	db	0,0
+  F63F    00 00          C      dy:	db	0,0
+                         C      ;Datenbereich zur Ausgabe der ASCII-Zeichen (Pattern) 
+  F641    09 78          C      type:	db	9,78h
+  F643    00 FF 00 FF    C      pramp:	db	0,0ffh,0,0ffh,0,0ffh,0,0ffh
+  F647    00 FF 00 FF    C      
+  F64B    03 4C 10 07    C      	db	3,4ch,10h,7		;8 Byte Laenge
+  F64F    01 68 FF       C      	db	1,68h,0ffh		;Graphikzeichen ausgeben
+                         C      ;Datenbereich zum Loeschen von Bildschirmausschnitten 
+  F652    01 22 09 78    C      clszc0:	db	1,22h,9,78h,0ffh,0ffh,0ffh,0ffh,0ffh,0ffh
+  F656    FF FF FF FF    C      
+  F65A    FF FF          C      
+  F65C    FF FF 03 4C    C      	db	0ffh,0ffh,3,4ch,10h
+  F660    10             C      
+  F661    2C 03 4A FF    C      clspos:	db	2ch,3,4ah,0ffh,0ffh,1,68h,1,20h,0ffh
+  F665    FF 01 68 01    C      
+  F669    20 FF          C      
+  F66B    01             C      zcls1:	db	1
+  F66C    20 04 49       C      smod:	db	20h,4,49h	        ;Cursorpositionierung
+  F66F    00 00          C      pos:	db	0,0
+  F671    00 FF          C      pix:	db	0,0ffh
+  F673    03 78 FF FF    C      zcls2:	db	3,78h,0ffh,0ffh
+  F677    03 4A FF FF    C              db	3,4ah,0ffh,0ffh		;Maske auf ffffh setzen
+  F67B    04 4C 02       C      	db	4,4ch,2			;figs Kommando
+  F67E    3F 01          C      laeng:	db	3fh,1	;
+  F680    03 22 FF FF    C      	db	3,22h,0ffh,0ffh		;wdat reset Pixel
+  F684    01 20 FF       C      cursa2:	db	1,20h,0ffh		;wdat Pattern Pixel
+                         C      ;Datenbereich zum Bildschirmrollen
+  F687    03 70          C      scroll:	db	3,70h	; im PRAM Adr. des Bilds.anfangs aendern
+  F689    00 00 FF       C      pos0:	db	0,0,0ffh
+                         C      ;System Daten 
+  F68C    01             C      flag:	db	1		;Curs.ein aus usw. 
+  F68D    00             C      xk:	db	0		;x Koord.
+  F68E    00             C      yk:	db	0		;y Koord.
+  F68F    00 00          C      curs0:	db	0,0		;Adr. des Bildanfanges fuer GDC
+  F691    00 00          C      cursa:	db	0,0		;Adr. der Zeile des Cursors  
+  0093                   C      lgdcram	equ	$-gdcini
+                         C      
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-39
+
+
+  0280                   C      xmax	equ	640	;Anzahl Punkte
+  00C8                   C      ymax	equ	200
+                         C      
+                         C      ;Programm zur Initialisierung des GDC 
+  F693    21 0003        C      inigdc:	ld	hl,iobyt	;auf gdc-Ausgabe umschalten
+  F696    CB C6          C      	set	0,(hl)
+                         C      ;	ld	hl,tabanf	;tabellenadresse im rom
+                         C      ;	ld	de,gdcram	;adresse ramtabellen gdc
+                         C      ;	ld	bc,lgdcram
+                         C      ;	ldir
+  F698    21 FB64        C      	ld	hl,inid
+  F69B    CD F92D        C      	call	ioup
+  F69E    C9             C      	ret
+                         C      ;Hauptprogramm Zeichen wird in C uebergeben
+  F69F    F5             C      hp:	push	af
+  F6A0    E5             C      	push	hl
+  F6A1    C5             C      	push	bc
+  F6A2    D5             C      	push	de
+  F6A3    DD E5          C      	push	ix
+  F6A5    79             C      	ld	a,c
+  F6A6    D6 20          C      	sub	020h
+  F6A8    DA F777        C      	jp	c,stup		;wenn Steuerzeichen Sprung
+  F6AB    FE 5F          C      	cp	5fh
+  F6AD    D2 F777        C      	jp	nc,stup		;Steuerzeichen
+  F6B0    CD F6C0        C      	call	hp1		;Zeichen ausgeben Cursor ueberschr.
+  F6B3    CD F71A        C      	call	test		;Test ob eine Pos. weiter moeglich
+  F6B6    CD F6DA        C      	call	cursb0		;Cursor setzen 
+  F6B9    DD E1          C      ende:	pop	ix
+  F6BB    D1             C      	pop	de
+  F6BC    C1             C      	pop	bc
+  F6BD    E1             C      	pop	hl
+  F6BE    F1             C      	pop	af
+  F6BF    C9             C      	ret
+                         C      ;Prg.zur Zeichenausgabe (A)=ASCII - Zeichen-20h 
+  F6C0    26 00          C      hp1:	ld	h,0
+  F6C2    6F             C      	ld	l,a
+  F6C3    ED 5B F61E     C      	ld	de,(zgadr)
+  F6C7    29             C      	add	hl,hl		;"Zeichen"*8 
+  F6C8    29             C      	add	hl,hl
+  F6C9    29             C      	add	hl,hl
+  F6CA    19             C      	add	hl,de		;+ Zg.Anfangsadr.=Zeichenadr.
+  F6CB    11 F643        C      	ld	de,pramp	;in Datenbereich zur Ausgabe 
+  F6CE    01 0008        C      	ld	bc,0008		;kopieren
+  F6D1    ED B0          C      	ldir
+  F6D3    21 F641        C      	ld	hl,type		;als Muster (pattern) ausgeben
+  F6D6    CD F92D        C      	call	ioup
+  F6D9    C9             C      	ret	
+                         C      ;Cursor auf aktueller Position invertieren
+  F6DA    3A F68C        C      cursb0:	ld	a,(flag)
+  F6DD    E6 01          C      	and	1
+  F6DF    C8             C      	ret	z
+  F6E0    FD E5          C      	push	iy
+  F6E2    FD 21 F66C     C      	ld	iy,smod	
+  F6E6    FD 36 00 21    C      	ld	(iy),21h	;in Komplm.-Modus setzen
+  F6EA    CD F6FC        C      	call	cursc0		;Curs.adr. und
+  F6ED    3E 5F          C      	ld	a,5fh		;ASCII fuer Curs.  ausgeben	
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-40
+
+
+  F6EF    CD F6C0        C      	call	hp1
+  F6F2    FD 36 00 20    C      	ld	(iy),20h	;vom Komplm.-Zeichenmodus
+  F6F6    CD F6FC        C      	call	cursc0		;in PATTERN-Modus
+  F6F9    FD E1          C      	pop	iy
+  F6FB    C9             C      	ret
+                         C      ;Prg.zur Ausgabe der Cursoradr. fuer den GDC
+  F6FC    ED 5B F691     C      cursc0:	ld	de,(cursa)	;aus Zeilenadr. und x Koord Curs.Adr.er-
+  F700    3A F68D        C      	ld	a,(xk)		;rechnen und ausgeben
+  F703    21 F671        C      	ld	hl,pix
+  F706    36 00          C      	ld	(hl),0h
+  F708    A7             C      	and	a		;Carry = 0
+  F709    1F             C      	rra			;x Koord. durch 2 dividieren
+  F70A    CB 1E          C      	rr	(hl)		;=>Wortadr.und Punktadr.
+  F70C    6F             C      	ld	l,a
+  F70D    26 00          C      	ld	h,0
+  F70F    19             C      	add	hl,de		;errechnen
+  F710    22 F66F        C      	ld	(pos),hl	;und ausgeben
+  F713    21 F66B        C      	ld	hl,zcls1
+  F716    CD F92D        C      	call	ioup
+  F719    C9             C      	ret
+                         C      ;Prg. zum Test ob neue Position ,auf die der GDC-Curs nach 
+                         C      ;letzter Ausgabeoperation steht,moeglich ist ,sonst neue Zeilenadr.
+                         C      ;bestimmen und Bildschirmrollen wenn noetig
+  F71A    2A F68D        C      test:	ld	hl,(xk)
+  F71D    2C             C      	inc	l		;eine Position weiter
+  F71E    22 F68D        C      	ld	(xk),hl
+  F721    3E 50          C      	ld	a,xmax/8	;Spaltenzahl
+  F723    BD             C      	cp	l		;letzte Spalte?
+  F724    C0             C      	ret	nz		;nicht-Ruecksprung
+  F725    2E 00          C      	ld	l,0		;neue Zeile,Zeilenanfang
+  F727    24             C      	inc	h
+  F728    22 F68D        C      	ld	(xk),hl
+  F72B    3E 19          C      	ld	a,ymax/8	;Zeilenzahl
+  F72D    BC             C      	cp	h		;letzte Zeile?
+  F72E    28 1A          C      	jr	z,scrl		;ja Bildschirm rollen
+  F730    2A F691        C      m003:	ld	hl,(cursa)	;neue Adr.des Zeilenanfanges
+  F733    D5             C      	push	de		;errechnen(alte+320 Worte)
+  F734    11 0140        C      	ld	de,xmax/2	;(da obere Adr.bits nicht 
+  F737    19             C      	add	hl,de		;ausgewertet werden auch
+  F738    D1             C      	pop	de		;Adr.>8k Worte moeglich)
+  F739    7C             C      	ld	a,h		;hier auf
+  F73A    E6 1F          C      	and	01fh		;8k Worte begrenzt
+  F73C    67             C      	ld	h,a
+  F73D    22 F691        C      	ld	(cursa),hl	;neue Cursor pos 
+  F740    22 F66F        C      	ld	(pos),hl	;ausgeben
+  F743    21 F66B        C      	ld	hl,zcls1
+  F746    CD F92D        C      	call	ioup
+  F749    C9             C      	ret
+  F74A    25             C      scrl:	dec	h	
+  F74B    22 F68D        C      	ld	(xk),hl
+  F74E    2A F68F        C      	ld	hl,(curs0)	;Anfangsadr. fuer Bildschirm 
+  F751    D5             C      	push	de		;bestimmen (alte +320)
+  F752    11 0140        C      	ld	de,320
+  F755    19             C      	add	hl,de
+  F756    D1             C      	pop	de
+  F757    7C             C      	ld	a,h		;hier Adr.
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-41
+
+
+  F758    E6 1F          C      	and	1fh		;auf max.8k Worte begrenzt
+  F75A    67             C      	ld	h,a
+  F75B    22 F68F        C      	ld	(curs0),hl	;und ausgeben bzw zwischen-
+  F75E    22 F689        C      	ld	(pos0),hl	;speichern
+  F761    21 F687        C      	ld	hl,scroll
+  F764    CD F92D        C      	call	ioup
+  F767    CD F730        C      	call	m003		;Zeilenadr. bestimmen
+  F76A    21 F673        C      	ld	hl,zcls2	;Zeile loeschen
+  F76D    CD F92D        C      	call	ioup
+  F770    21 F66B        C      	ld	hl,zcls1	;letzte Curs.pos neu einschr.
+  F773    CD F92D        C      	call	ioup
+  F776    C9             C      	ret
+                         C      ;=============================================================
+                         C      ;Steuerzeichenauswertung
+  F777    C5             C      stup:	push	bc
+  F778    CD F6DA        C      	call	cursb0	        ;alten Cursor loeschen
+  F77B    C1             C      	pop	bc
+  F77C    79             C      	ld	a,c		;Steuerzeichen neu laden
+  F77D    F5             C      	push	af
+  F77E    ED 4B F68D     C      	ld	bc,(xk)		;Koordin.laden
+  F782    17             C      	rla			;Zeichen groesser 80h?
+  F783    30 3D          C      	jr	nc,m0288	;nein,Steuerz <20h u Sprung)
+  F785    3A F68C        C      	ld	a,(flag)
+  F788    F5             C      	push	af
+  F789    17             C      	rla			;Teset ob x o.y Koordin.
+  F78A    30 35          C      	jr	nc,m0289	;erwartet werden (zuvor 1Bh)
+  F78C    17             C      	rla			;Verzweigung y o. y Koordin.
+  F78D    30 21          C      	jr	nc,m028a	;Sprung bei x Koordin
+  F78F    F1             C      	pop	af		
+  F790    CB B7          C      	res	6,a		;speichern, dass x Koordin.
+  F792    32 F68C        C      	ld	(flag),a	;noch erwartet wird	
+  F795    F1             C      	pop	af
+  F796    E6 1F          C      	and	01fh		;
+  F798    32 F68E        C      	ld	(yk),a
+  F79B    47             C      	ld	b,a
+  F79C    2A F68F        C      	ld	hl,(curs0)	;aktuelle Cursoradr.
+  F79F    11 0140        C      	ld	de,320		;errechnen und ausgeben 
+  F7A2    A7             C      	and	a
+  F7A3    28 03          C      	jr	z,m0300
+  F7A5    19             C      m0301:	add	hl,de
+  F7A6    10 FD          C      	djnz	m0301
+  F7A8    22 F691        C      m0300:	ld	(cursa),hl
+  F7AB    CD F6FC        C      	call	cursc0	
+  F7AE    18 20          C      	jr	m0280
+                         C      	
+  F7B0    F1             C      m028a:	pop	af	
+  F7B1    CB BF          C      	res	7,a		;Steuerzeichenfolge (1Bh)
+  F7B3    32 F68C        C      	ld	(flag),a	;beenden	
+  F7B6    F1             C      	pop	af
+  F7B7    E6 7F          C      	and	07fh
+  F7B9    32 F68D        C      	ld	(xk),a		;aktuelle Adr. ausgeben
+  F7BC    CD F6FC        C      	call	cursc0
+  F7BF    18 0F          C      	jr	m0280
+                         C      
+  F7C1    F1             C      m0289:	pop	af
+  F7C2    F1             C      m0288:	pop	af		;Steuerzeichen hohlen 
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-42
+
+
+  F7C3    21 F8FF        C      	ld	hl,jptab	;Tabellenanfang laden
+  F7C6    CD FB48        C      	call	FCGA
+  F7C9    38 05          C      	jr	c,m0280		;Sprung wenn Zeichen kein Steuerzei.
+  F7CB    11 F7D0        C      	ld	de,m0280	;RET-Adr. fuer Unterprg. auf Stack
+  F7CE    D5             C      	push	de		;schaffen
+  F7CF    E9             C      	jp	(hl)
+                         C      
+  F7D0    CD F6DA        C      m0280:	call	cursb0
+  F7D3    C3 F6B9        C      	jp	ende
+  F7D6    01 0000        C      ghome:	ld	bc,0		;Zeile u Spalte 0 ausgeben
+  F7D9    ED 43 F68D     C      	ld	(xk),bc
+  F7DD    ED 4B F68F     C      	ld	bc,(curs0)
+  F7E1    ED 43 F691     C      	ld	(cursa),bc
+  F7E5    CD F6FC        C      	call	cursc0
+  F7E8    C9             C      	ret
+  F7E9    CD F8AA        C      del:	call	cu1l	
+  F7EC    AF             C      	xor	a
+  F7ED    CD F6C0        C      	call	hp1		;Leerzeichen ausgeben 
+  F7F0    CD F6FC        C      	call	cursc0
+  F7F3    C9             C      	ret
+  F7F4    3E 4F          C      lf:	ld	a,79		;rechten Rand als x Koord.
+  F7F6    32 F68D        C      	ld	(xk),a
+  F7F9    C5             C      	push	bc
+  F7FA    CD F71A        C      	call	test		;=>naechste Position
+  F7FD    C1             C      	pop	bc
+  F7FE    79             C      	ld	a,c
+  F7FF    32 F68D        C      	ld	(xk),a		;alte x Position einsetzen
+  F802    CD F6FC        C      	call	cursc0
+  F805    C9             C      	ret
+  F806    21 1FFF        C      bloeh:	ld	hl,01fffh	;Byteanzahl der wdat-Funktion
+  F809    22 F67E        C      	ld	(laeng),hl	;auf ges.Bilds.erhoehen 
+  F80C    21 F673        C      	ld	hl,zcls2
+  F80F    CD F92D        C      	call	ioup
+  F812    21 0140        C      	ld	hl,320		;und auf Zeilenlaenge setzen
+  F815    22 F67E        C      	ld	(laeng),hl
+  F818    01 0000        C      	ld	bc,0		;Adr. Bildanfang auf 00
+  F81B    ED 43 F689     C      	ld	(pos0),bc	;(z.B.def.Zustand fuer
+  F81F    ED 43 F68F     C      	ld	(curs0),bc	;Graphicarbeiten
+  F823    21 F687        C      	ld	hl,scroll
+  F826    CD F92D        C      	call	ioup
+  F829    18 AB          C      	jr	ghome
+  F82B    0E 00          C      cr:	ld	c,0h		;linken Rand eintragen
+  F82D    ED 43 F68D     C      	ld	(xk),bc		;
+  F831    CD F6FC        C      	call	cursc0
+  F834    C9             C      	ret
+  F835    3E 4F          C      clszc:	ld	a,4fh		;Differenz zum rechten Rand
+  F837    91             C      	sub	c
+  F838    28 16          C      	jr	z,clszc3	;Cursor am rechten Rand
+  F83A    1F             C      	rra			;durch 2 div.
+  F83B    38 06          C      	jr	c,clszc2	;ungerade Diff.=>xKoord. war gerade
+  F83D    F5             C      	push	af
+  F83E    CD F850        C      	call	clszc3		;Leerzeichen ausgeben ,aktive Cursor-
+  F841    F1             C      	pop	af		;Position gerade
+  F842    3D             C      	dec	a
+  F843    32 F661        C      clszc2:	ld	(clspos),a	;aktive Koord.ist gerade 
+  F846    21 F652        C      	ld	hl,clszc0	;a*16 Bit werden in x Richt.
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-43
+
+
+  F849    CD F92D        C      	call	ioup		;geloeschet
+  F84C    CD F6FC        C      	call	cursc0
+  F84F    C9             C      	ret
+  F850    F5             C      clszc3:	push	af
+  F851    AF             C      	xor	a
+  F852    CD F6C0        C      	call	hp1		;Leerzeichen ausgeben
+  F855    F1             C      	pop	af
+  F856    C0             C      	ret	nz
+  F857    CD F6FC        C      	call	cursc0
+  F85A    C9             C      	ret
+  F85B    CD F71A        C      cu1r:	call	test		;Cursor eine Position weiter
+  F85E    CD F6FC        C      	call	cursc0
+  F861    C9             C      	ret
+  F862    CD F82B        C      clszi:	call	cr		;Cursor an Zeilenanfang
+  F865    21 F673        C      	ld	hl,zcls2	;u Zeile loeschen
+  F868    CD F92D        C      	call	ioup
+  F86B    CD F6FC        C      	call	cursc0
+  F86E    C9             C      	ret
+  F86F    78             C      cu1h:	ld	a,b
+  F870    D6 01          C      	sub	1		;Carry wird registriert 
+  F872    47             C      	ld	b,a	
+  F873    30 0A          C      	jr	nc,cu1h0	;Cursor nicht Oben,Sprung
+  F875    06 00          C      	ld	b,0	
+  F877    ED 43 F68D     C      cu1h1:	ld	(xk),bc
+  F87B    CD F6FC        C      	call	cursc0
+  F87E    C9             C      	ret	
+  F87F    2A F691        C      cu1h0:	ld	hl,(cursa)	;neue Zeilenadr. errechn. 
+  F882    11 0140        C      	ld	de,320
+  F885    A7             C      	and	a		;Carry auf 0 setzen
+  F886    ED 52          C      	sbc	hl,de
+  F888    22 F691        C      	ld	(cursa),hl
+  F88B    18 EA          C      	jr	cu1h1
+  F88D    3A F68C        C      xyein:	ld	a,(flag)
+  F890    CB F7          C      	set	6,a		;folgendes Zeichen or 80 =y Koordin.
+  F892    CB FF          C      	set	7,a
+  F894    32 F68C        C      	ld	(flag),a
+  F897    C9             C      	ret
+  F898    3A F68C        C      cuein:	ld	a,(flag)	;Cursor ein(ca 3*langsamer
+  F89B    CB C7          C      	set	0,a		;als ohne Cursor)
+  F89D    32 F68C        C      	ld	(flag),a
+  F8A0    C9             C      	ret
+  F8A1    3A F68C        C      cuaus:	ld	a,(flag)	;Cursor aus
+  F8A4    CB 87          C      	res	0,a
+  F8A6    32 F68C        C      	ld	(flag),a
+  F8A9    C9             C      	ret
+  F8AA    79             C      cu1l:	ld	a,c
+  F8AB    D6 01          C      	sub	1
+  F8AD    4F             C      	ld	c,a
+  F8AE    30 06          C      	jr	nc,cu1l0	;Sprung wenn Cu.nicht links 
+  F8B0    0E 4F          C      	ld	c,4fh		;Cursor zum rechten Rand
+  F8B2    CD F86F        C      	call	cu1h		;Cu.eine Zeile hoch
+  F8B5    C9             C      	ret
+  F8B6    ED 43 F68D     C      cu1l0:	ld	(xk),bc
+  F8BA    CD F6FC        C      	call	cursc0
+  F8BD    C9             C      	ret
+  F8BE    2A F691        C      clsbs:	ld	hl,(cursa)	;ab Cursor bis Bildende
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-44
+
+
+  F8C1    E5             C      	push	hl		;loeschen,
+  F8C2    CD F835        C      	call	clszc		;erst bis Zeilenende
+  F8C5    ED 4B F68D     C      	ld	bc,(xk)
+  F8C9    C5             C      	push	bc
+  F8CA    3E 18          C      	ld	a,24		
+  F8CC    B8             C      	cp	b		;Sprung wenn
+  F8CD    28 23          C      	jr	z,clsbs2	;Cu.in der letzten Zeile
+  F8CF    0E 00          C      	ld	c,0		;Cu eine Zeile tiefer
+  F8D1    CD F7F4        C      	call	lf		;und zum linken Rand
+  F8D4    3A F68E        C      	ld	a,(yk)		;
+  F8D7    2F             C      	cpl			;Zeilenanzahl bis 
+  F8D8    3C             C      	inc	a		;zum Bildende
+  F8D9    C6 19          C      	add	a,19h
+  F8DB    47             C      	ld	b,a
+  F8DC    11 0140        C      	ld	de,320
+  F8DF    21 0000        C      	ld	hl,0
+  F8E2    19             C      clsbs0:	add	hl,de		;Anzahl der zu loeschenden
+  F8E3    10 FD          C      	djnz	clsbs0		;Worte bilden
+  F8E5    22 F67E        C      clsbs1:	ld	(laeng),hl	;und Ausgabebereich ein-
+  F8E8    21 F673        C      	ld	hl,zcls2	;tragen
+  F8EB    CD F92D        C      	call	ioup
+  F8EE    ED 53 F67E     C      	ld	(laeng),de	;Laenge zum Zeilenloeschen
+  F8F2    C1             C      clsbs2:	pop	bc		;alte Cursoradr.
+  F8F3    ED 43 F68D     C      	ld	(xk),bc		;wieder ausgeben
+  F8F7    E1             C      	pop	hl
+  F8F8    22 F691        C      	ld	(cursa),hl
+  F8FB    CD F6FC        C      	call	cursc0
+  F8FE    C9             C      	ret
+                         C      ;=============================================================
+                         C      ;Tabelle der Bildschirmsteuerzeichen und Adressen dazu
+  F8FF    01             C      jptab:	db	01h
+  F900    F7D6           C      	dw	ghome
+  F902    07             C      	db	07h
+  F903    E2DF           C      	dw	ton
+  F905    08             C      	db	08h
+  F906    F8AA           C      	dw	cu1l
+  F908    0A             C      	db	0ah
+  F909    F7F4           C      	dw	lf
+  F90B    0C             C      	db	0ch
+  F90C    F806           C      	dw	bloeh
+  F90E    0D             C      	db	0dh
+  F90F    F82B           C      	dw	cr
+  F911    16             C      	db	16h
+  F912    F835           C      	dw	clszc	;loescht ab Cu Zeile
+  F914    15             C      	db	15h
+  F915    F85B           C      	dw	cu1r
+  F917    14             C      	db	14h
+  F918    F8BE           C      	dw	clsbs	;loeschen ab Cu ges Bildsch
+  F91A    18             C      	db	18h
+  F91B    F862           C      	dw	clszi	;loeschen Zeile ,Cu nach links
+  F91D    1A             C      	db	1ah
+  F91E    F86F           C      	dw	cu1h
+  F920    1B             C      	db	1bh
+  F921    F88D           C      	dw	xyein
+  F923    82             C      	db	82h	;Es ist darauf zu achten,dass
+  F924    F898           C      	dw	cuein	;1bh-Folgen beendet sind, da
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-45
+
+
+  F926    83             C      	db	83h	;sonst diese Kommandos als Bild-
+  F927    F8A1           C      	dw	cuaus	;koordinaten gewertet werden!!
+  F929    7F             C      	db	7fh
+  F92A    F7E9           C      	dw	del
+  F92C    FF             C      	db	0ffh	;Ende der Tab
+                         C      ;Prg. zur Ausgabe zum GDC  
+                         C      ;(HL)=Datenbereich ;(Laenge,Kommando,Parameter)
+  F92D    46             C      ioup:	ld	b,(hl)
+  F92E    04             C      	inc	b
+  F92F    C8             C      	ret	z	;wenn (hl)=ffh dann Sprung
+  F930    05             C      	dec	b
+  F931    23             C      	inc	hl
+  F932    0E 8F          C      	ld	c,gdcd
+  F934    ED A3          C      	outi	
+  F936    F5             C      	push	af
+  F937    DB 8E          C      ioup0:	in	a,(gdcc)	;Test ob letzte Operation ausge-
+  F939    E6 04          C      	and	4		;fuehrt wurde
+  F93B    28 FA          C      	jr	z,ioup0	
+  F93D    F1             C      	pop	af
+  F93E    28 ED          C      	jr	z,ioup
+  F940    0D             C      	dec	c
+  F941    DB 8E          C      ioup1:	in	a,(gdcc)	;Test ob FIFO-Puffer nicht
+  F943    E6 02          C      	and	2		;voll ist
+  F945    20 FA          C      	jr	nz,ioup1
+  F947    ED A3          C      	outi
+  F949    20 F6          C      	jr	nz,ioup1
+  F94B    18 E0          C      	jr	ioup
+                         C      ;===============================================================
+                         C      ;Unterprogramm Punkt setzen/ruecksetzen
+  F94D    F5             C      pixel:	push	af
+  F94E    E5             C      	push	hl
+  F94F    C5             C      	push	bc
+  F950    D5             C      	push	de
+  F951    DD E5          C      	push	ix
+  F953    CD FAF8        C      	call	upcup
+  F956    21 0000        C      	ld 	hl,0h
+  F959    22 F62F        C      	ld	(drich),hl
+  F95C    22 F631        C      	ld	(drich+2),hl
+  F95F    21 F622        C      	ld	hl,dwdat
+  F962    CD F92D        C      	call	ioup
+  F965    C3 F6B9        C      	jp	ende
+                         C      ;Programm zum Zeichnen von Strecken entsp.x1 y1 x2 y2
+  F968    F5             C      draw:	push	af
+  F969    E5             C      	push	hl
+  F96A    C5             C      	push	bc
+  F96B    D5             C      	push	de
+  F96C    DD E5          C      	push	ix
+  F96E    CD FA34        C      	call	upokt	
+  F971    CD FA8D        C      	call	upprg
+  F974    CD FAF8        C      	call	upcup
+  F977    21 F622        C      	ld	hl,dwdat
+  F97A    CD F92D        C      	call	ioup
+  F97D    C3 F6B9        C      	jp	ende
+                         C      ;Zeichnung eines Rechtecks x1,y1 Bezugskoordin.
+                         C      ;x2,y2 entsprechen Seitenlaenge, rotat Rotation
+                         C      ;um je 45 grd
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-46
+
+
+  F980    F5             C      prbox:	push	af
+  F981    E5             C      	push	hl
+  F982    C5             C      	push	bc
+  F983    D5             C      	push	de
+  F984    DD E5          C      	push	ix
+  F986    CD FAF8        C      	call	upcup
+  F989    DD 21 F62F     C      	ld	ix,drich
+  F98D    06 40          C      	ld	b,40h
+  F98F    3A F61D        C      	ld	a,(rotat)
+  F992    B0             C      	or	b
+  F993    DD 77 00       C      	ld	(ix),a
+  F996    DD 36 01 03    C      	ld	(ix+1),3
+  F99A    2A F61B        C      	ld	hl,(y2)
+  F99D    ED 5B F619     C      	ld	de,(x2)
+  F9A1    2B             C      	dec	hl
+  F9A2    1B             C      	dec	de
+  F9A3    DD 75 03       C      	ld	(ix+3),l
+  F9A6    DD 74 04       C      	ld	(ix+4),h
+  F9A9    DD 73 05       C      	ld	(ix+5),e
+  F9AC    DD 72 06       C      	ld	(ix+6),d
+  F9AF    DD 36 07 FF    C      	ld	(ix+7),0ffh
+  F9B3    DD 36 08 3F    C      	ld	(ix+8),3fh
+  F9B7    DD 75 09       C      	ld	(ix+9),l
+  F9BA    DD 74 0A       C      	ld	(ix+0ah),h
+  F9BD    21 F622        C      	ld	hl,dwdat
+  F9C0    CD F92D        C      	call	ioup
+  F9C3    C3 F6B9        C      	jp	ende
+                         C      ;Zeile des aktuellen Cursors in den
+                         C      ;RAM-Bereich schreiben
+  F9C6    F5             C      hpr:	push	af
+  F9C7    E5             C      	push	hl
+  F9C8    C5             C      	push	bc
+  F9C9    D5             C      	push	de
+  F9CA    DD E5          C      	push	ix
+  F9CC    CD F6DA        C      	call	cursb0
+  F9CF    CD FB37        C      	call	curss
+  F9D2    21 FB83        C      	ld	hl,cmask
+  F9D5    CD F92D        C      	call	ioup
+  F9D8    21 FB92        C      	ld	hl,figsr
+  F9DB    CD F92D        C      	call	ioup
+  F9DE    3E A1          C      	ld	a,0a1h
+  F9E0    D3 8F          C      	out	(gdcd),a
+  F9E2    2A F620        C      	ld	hl,(pber)
+  F9E5    06 08          C      	ld	b,8		;Pixelzeilen
+  F9E7    C5             C      hpr1:	push	bc
+  F9E8    06 50          C      	ld	b,xmax/8	;Zeichen je Zeile
+  F9EA    CD FB2A        C      	call	inup
+  F9ED    C1             C      	pop	bc
+  F9EE    10 F7          C      	djnz	hpr1
+  F9F0    CD FB37        C      	call	curss
+  F9F3    CD F6DA        C      	call	cursb0
+  F9F6    C3 F6B9        C      	jp	ende
+                         C      ;Zeile auf Bilschirm schreiben,
+                         C      ;es wird die aktuelle Cursorzeile be-
+                         C      ;nutzt
+  F9F9    F5             C      hpw:	push	af
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-47
+
+
+  F9FA    E5             C      	push	hl
+  F9FB    C5             C      	push	bc
+  F9FC    D5             C      	push	de
+  F9FD    DD E5          C      	push	ix
+  F9FF    CD F6DA        C      	call	cursb0
+  FA02    21 FB88        C      	ld	hl,synca
+  FA05    CD F92D        C      	call	ioup
+  FA08    CD FB37        C      	call	curss
+  FA0B    21 FB83        C      	ld	hl,cmask
+  FA0E    CD F92D        C      	call	ioup
+  FA11    3E 20          C      	ld	a,20h
+  FA13    D3 8F          C      	out	(gdcd),a
+  FA15    06 08          C      	ld	b,8		;Pixel
+  FA17    2A F620        C      	ld	hl,(pber)
+  FA1A    C5             C      hpw1:	push	bc
+  FA1B    06 50          C      	ld	b,xmax/8	;Zeichen/Zeile
+  FA1D    0E 8E          C      	ld	c,gdcc
+  FA1F    CD FB1F        C      	call	ioup3
+  FA22    C1             C      	pop	bc
+  FA23    10 F5          C      	djnz	hpw1
+  FA25    21 FB98        C      	ld	hl,syncb
+  FA28    CD F92D        C      	call	ioup
+  FA2B    CD FB37        C      	call	curss
+  FA2E    CD F6DA        C      	call	cursb0
+  FA31    C3 F6B9        C      	jp 	ende
+                         C      
+                         C      ;Zeichnungsrichtung (8-tel) sowie deltax und deltay
+                         C      ;fuer figs-Kommando aus x1,y1,x2,y2 errechnen 
+  FA34    2A F619        C      upokt:	ld	hl,(x2)
+  FA37    ED 4B F615     C      	ld	bc,(x1)
+  FA3B    A7             C      	and	a
+  FA3C    ED 42          C      	sbc	hl,bc
+  FA3E    38 22          C      	jr	c,m1
+  FA40    22 F63D        C      	ld	(dx),hl
+  FA43    ED 4B F617     C      	ld	bc,(y1)
+  FA47    2A F61B        C      	ld	hl,(y2)
+  FA4A    A7             C      	and	a
+  FA4B    ED 42          C      	sbc	hl,bc
+  FA4D    38 06          C      	jr	c,m2
+  FA4F    22 F63F        C      	ld	(dy),hl
+  FA52    3E 03          C      	ld	a,3
+  FA54    C9             C      	ret
+  FA55    E5             C      m2:	push	hl
+  FA56    C1             C      	pop	bc
+  FA57    21 0000        C      	ld	hl,0
+  FA5A    A7             C      	and	a
+  FA5B    ED 42          C      	sbc	hl,bc
+  FA5D    22 F63F        C      	ld	(dy),hl
+  FA60    AF             C      	xor	a
+  FA61    C9             C      	ret
+  FA62    E5             C      m1:	push	hl
+  FA63    C1             C      	pop	bc
+  FA64    21 0000        C      	ld	hl,0
+  FA67    A7             C      	and	a
+  FA68    ED 42          C      	sbc	hl,bc
+  FA6A    22 F63D        C      	ld	(dx),hl
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-48
+
+
+  FA6D    ED 4B F617     C      	ld	bc,(y1)
+  FA71    2A F61B        C      	ld	hl,(y2)
+  FA74    A7             C      	and	a
+  FA75    ED 42          C      	sbc	hl,bc
+  FA77    38 06          C      	jr	c,m3
+  FA79    22 F63F        C      	ld	(dy),hl
+  FA7C    3E 02          C      	ld	a,2
+  FA7E    C9             C      	ret
+  FA7F    E5             C      m3:	push	hl
+  FA80    C1             C      	pop	bc
+  FA81    21 0000        C      	ld	hl,0
+  FA84    A7             C      	and	a
+  FA85    ED 42          C      	sbc	hl,bc
+  FA87    22 F63F        C      	ld	(dy),hl
+  FA8A    3E 01          C      	ld	a,1
+  FA8C    C9             C      	ret
+                         C      ;figs-Kommando fuer Zeichenoperation vorbereiten,
+                         C      ;spezifische Kommandodaten errechnen
+  FA8D    ED 4B F63D     C      upprg:	ld	bc,(dx)
+  FA91    2A F63F        C      	ld	hl,(dy)
+  FA94    A7             C      	and	a
+  FA95    ED 42          C      	sbc	hl,bc
+  FA97    2A F63D        C      	ld	hl,(dx)
+  FA9A    ED 5B F63F     C      	ld	de,(dy)
+  FA9E    38 03          C      	jr	c,m4
+  FAA0    EB             C      	ex	de,hl
+  FAA1    C6 04          C      	add	a,4
+  FAA3    ED 53 F63D     C      m4:	ld	(dx),de
+  FAA7    22 F63F        C      	ld	(dy),hl
+  FAAA    21 FBA1        C      	ld	hl,okt1
+  FAAD    85             C      	add	a,l
+  FAAE    30 01          C      	jr	nc,m5
+  FAB0    24             C      	inc	h
+  FAB1    6F             C      m5:	ld	l,a
+  FAB2    7E             C      	ld	a,(hl)
+  FAB3    F6 08          C      	or	8
+  FAB5    32 F62F        C      	ld	(drich),a
+  FAB8    2A F63F        C      	ld	hl,(dy)
+  FABB    7C             C      	ld	a,h
+  FABC    E6 3F          C      	and	3fh
+  FABE    67             C      	ld	h,a
+  FABF    22 F630        C      	ld	(drich+1),hl
+  FAC2    ED 5B F63D     C      	ld	de,(dx) 
+  FAC6    A7             C      	and	a
+  FAC7    CB 13          C      	rl	e
+  FAC9    CB 12          C      	rl	d
+  FACB    EB             C      	ex	de,hl
+  FACC    A7             C      	and	a	;theor. Carry nicht gesetzt
+  FACD    ED 52          C      	sbc	hl,de
+  FACF    7C             C      	ld	a,h
+  FAD0    E6 3F          C      	and	3fh
+  FAD2    67             C      	ld	h,a
+  FAD3    22 F632        C      	ld	(drich+3),hl
+  FAD6    2A F63D        C      	ld	hl,(dx)
+  FAD9    ED 5B F63F     C      	ld	de,(dy)
+  FADD    A7             C      	and	a
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-49
+
+
+  FADE    ED 52          C      	sbc	hl,de
+  FAE0    A7             C      	and	a
+  FAE1    CB 15          C      	rl	l
+  FAE3    CB 14          C      	rl	h
+  FAE5    7C             C      	ld	a,h
+  FAE6    E6 3F          C      	and	3fh
+  FAE8    67             C      	ld	h,a
+  FAE9    22 F634        C      	ld	(drich+5),hl
+  FAEC    2A F63D        C      	ld	hl,(dx)
+  FAEF    A7             C      	and	a
+  FAF0    CB 15          C      	rl	l
+  FAF2    CB 14          C      	rl	h
+  FAF4    22 F636        C      	ld	(drich+7),hl
+  FAF7    C9             C      	ret
+                         C      ;aus x1,y1 Cursoradr. errechnen und in Ausgabe-
+                         C      ;datenbereich eintragen
+  FAF8    2A F617        C      upcup:	ld	hl,(y1)
+  FAFB    29             C      upcup1:	add	hl,hl
+  FAFC    29             C      	add	hl,hl
+  FAFD    29             C      	add	hl,hl
+  FAFE    E5             C      	push	hl
+  FAFF    29             C      	add	hl,hl
+  FB00    29             C      	add	hl,hl
+  FB01    D1             C      	pop	de
+  FB02    19             C      	add	hl,de
+  FB03    ED 5B F615     C      	ld	de,(x1)
+  FB07    AF             C      	xor	a
+  FB08    06 04          C      	ld	b,4
+  FB0A    CB 1A          C      m6:	rr	d
+  FB0C    CB 1B          C      	rr	e
+  FB0E    CB 1F          C      	rr	a
+  FB10    10 F8          C      	djnz	m6
+  FB12    19             C      	add	hl,de
+  FB13    ED 5B F68F     C      	ld	de,(curs0)
+  FB17    19             C      	add	hl,de	;errechnete Adr.+Bildanf.
+  FB18    22 F62A        C      	ld	(dpos),hl
+  FB1B    32 F62C        C      	ld	(dpix),a
+  FB1E    C9             C      	ret
+  FB1F    DB 8E          C      ioup3:	in	a,(gdcc)
+  FB21    E6 02          C      	and	2
+  FB23    20 FA          C      	jr	nz,ioup3
+  FB25    ED A3          C      	outi
+  FB27    20 F6          C      	jr	nz,ioup3
+  FB29    C9             C      	ret
+  FB2A    0E 8F          C      inup:	ld	c,gdcd
+  FB2C    DB 80          C      inup1:	in	a,(80h)
+  FB2E    E6 01          C      	and	1
+  FB30    28 FA          C      	jr	z,inup1
+  FB32    ED A2          C      	ini
+  FB34    20 F6          C      	jr	nz,inup1
+  FB36    C9             C      	ret
+                         C      
+  FB37    2A F691        C      curss:	ld	hl,(cursa)
+  FB3A    22 F66F        C      	ld	(pos),hl
+  FB3D    AF             C      	xor	a
+  FB3E    32 F671        C      	ld	(pix),a
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-50
+
+
+  FB41    21 F66B        C      	ld	hl,zcls1
+  FB44    CD F92D        C      	call 	ioup
+  FB47    C9             C      	ret
+                         C      
+                         C      ;SUBROUTINE VERZWEIGUNG
+                         C      ;IN:	ZEICHEN IN A
+                         C      ;	TABELLENADRESSE IN HL
+                         C      ;OUT : CY=0:HL=ADR,CY=1:Nicht gefunden
+  FB48    D5             C      FCGA::	PUSH	DE
+  FB49    5F             C      	LD	E,A		;ZEICHEN
+  FB4A    7E             C      FCGA1:	LD	A,(HL)
+  FB4B    FE FF          C      	CP	0ffh		;tabellenende
+  FB4D    28 11          C      	JR	Z,FCGA3
+  FB4F    BB             C      	CP	E
+  FB50    28 05          C      	JR	Z,FCGA2
+  FB52    23             C      	INC	HL
+  FB53    23             C      	INC	HL
+  FB54    23             C      	INC	HL
+  FB55    18 F3          C      	JR	FCGA1
+  FB57    7B             C      FCGA2:	LD	A,E
+  FB58    23             C      	INC	HL
+  FB59    5E             C      	LD	E,(HL)
+  FB5A    23             C      	INC	HL
+  FB5B    56             C      	LD	D,(HL)
+  FB5C    23             C      	INC	HL
+  FB5D    EB             C      	EX 	DE,HL
+  FB5E    18 02          C      	JR	FCGA4
+  FB60    37             C      FCGA3:	SCF			;nicht gefunden
+  FB61    7B             C      	LD	A,E	
+  FB62    D1             C      FCGA4:	POP	DE
+  FB63    C9             C      	RET
+                         C      	
+                         C      
+                         C      ;Initialisierungsparameter fuer den GDC (Laenge,Kommando,Parameter...)
+                         C      ;Daten koennen auch im ROM stehen
+  FB64    09 00 12 26    C      inid:	defm	9,0,12h,26h	;Reset GDC und Bildschirm-
+  FB68    48 1D 07 37    C      	defm	48h,1dh,7h,37h	;parameter 640*200 Pixel
+  FB6C    C8 98          C      	defm	0c8h,98h	;kein Refresh,Graphikbetrieb
+  FB6E    01 6F          C      	defm	1,6fh		;Vertikalsync. durch GDC ein
+  FB70    09 70 00 00    C      	defm	9,70h,0,0	;PRAM auf 640*200 festlegen
+  FB74    80 0C FF FF    C      	defm	80h,0ch,0ffh,0ffh	
+  FB78    FF FF          C      	defm	0ffh,0ffh
+  FB7A    02 47 28       C      	defm	2,47h,28h	;Pitch (Worte pro Zeile)
+  FB7D    02 46 00       C      	defm	2,46h,00	;Zoom 00
+  FB80    01 6B FF       C      	defm	1,6bh,0ffh	;Bildschirmfreigabe
+                         C      ;Zeichenparameter
+  FB83    03 4A FF FF    C      cmask:	db	3,4ah,0ffh,0ffh,0ffh	
+  FB87    FF             C      
+  FB88    02 0E 10       C      synca:	db	2,0eh,10h
+  FB8B    02 73 4F       C      mpram:	db	2,73h,4fh
+  FB8E    02 4C 02 FF    C      figsw:	db	2,4ch,02h,0ffh
+  FB92    04 4C 02 40    C      figsr:	db	4,4ch,02h,040h,1,0ffh
+  FB96    01 FF          C      
+  FB98    02 0E 12       C      syncb:	db	2,0eh,12h
+  FB9B    02 73 0F 01    C      gpram:	db	2,73h,0fh,1,0dh,0ffh
+  FB9F    0D FF          C      
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-51
+
+
+  FBA1    02 05 06 01    C      okt1:	db	2,5,6,1,3,4,7,0
+  FBA5    03 04 07 00    C      
+                         C      include	GDCZG2.MAC
+  FBA9    00 00 00 00    C      zganf:	db	0,0,0,0,0,0,0,0
+  FBAD    00 00 00 00    C      
+  FBB1    00 00 00 5F    C      	db	0,0,0,5fh,5fh,0,0,0
+  FBB5    5F 00 00 00    C      
+  FBB9    00 00 07 07    C      	db	0,0,7,7,0,7,7,0
+  FBBD    00 07 07 00    C      
+  FBC1    00 14 7F 7F    C      	db	0,14h,7fh,7fh,14h,7fh,7fh,14h
+  FBC5    14 7F 7F 14    C      
+  FBC9    00 12 2A 7F    C      	db	0,12h,2ah,7fh,7fh,2ah,24h,0
+  FBCD    7F 2A 24 00    C      
+  FBD1    00 62 66 0C    C      	db	0,62h,66h,0ch,18h,30h,66h,46h
+  FBD5    18 30 66 46    C      
+  FBD9    00 48 7A 37    C      	db	0,48h,7ah,37h,5dh,4fh,7ah,30h
+  FBDD    5D 4F 7A 30    C      
+  FBE1    00 00 00 03    C      	db	0,0,0,3,7,4,0,0
+  FBE5    07 04 00 00    C      
+  FBE9    00 00 41 63    C      	db	0,0,41h,63h,3eh,1ch,0,0
+  FBED    3E 1C 00 00    C      
+  FBF1    00 00 1C 3E    C      	db	0,0,1ch,3eh,63h,41h,0,0
+  FBF5    63 41 00 00    C      
+  FBF9    08 2A 3E 1C    C      	db	8,2ah,3eh,1ch,1ch,3eh,2ah,8
+  FBFD    1C 3E 2A 08    C      
+  FC01    00 08 08 3E    C      	db	0,8,8,3eh,3eh,8,8,0
+  FC05    3E 08 08 00    C      
+  FC09    00 00 00 60    C      	db	0,0,0,60h,0e0h,80h,0,0
+  FC0D    E0 80 00 00    C      
+  FC11    00 08 08 08    C      	db	0,8,8,8,8,8,8,0
+  FC15    08 08 08 00    C      
+  FC19    00 00 00 60    C      	db	0,0,0,60h,60h,0,0,0
+  FC1D    60 00 00 00    C      
+  FC21    00 01 03 06    C      	db	0,1,3,6,0ch,18h,30h,60h
+  FC25    0C 18 30 60    C      
+  FC29    00 3E 7F 45    C      	db	0,3eh,7fh,45h,49h,51h,7fh,3eh
+  FC2D    49 51 7F 3E    C      
+  FC31    00 40 40 7F    C      	db	0,40h,40h,7fh,7fh,42h,40h,0
+  FC35    7F 42 40 00    C      
+  FC39    00 66 6F 49    C      	db	0,66h,6fh,49h,49h,7bh,72h,0
+  FC3D    49 7B 72 00    C      
+  FC41    00 36 7F 49    C      	db	0,36h,7fh,49h,49h,63h,22h,0
+  FC45    49 63 22 00    C      
+  FC49    00 50 7F 7F    C      	db	0,50h,7fh,7fh,53h,16h,1ch,18h
+  FC4D    53 16 1C 18    C      
+  FC51    00 33 79 49    C      	db	0,33h,79h,49h,49h,6fh,2fh,0
+  FC55    49 6F 2F 00    C      
+  FC59    00 32 7B 49    C      	db	0,32h,7bh,49h,49h,7fh,3eh,0
+  FC5D    49 7F 3E 00    C      
+  FC61    00 07 0F 79    C      	db	0,7,0fh,79h,71h,3,3,0
+  FC65    71 03 03 00    C      
+  FC69    00 36 7F 49    C      	db	0,36h,7fh,49h,49h,7fh,36h,0
+  FC6D    49 7F 36 00    C      
+  FC71    00 3E 7F 49    C      	db	0,3eh,7fh,49h,49h,6fh,26h,0
+  FC75    49 6F 26 00    C      
+  FC79    00 00 00 6C    C      	db	0,0,0,6ch,6ch,0,0,0
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-52
+
+
+  FC7D    6C 00 00 00    C      
+  FC81    00 00 00 6C    C      	db	0,0,0,6ch,0ech,80h,0,0
+  FC85    EC 80 00 00    C      
+  FC89    00 00 41 63    C      	db	0,0,41h,63h,36h,1ch,8,0
+  FC8D    36 1C 08 00    C      
+  FC91    00 24 24 24    C      	db	0,24h,24h,24h,24h,24h,24h,0
+  FC95    24 24 24 00    C      
+  FC99    00 00 08 1C    C      	db	0,0,8,1ch,36h,63h,41h,0
+  FC9D    36 63 41 00    C      
+  FCA1    00 06 0F 59    C      	db	0,6,0fh,59h,51h,7,6,0
+  FCA5    51 07 06 00    C      
+  FCA9    00 1E 5F 5D    C      	db	0,1eh,5fh,5dh,5dh,41h,7fh,3eh
+  FCAD    5D 41 7F 3E    C      
+  FCB1    00 7C 7E 13    C      	db	0,7ch,7eh,13h,13h,7eh,7ch,0
+  FCB5    13 7E 7C 00    C      
+  FCB9    00 36 7F 49    C      	db	0,36h,7fh,49h,49h,7fh,7fh,41h
+  FCBD    49 7F 7F 41    C      
+  FCC1    00 22 63 41    C      	db	0,22h,63h,41h,41h,63h,3eh,1ch
+  FCC5    41 63 3E 1C    C      
+  FCC9    00 1C 3E 63    C      	db	0,1ch,3eh,63h,41h,7fh,7fh,41h
+  FCCD    41 7F 7F 41    C      
+  FCD1    00 63 41 5D    C      	db	0,63h,41h,5dh,49h,7fh,7fh,41h
+  FCD5    49 7F 7F 41    C      
+  FCD9    00 03 01 1D    C      	db	0,3,1,1dh,49h,7fh,7fh,41h
+  FCDD    49 7F 7F 41    C      
+  FCE1    00 72 73 51    C      	db	0,72h,73h,51h,41h,63h,3eh,1ch
+  FCE5    41 63 3E 1C    C      
+  FCE9    00 7F 7F 08    C      	db	0,7fh,7fh,8,8,7fh,7fh,0
+  FCED    08 7F 7F 00    C      
+  FCF1    00 41 41 7F    C      	db	0,41h,41h,7fh,7fh,41h,41h,0
+  FCF5    7F 41 41 00    C      
+  FCF9    00 01 3F 7F    C      	db	0,1,3fh,7fh,41h,40h,70h,30h
+  FCFD    41 40 70 30    C      
+  FD01    00 63 77 1C    C      	db	0,63h,77h,1ch,8,7fh,7fh,41h
+  FD05    08 7F 7F 41    C      
+  FD09    00 70 60 40    C      	db	0,70h,60h,40h,41h,7fh,7fh,41h
+  FD0D    41 7F 7F 41    C      
+  FD11    00 7F 7F 0E    C      	db	0,7fh,7fh,0eh,1ch,0eh,7fh,7fh
+  FD15    1C 0E 7F 7F    C      
+  FD19    00 7F 7F 18    C      	db	0,7fh,7fh,18h,0ch,6,7fh,7fh
+  FD1D    0C 06 7F 7F    C      
+  FD21    00 1C 3E 63    C      	db	0,1ch,3eh,63h,41h,63h,3eh,1ch
+  FD25    41 63 3E 1C    C      
+  FD29    00 06 0F 09    C      	db	0,6,0fh,9,49h,7fh,7fh,41h
+  FD2D    49 7F 7F 41    C      
+  FD31    00 5C 6E 33    C      	db	0,5ch,6eh,33h,51h,43h,7eh,3ch
+  FD35    51 43 7E 3C    C      
+  FD39    00 66 7F 19    C      	db	0,66h,7fh,19h,9,7fh,7fh,41h
+  FD3D    09 7F 7F 41    C      
+  FD41    00 32 7B 49    C      	db	0,32h,7bh,49h,49h,6fh,26h,0
+  FD45    49 6F 26 00    C      
+  FD49    00 03 41 7F    C      	db	0,3,41h,7fh,7fh,41h,3,0
+  FD4D    7F 41 03 00    C      
+  FD51    00 3F 7F 40    C      	db	0,3fh,7fh,40h,40h,7fh,3fh,0
+  FD55    40 7F 3F 00    C      
+  FD59    00 1F 3F 60    C      	db	0,1fh,3fh,60h,60h,3fh,1fh,0
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-53
+
+
+  FD5D    60 3F 1F 00    C      
+  FD61    00 7F 7F 30    C      	db	0,7fh,7fh,30h,18h,30h,7fh,7fh
+  FD65    18 30 7F 7F    C      
+  FD69    00 61 73 1E    C      	db	0,61h,73h,1eh,0ch,1eh,73h,61h
+  FD6D    0C 1E 73 61    C      
+  FD71    00 07 4F 78    C      	db	0,7,4fh,78h,78h,4fh,7,0
+  FD75    78 4F 07 00    C      
+  FD79    00 73 67 4D    C      	db	0,73h,67h,4dh,59h,71h,63h,47h
+  FD7D    59 71 63 47    C      
+  FD81    00 00 41 41    C      	db	0,0,41h,41h,7fh,7fh,0,0
+  FD85    7F 7F 00 00    C      
+  FD89    80 80 80 80    C      	db	80h,80h,80h,80h,80h,80h,80h,80h
+  FD8D    80 80 80 80    C      
+  FD91    00 00 7F 7F    C      	db	0,0,7fh,7fh,41h,41h,0,0
+  FD95    41 41 00 00    C      
+  FD99    00 04 06 7F    C      	db	0,4,6,7fh,7fh,6,4,0
+  FD9D    7F 06 04 00    C      
+  FDA1    C0 C0 C0 C0    C      	db	0c0h,0c0h,0c0h,0c0h,0c0h,0c0h,0c0h,0c0h
+  FDA5    C0 C0 C0 C0    C      
+  FDA9    00 00 04 06    C      	db	0,0,4,6,3,1,0,0
+  FDAD    03 01 00 00    C      
+  FDB1    00 40 78 3C    C      	db	0,40h,78h,3ch,54h,54h,74h,20h
+  FDB5    54 54 74 20    C      
+  FDB9    00 38 7C 44    C      	db	0,38h,7ch,44h,44h,3fh,7fh,41h
+  FDBD    44 3F 7F 41    C      
+  FDC1    00 28 6C 44    C      	db	0,28h,6ch,44h,44h,7ch,38h,0
+  FDC5    44 7C 38 00    C      
+  FDC9    00 40 7F 3F    C      	db	0,40h,7fh,3fh,45h,44h,7ch,38h
+  FDCD    45 44 7C 38    C      
+  FDD1    00 18 5C 54    C      	db	0,18h,5ch,54h,54h,7ch,38h,0
+  FDD5    54 7C 38 00    C      
+  FDD9    00 02 03 49    C      	db	0,2,3,49h,7fh,7eh,48h,0
+  FDDD    7F 7E 48 00    C      
+  FDE1    00 7C FC A4    C      	db	0,7ch,0fch,0a4h,0a4h,0bch,98h,0
+  FDE5    A4 BC 98 00    C      
+  FDE9    00 78 7C 04    C      	db	0,78h,7ch,4,8,7fh,7fh,41h
+  FDED    08 7F 7F 41    C      
+  FDF1    00 00 40 7D    C      	db	0,0,40h,7dh,7dh,44h,0,0
+  FDF5    7D 44 00 00    C      
+  FDF9    00 7D FD 84    C      	db	0,7dh,0fdh,84h,80h,0e0h,60h,0
+  FDFD    80 E0 60 00    C      
+  FE01    00 44 6C 38    C      	db	0,44h,6ch,38h,10h,7fh,7fh,41h
+  FE05    10 7F 7F 41    C      
+  FE09    00 00 40 7F    C      	db	0,0,40h,7fh,7fh,41h,0,0
+  FE0D    7F 41 00 00    C      
+  FE11    00 78 7C 0C    C      	db	0,78h,7ch,0ch,38h,0ch,7ch,78h
+  FE15    38 0C 7C 78    C      
+  FE19    00 78 7C 04    C      	db	0,78h,7ch,4,4,78h,7ch,4
+  FE1D    04 78 7C 04    C      
+  FE21    00 38 7C 44    C      	db	0,38h,7ch,44h,44h,7ch,38h,0
+  FE25    44 7C 38 00    C      
+  FE29    00 18 3C 24    C      	db	0,18h,3ch,24h,0a4h,0f8h,0fch,84h
+  FE2D    A4 F8 FC 84    C      
+  FE31    00 84 FC F8    C      	db	0,84h,0fch,0f8h,0a4h,24h,3ch,18h
+  FE35    A4 24 3C 18    C      
+  FE39    00 08 0C 04    C      	db	0,8,0ch,4,4ch,78h,7ch,44h
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	1-54
+
+
+  FE3D    4C 78 7C 44    C      
+  FE41    00 20 74 54    C      	db	0,20h,74h,54h,54h,5ch,48h,0
+  FE45    54 5C 48 00    C      
+  FE49    00 20 64 44    C      	db	0,20h,64h,44h,7fh,3fh,4,0
+  FE4D    7F 3F 04 00    C      
+  FE51    00 7C 7C 40    C      	db	0,7ch,7ch,40h,40h,7ch,3ch,0
+  FE55    40 7C 3C 00    C      
+  FE59    00 1C 3C 60    C      	db	0,1ch,3ch,60h,60h,3ch,1ch,0
+  FE5D    60 3C 1C 00    C      
+  FE61    00 3C 7C 60    C      	db	0,3ch,7ch,60h,38h,60h,7ch,3ch
+  FE65    38 60 7C 3C    C      
+  FE69    00 44 6C 38    C      	db	0,44h,6ch,38h,10h,38h,6ch,44h
+  FE6D    10 38 6C 44    C      
+  FE71    00 7C FC A0    C      	db	0,7ch,0fch,0a0h,0a0h,0bch,9ch,0
+  FE75    A0 BC 9C 00    C      
+  FE79    00 64 4C 5C    C      	db	0,64h,4ch,5ch,74h,64h,4ch,0
+  FE7D    74 64 4C 00    C      
+  FE81    00 41 41 77    C      	db	0,41h,41h,77h,3eh,8,8,0
+  FE85    3E 08 08 00    C      
+  FE89    00 00 00 7F    C      	db	0,0,0,7fh,7fh,0,0,0
+  FE8D    7F 00 00 00    C      
+  FE91    00 08 08 3E    C      	db	0,8,8,3eh,77h,41h,41h,0
+  FE95    77 41 41 00    C      
+  FE99    00 01 03 02    C      	db	0,1,3,2,3,1,3,2
+  FE9D    03 01 03 02    C      
+  FEA1    FF FF FF FF    C      	db	0ffh,0ffh,0ffh,0ffh,0ffh,0ffh,0ffh,0ffh
+  FEA5    FF FF FF FF    C      
+  08A9                          lgdc	equ	$-gdcini
+                                .dephase
+                                endif
+                                end
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	S
+
+
+Macros:
+
+Symbols:
+DD4F 	ADRE            E425 	ALL0            E4C5 	ALL1            
+E565 	ALL2            DC82 	ALLOC           DF50 	ASIO            
+E0B6 	AUSF            E0CA 	AUSF1           E0D9 	AUSF2           
+E0DB 	AUSF3           E111 	AUSG$           E124 	AUSGE           
+E0C4 	B3264           E39C 	BBS             E2EC 	BCCO            
+E37E 	BCR             E384 	BCR1            E39B 	BDEL            
+CC00 	BDOS            E0B0 	BEEP            E3EC 	BELL            
+DA00 	BIOS            E38E 	BLF             E3A5 	BLHM            
+0400 	BLKSIZ          F806 	BLOEH           DB60 	BOOT            
+DBD9 	BOOT1           DA00 	BOT             FC00 	BRAM            
+DF81 	BREAK           E2E0 	BS1CO           E40D 	BSTAB           
+850B 	CBANF           DA09 	CCI             DA0C 	CCO             
+C400 	CCP             0040 	CFDC            E475 	CHK0            
+E515 	CHK1            E585 	CHK2            DC48 	CHKUNA          
+E3BA 	CHOME           F8BE 	CLSBS           F8E2 	CLSBS0          
+F8E5 	CLSBS1          F8F2 	CLSBS2          F661 	CLSPOS          
+F835 	CLSZC           F652 	CLSZC0          F843 	CLSZC2          
+F850 	CLSZC3          F862 	CLSZI           FB83 	CMASK           
+0000 	CNTR            E3CE 	CO10            E3DD 	CO11            
+E3E3 	CO13            E327 	CO15            E3A8 	CO8             
+E306 	CO9             DFBF 	CONIN           DF38 	CONOUT          
+DFA3 	CONST           0028 	CPMSPT          F82B 	CR              
+DA90 	CTAB            006C 	CTCA            006D 	CTCB            
+006F 	CTCD            F86F 	CU1H            F87F 	CU1H0           
+F877 	CU1H1           F8AA 	CU1L            F8B6 	CU1L0           
+F85B 	CU1R            F8A1 	CUAUS           F898 	CUEIN           
+E3BE 	CUP             DAAE 	CURS            F68F 	CURS0           
+F691 	CURSA           F684 	CURSA2          F6DA 	CURSB0          
+F6FC 	CURSC0          FB37 	CURSS           F628 	DCURS           
+F7E9 	DEL             DE83 	DEL1            DE80 	DELAY           
+0041 	DFDC            F62D 	DFIGS           E58D 	DIRBF           
+DAAA 	DMAADR          DA63 	DPBA            DA33 	DPBAS           
+DA72 	DPBB            DA81 	DPBC            DA33 	DPHA            
+DA43 	DPHB            DA53 	DPHC            F62C 	DPIX            
+F62A 	DPOS            F624 	DPRAM           F968 	DRAW            
+DC06 	DREAD           F62F 	DRICH           DAAC 	DSKBUF          
+DD7C 	DSKIN1          DD82 	DSKIN2          DD78 	DSKINI          
+DA98 	DTL             F622 	DWDAT           F63D 	DX              
+F63F 	DY              E2D0 	END$F           F6B9 	ENDE            
+E034 	ENTPR           DA96 	EOT             E422 	ERFLAG          
+DEAF 	ERM             DF43 	ESIO            E0FC 	F$              
+E106 	F$1             E0CF 	F2MHZ           E0D5 	F4MHZ           
+E1AC 	FATAB           FB48I 	FCGA            FB4A 	FCGA1           
+FB57 	FCGA2           FB60 	FCGA3           FB62 	FCGA4           
+FB92 	FIGSR           FB8E 	FIGSW           DCCE 	FILHST          
+E07A 	FKTZU           F68C 	FLAG            DAB4 	FLGIO           
+E1A3 	FTAB            E2DD 	FTAPO           E2DB 	FTPOI           
+E05B 	FZUE            0098 	GADR            0001 	GC              
+E41C 	GDCANF          008E 	GDCC            F603 	GDCCO           
+008F 	GDCD            F600 	GDCINI          F600 	GDCRAM          
+F7D6 	GHOME           DA97 	GPL             FB9B 	GPRAM           
+E0AC 	GRF             DAA2 	HEAD            DEBC 	HEADS           
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	S-1
+
+
+DA93 	HED             DB52 	HOME            F69F 	HP              
+F6C0 	HP1             F9C6 	HPR             F9E7 	HPR1            
+F9F9 	HPW             FA1A 	HPW1            E41C 	HSTACT          
+0008 	HSTBLK          E60E 	HSTBUF          DAA4 	HSTDSK          
+DA94 	HSTSEC          0400 	HSTSIZ          0005 	HSTSPT          
+DAA5 	HSTTRK          E41D 	HSTWRT          0004 	HWMODI          
+DD92 	INI1            DAA8 	INIBIT          FB64 	INID            
+DD8F 	INIFD           F693 	INIGDC          DEE5 	INIT            
+DF1E 	INIT1           FB2A 	INUP            FB2C 	INUP1           
+0003 	IOBYT           F92D 	IOUP            F937 	IOUP0           
+F941 	IOUP1           FB1F 	IOUP3           DEA6 	IRDY            
+E0A6 	J100            F8FF 	JPTAB           0000 	K7652           
+0001 	K7659           EA0F 	KOPIE           F67E 	LAENG           
+0008 	LATCH           000F 	LBSTAB          DD41 	LESE            
+F7F4 	LF              E2D9 	LFTB            08A9 	LGDC            
+0093 	LGDCRAM         DF5D 	LIST            DB46 	LISTST          
+0003 	LPIOA           0003 	LPIOB           0007 	LSIOA           
+0007 	LSIOB           F730 	M003            E304 	M0042           
+E30E 	M0043           E330 	M0044           E355 	M0049           
+E36B 	M004A           E36F 	M004B           E3CA 	M004E           
+E3D6 	M004F           E3E7 	M0050           E3E8 	M0051           
+F7D0 	M0280           F7C2 	M0288           F7C1 	M0289           
+F7B0 	M028A           F7A8 	M0300           F7A5 	M0301           
+FA62 	M1              FA55 	M2              FA7F 	M3              
+FAA3 	M4              FAB1 	M5              FB0A 	M6              
+DCEB 	MATCH           DCFD 	MATCH1          DCF6 	MATCH2          
+E193 	MGR             DFE4 	MINIT           E001 	MKV1            
+E003 	MKV2            E19C 	MLED1           E2D3 	MLZ             
+E128 	MNULL           DE20 	MODE            E2D4 	MOFL            
+E0BE 	MONRET          E041 	MP0             E02E 	MP1             
+E048 	MP2             E0E0 	MP21            E04B 	MP3             
+E05D 	MP4             E042 	MP5             E173 	MPE1            
+E17C 	MPE2            E166 	MPE3            E16F 	MPE4            
+FB8B 	MPRAM           E00A 	MR0             E00C 	MR1             
+E00E 	MR2             E01E 	MR3             E020 	MR4             
+E022 	MR5             DAB5 	MSG1            DACE 	MSG2            
+DAFB 	MSG3            DAE6 	MSG5            E13B 	MSM1            
+DFF5 	MSTA1           E144 	MT5             E14D 	MT61            
+E158 	MTE             DA95 	N               0003 	NDISK           
+E2D1 	NEXT$           DCC5 	NOMATC          DC7C 	NOOVF           
+DE46 	NRDY            FBA1 	OKT1            00AE 	P1AC            
+00AC 	P1AD            00AF 	P1BC            00AD 	P1BD            
+F620 	PBER            E165 	PEEP            0003 	PIOBC           
+0002 	PIOBD           F671 	PIX             F94D 	PIXEL           
+E2D7 	PO$TA           F66F 	POS             F689 	POS0            
+DAB0 	POS1            DAB1 	POS2            F643 	PRAMP           
+F980 	PRBOX           DF50 	PUNCH           DE87 	RBYTE           
+DEB2 	RDID            DE42 	RDY             DE67 	RDY1            
+DF43 	READER          E424 	READOP          DDDB 	REAHST          
+DDA9 	RECAL           DE9C 	RESL1           DA99 	RESLT           
+DF8F 	RESTR           F61D 	ROTAT           DE90 	RRSLT           
+E423 	RSFLAG          DE13 	RW              DE18 	RW1             
+DE15 	RW2             DE0D 	RWERR           DDE0 	RWIT            
+DD12 	RWMOVE          DDEF 	RWOP            DC8A 	RWOPER          
+DC93 	SC1             DC9D 	SC2             DD48 	SCHR            
+F74A 	SCRL            F687 	SCROLL          DF5D 	SD1152          
+"CBIOS Y23VO"	MACRO-80 3.44	09-Dec-81	PAGE	S-2
+
+
+DF64 	SDR1            DF6E 	SDR2            DF76 	SDR3            
+DF7F 	SDR4            DE28 	SDS             DB44 	SDSK1           
+0007 	SECMSK          DB49 	SECTRAN         DE32 	SEEK            
+DAA0 	SEKDSK          DAA3 	SEKHST          DAA9 	SEKSEC          
+DAA1 	SEKTRK          DB18 	SELDSK          DDAF 	SENSE           
+DB5A 	SETDMA          E183 	SETFF           DFD1 	SETO            
+DB4D 	SETSEC          DB55 	SETTRK          E27E 	SFELD           
+007A 	SIOAC           0078 	SIOAD           007B 	SIOBC           
+0079 	SIOBD           DE3B 	SKBSY           DBA7 	SLOAD1          
+E0B4 	SLOCK           F66C 	SMOD            E351 	SPALT1          
+E34B 	SPALTE          DDA0 	SPEZI           DDC3 	STAB            
+DF99 	STR             F777 	STUP            FB88 	SYNCA           
+FB98 	SYNCB           E1BE 	TAB             E21E 	TAB2            
+E2D5 	TAPOI           DFD8 	TAST            0050 	TC              
+DDC5 	TCPLS           F71A 	TEST            E2DF 	TON             
+DF24 	TPIOA           DF27 	TPIOB           DA92 	TRCK            
+DF2A 	TSIOA           DF31 	TSIOB           F641 	TYPE            
+E41E 	UNACNT          E41F 	UNADSK          E421 	UNASEC          
+E420 	UNATRK          DA91 	UNIT            DED6 	UNTEN           
+FAF8 	UPCUP           FAFB 	UPCUP1          FA34 	UPOKT           
+FA8D 	UPPRG           0000 	V24             DBE4 	WBOOT           
+DA03 	WBOTE           DE68 	WCOM            DE6B 	WCOM1           
+0001 	WRDIR           DAA7 	WRFLG           DDD4 	WRHST1          
+DDCD 	WRIHST          DC1D 	WRIT            DAA6 	WRTYPE          
+0002 	WRUAL           F615 	X1              F619 	X2              
+F68D 	XK              0280 	XMAX            F88D 	XYEIN           
+F617 	Y1              F61B 	Y2              F68E 	YK              
+00C8 	YMAX            0001 	Z1013           F66B 	ZCLS1           
+F673 	ZCLS2           E347 	ZEIL1           E33E 	ZEILE           
+F61E 	ZGADR           FBA9 	ZGANF           E0C8 	ZGUM            
+DAB2 	ZK              0004 	ZKNEG           0004 	ZKPOS           
+0040 	ZL              E036 	ZS11            0010 	ZZ              
+
+
+
+No Fatal error(s)
+
+
+    
+F68D 	XK              0280 	XMAX            F88D 	XYEIN    

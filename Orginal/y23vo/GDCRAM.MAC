@@ -1,0 +1,60 @@
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;einspruenge fuer grafik-display-controller 82720/7220
+gdcini:	jp	inigdc		;initialisierung
+gdcco:	jp	hp		;zeichenausgabe
+	jp      pixel 		;punkt zeichnen /loeschen
+	jp	draw		;linie zeichnen
+	jp	prbox		;rechteck zeichnen
+	jp	hpr		;bildschirmzeile ruecklesen
+	jp	hpw		;bildschirmzeile in speicher bringen
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;ram-tabellen fuer graphic-display-controller 7220
+;Bereich mit Daten zum Zeichnen(draw,prbox,circle)
+x1:	db	0,0
+y1:	db	0,0
+x2:	db	10,0
+y2:	db	10,0
+rotat:	db	0		;fuer prbox
+zgadr:	dw	zganf	;Adresse des Zeichengenerators
+pber:	db	0,0fdh		;Adr. des Copybereichs im RAM(27fh lang)
+dwdat:	db	1,20h		;Pattern-Pixel Linienart beim
+dpramº	db	3,78h,0ffh,0ffh	;Zeichnen
+dcurs:	db	4,49h
+dpos:	db	0,0
+dpix:	db	0
+dfigs:	db	0ch,4ch
+drich:	db	8,0,0,0,0,0,0,0,0,0ffh,0ffh
+	db	1,6ch,0ffh
+dx:	db	0,0
+dy:	db	0,0
+;Datenbereich zur Ausgabe der ASCII-Zeichen (Pattern) 
+type:	db	9,78h
+pramp:	db	0,0ffh,0,0ffh,0,0ffh,0,0ffh
+	db	3,4ch,10h,7		;8 Byte Laenge
+	db	1,68h,0ffh		;Graphikzeichen ausgeben
+;Datenbereich zum Loeschen von Bildschirmausschnitten 
+clszc0º	db	1,22h,9,78h,0ffh,0ffh,0ffh,0ffh,0ffh,0ffh
+	db	0ffh,0ffh,3,4ch,10h
+clspos:	db	2ch,3,4ah,0ffh,0ffh,1,68h,1,20h,0ffh
+zcls1º	db	1
+smod:	db	20h,4,49è	        ;Cursorpositionierung
+pos:	db	0,0
+pix:	db	0,0ffh
+zcls2:	db	3,78h,0ffh,0ffh
+        db	3,4ah,0ffh,0ffh		;Maske auf ffffh setzen
+	db	4,4ch,2			;figs Kommando
+laeng:	db	3fh,1	;
+	db	3,22h,0ffh,0ffh		;wdat reset Pixel
+cursa2:	db	1,20h,0ffh		;wdat Pattern Pixel
+;Datenbereich zum Bildschirmrollen
+scroll:	db	3,70h	; im PRAM Adr. des Bilds.anfangs aendern
+pos0:	db	0,0,0ffh
+;System Daten 
+flag:	db	1		;Curs.ein aus usw. 
+xk:	db	0		;x Koord.
+yk:	db	0		;y Koord.
+curs0:	db	0,0		;Adr. des Bildanfanges fuer GDC
+cursa:	db	0,0		;Adr. der Zeile des Cursors  
+lgdcram	equ	$-gdcini
+
+

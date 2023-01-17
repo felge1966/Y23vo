@@ -1,0 +1,146 @@
+	MACRO-80 3.44	09-Dec-81	PAGE	1
+
+
+                                .z80
+  0000'                         aseg
+                                org	100h
+                                
+                                ;Programmteil zum Abspeichern eines Speicherbereichs
+                                ;ab Adresse 4000h auf Diskette, Dateiname waehlbar
+                                ;Extend: .ROM, Test ob Datei schon existiert
+                                
+  0005                          bdos	equ	5
+                                
+  0100    11 01DA               init:	ld	de,txt1		;Dateiname ?
+  0103    0E 09                 	ld	c,9		;Textausgabe
+  0105    CD 0005               	call	bdos
+  0108    11 0195               	ld	de,fcb1		;Eingabepuffer
+  010B    0E 0A                 	ld	c,10		;Textkette eingeben
+  010D    CD 0005               	call	bdos		;GROSSE BUCHSTABEN !
+  0110    21 0197               	ld	hl,fcb1+2	;Voreinstellung des fcb
+  0113    11 01B8               	ld	de,fcb2+1	;spaeter wirksamer fcb
+  0116    01 0021               	ld	bc,33		;Anzahl Bytes
+  0119    ED B0                 	ldir			;uebertragen
+  011B    11 01B7               	ld	de,fcb2		;test ob schon vorhanden
+  011E    0E 11                 	ld	c,17		;erste Eintragung suchen
+  0120    CD 0005               	call	bdos
+  0123    3C                    	inc	a		;test directorycode
+  0124    28 16                 	jr	z,make
+  0126    11 01E9               	ld	de,txt2		;Datei vorhanden
+  0129    0E 09                 	ld	c,9
+  012B    CD 0005               	call	bdos
+  012E    21 0196               	ld	hl,fcb1+1	;Puffer loeschen
+  0131    AE                    	xor	(hl)
+  0132    3E 20                 	ld	a,20h
+  0134    06 08                 	ld 	b,8
+  0136    23                    loe1:	inc	hl
+  0137    77                    	ld	(hl),a
+  0138    10 FC                 	djnz	loe1
+  013A    18 C4                 	jr	init		;neuen Namen eingeben
+  013C    11 01B7               make:	ld	de,fcb2
+  013F    0E 16                 	ld	c,22		;Datei anlegen
+  0141    CD 0005               	call	bdos
+  0144    3C                    	inc	a
+  0145    20 0A                 	jr	nz,make1
+  0147    11 0215               	ld	de,txt4		;Fehlermeldung
+  014A    0E 09                 	ld	c,9
+  014C    CD 0005               	call	bdos
+  014F    18 3F                 	jr	exit
+  0151    21 3F80               make1:	ld	hl,4000h-128 	;EPROM-Puffer
+  0154    11 0080               	ld	de,128		;Sektorgroesse
+  0157    3A 01D9               	ld	a,(typ)
+  015A    47                    	ld	b,a		;Anzahl Sektoren
+  015B    C5                    loop:	push	bc		;Schleife Sektoren schreiben
+  015C    D5                    	push	de
+  015D    19                    	add	hl,de
+  015E    E5                    	push	hl
+  015F    54                    	ld	d,h
+  0160    5D                    	ld	e,l
+  0161    0E 1A                 	ld	c,26		;dma einstellen
+	MACRO-80 3.44	09-Dec-81	PAGE	1-1
+
+
+  0163    CD 0005               	call	bdos
+  0166    11 01B7               	ld	de,fcb2
+  0169    0E 15                 	ld	c,21		;sequentiell schreiben
+  016B    CD 0005               	call	bdos
+  016E    B7                    	or	a
+  016F    28 0A                 	jr	z,loop1		;kein Fehler
+  0171    11 0203               	ld	de,txt3
+  0174    0E 09                 	ld	c,9		;Fehlerme1dung
+  0176    CD 0005               	call	bdos
+  0179    18 15                 	jr	exit
+  017B    E1                    loop1:	pop	hl
+  017C    D1                    	pop	de
+  017D    C1                    	pop	bc
+  017E    10 DB                 	djnz	loop
+  0180    11 01B7               	ld	de,fcb2
+  0183    0E 10                 	ld	c,16		;Datei schliessen
+  0185    CD 0005               	call	bdos
+  0188    11 0228               	ld	de,txt5		;Ausgabe OK
+  018B    0E 09                 	ld	c,9
+  018D    CD 0005               	call	bdos
+  0190    0E 00                 exit:	ld	c,0
+  0192    CD 0005               	call	bdos
+                                
+                                ;Eingabepuffer fuer Dateinamen
+  0195    08                    fcb1:	db	8		;max. Anzahl
+  0196    00                    	db      0               ;zaehler
+  0197                          	ds      8,20h           ;Platz fuer Dateinamen
+  019F    52 4F 4D              	db      'ROM'           ;vorgegebener Extend
+  01A2                          	ds      21,0            ;Voreinstellung
+                                
+                                
+                                ;fcb fuer Diskettenzugriff
+  01B7    00                    fcb2:	db	0
+  01B8                          	ds	33
+                                
+  01D9    40                    typ:	db	64		;EPROM-Typ
+  01DA    0D 0A 44 61           txt1:	defm	0dh,0ah,'Dateiname : $'
+  01DE    74 65 69 6E           
+  01E2    61 6D 65 20           
+  01E6    3A 20 24              
+  01E9    0D 0A 44 61           txt2:   defm	0dh,0ah,'Datei existiert schon !$'
+  01ED    74 65 69 20           
+  01F1    65 78 69 73           
+  01F5    74 69 65 72           
+  01F9    74 20 73 63           
+  01FD    68 6F 6E 20           
+  0201    21 24                 
+  0203    0D 0A 44 69           txt3:   defm	0dh,0ah,'Diskette voll !$'
+  0207    73 6B 65 74           
+  020B    74 65 20 76           
+  020F    6F 6C 6C 20           
+  0213    21 24                 
+  0215    0D 0A 44 69           txt4:   defm	0dh,0ah,'Directory voll !$'
+  0219    72 65 63 74           
+  021D    6F 72 79 20           
+  0221    76 6F 6C 6C           
+	MACRO-80 3.44	09-Dec-81	PAGE	1-2
+
+
+  0225    20 21 24              
+  0228    0D 0A 4F 4B           txt5:   defm	0dh,0ah,'OK$'
+  022C    24                    
+                                
+                                end
+	MACRO-80 3.44	09-Dec-81	PAGE	S
+
+
+Macros:
+
+Symbols:
+0005 	BDOS            0190 	EXIT            0195 	FCB1            
+01B7 	FCB2            0100 	INIT            0136 	LOE1            
+015B 	LOOP            017B 	LOOP1           013C 	MAKE            
+0151 	MAKE1           01DA 	TXT1            01E9 	TXT2            
+0203 	TXT3            0215 	TXT4            0228 	TXT5            
+01D9 	TYP             
+
+
+
+No Fatal error(s)
+
+
+                    
+                

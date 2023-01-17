@@ -1,0 +1,183 @@
+;Bildschirmausgabe alphanumerisch BS1K
+;IN:	Zeichen in C
+
+ZL	EQU	40H		;ZEILENLAENGE
+ZZ	EQU	10H		;ZEILENZAHL
+
+BS1CO:	push	af
+	push	bc
+	push	de
+	push	hl
+	call	bcco
+	pop	hl
+	pop	de
+	pop	bc
+	pop	af
+	ret
+bcco:	LD	HL,CO15
+	PUSH	HL
+	LD	HL,(CURS)
+	RES	7,M
+	LD	A,(POS1)	;LAEUFT POSITIONIERUNG?
+	OR	A
+	JR	NZ,M0044		;JA
+	LD	A,C
+	CP	20H		;STEUERZEICHEN?
+	JR	C,M0049
+	CP	7FH
+	JR	NC,M0049
+M0042:	LD	M,A
+	EX	DE,HL
+CO9:	INC	DE		;15H
+	ld	a,e
+	or	d
+	EX	DE,HL
+	ret	nz
+	LD	DE,BRAM +zl*zz-ZL-1
+M0043:	PUSH	DE		;scroll
+	LD	HL,bram+zl	
+	LD	DE,BRAM
+	LD	BC,zz*zl-ZL
+	LDIR
+	DEC	HL
+	LD	M,00H
+	LD	DE,bram+zz*zl-2	
+	LD	BC,ZL-1
+	LDDR
+	POP	HL
+	RET
+CO15:	LD	(CURS),HL	;Ende der Ausgabe
+	LD	A,(POS2)
+	OR	M
+	LD	M,A
+	RET
+;CURSORPOSITIONIERUNG
+;IN:	A ZEILE,C SPALTE mit gesetztem 7. bit
+;	HL BRAM,DE ZEILENLAENGE
+;out:	hl Cursorposition
+M0044:	RES	7,C
+	DEC	A
+	LD	(POS1),A
+	JR	Z,spalte
+	LD	A,0fH
+	CP	C
+	JR	C,zeile
+	LD	A,C
+zeile:	LD	HL,BRAM
+	OR	A
+	RET	Z
+	LD	DE,ZL
+	LD	B,A
+zeil1:	ADD	HL,DE
+	DJNZ	zeil1
+	RET
+spalte:	LD	A,ZL-1
+	CP	C
+	JR	NC,spalt1
+	LD	C,A
+spalt1:	LD	B,00H
+	ADD	HL,BC
+	RET
+;-----------------------------------------------------------
+;STEUERZEICHENAUSWERTUNG
+M0049:	EX	DE,HL
+	LD	HL,bstab
+	LD	BC,lbstab	;ANZAHL STEUERZEICHEN
+	CPIR
+	JR	Z,M004B
+	EX	DE,HL
+	CP	84H
+	RET	C
+	CP	88H
+	JR	C,M004A
+	CP	0B0H
+	RET	C
+M004A:	RES	7,A
+	JÒ	M0042
+M004B:	LD	HL,BSTAB-1	;Steuerzeichen gefunden
+	XOR	A
+	SBC	HL,BC
+	SBC	HL,BC
+	LD	B,M
+	DEC	HL
+	LD	C,M
+	PUSH	BC
+	LD	L,E
+	LD	H,D
+	RET
+bcr:	LD	BC,ZL		;Wagenruecklauf
+	LD	HL,bram+zl*zz-1	
+bcr1:	SBC	HL,BC
+	PUSH	HL
+	SBC	HL,DE
+	POP	HL
+	JR	NC,bcr1
+	INC	HL
+	RET
+blf:	LD	HL,bram+zz*zl-zl-1	;Zeilenvorschub	
+	SBC	HL,DE
+	JP	C,M0043
+	LD	HL,ZL
+	ADD	HL,DE
+	RET
+bdel:	LÄ	(DE),A		;linkes Zeichen loeschen
+bbs:	LD	HL,BRAM		;backspace
+	SBC	HL,DE
+	EX	DE,HL
+	REÔ	Z
+	DEC	HL
+	RET
+blhm:	LD	DE,BRAM		;Bildschirm loeschen
+CO8:	LD	HL,bram+zz*zl-1	;ab Cursor loeschen
+	SBC	HL,DE
+	EX	DE,HL
+	LD	M,A
+	RET	Z
+	PUSH	HL
+	LD	B,D
+	LD	C,E
+	LD	D,H
+	LD	E,L
+	INC	DE
+	LDIR
+	POP	HL
+	RET
+CHOME:	LD	HL,BRAM		;cursor home
+	RET
+CUP:	LD	HL,BRAM+ZL-1	;cursor hoch
+	SBC	HL,DE
+	EX	DE,HL
+	RET	NC
+	LD	DE,bram+zz*zl-zl	
+	ADD	HL,DE
+	RET
+M004E:	CALL	bcr
+	EX	DE,HL
+CO10º	PUSÈ	DE
+	CALL	bcr
+	ADD	HL,BC
+	XOR	A
+	SBC	HL,DE
+M004F:	LD	(DE),A
+	INC	DE
+	DEC	L
+	JR	NZ,M004F
+	POP	HL
+	RET
+CO11:	LD	A,02H
+	LD	(POS1),A
+	RET
+CO13:	LD	A,80H
+	JR	M0051
+M0050:	XOR	A
+M0051:	LD	(POS2),A
+	RET
+bell:	jp	ton
+;--------------------------------------------------------------------
+;ADRESSEN
+	DW	BCR,blf,bbs,blhm,chome,CUP,BDEL,CO8
+	DW	CO9,CO10,M004E,CO11,bell,CO13,M0050
+;STEUERZEICHEN
+bstab:	DB	0DH,0AH,8,0CH,1,1AH,7FH,14H,15H,16H,18H,1BH,7,82H,83H
+lbstab	equ	$-bstab
+

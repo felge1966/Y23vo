@@ -1,0 +1,551 @@
+.z80
+aseg
+org	100h
+;(c) Y23VO
+;Stand: 22.9.89
+;public domain
+
+	TITLE	"CBIOS Y23VO"
+
+;DEFINITION VON KONSTANTEN
+;Schalter
+GC	EQU	1		;Grafik mituebersetzen
+V24	EQU	0		;LST := V24-Drucker oder IFSS
+CNTR	EQU	0		;LST := CENTRONICS-Schnittstelle
+Z1013	EQU	1		;oder Y23VO
+
+;Speicheradressen
+if	z1013
+BIOS	EQU	0DA00h		;56K-cpm
+else
+BIOS	EQU	0DE00h		;57K-cpm
+endif
+BDOS	EQU	BIOS-0E00H
+CCP	EQU	BIOS-1600H
+gdcram	equ	0F600h		;Ramtabelle Grafik-Controller
+BRAM	EQU	0FC00h		;BILDSCHIRM-RAM
+IOBYT	EQU	3		;Zuweisung In-/Out-Geraete
+
+;Adressen von Pheripherieschaltkreisen
+;PIO auf CPU-Karte
+if	z1013
+PIOBD	EQU	2		;DATENEINGABE KANAL B
+PIOBC	EQU	3		;STEUERADRESSE KANAL B
+Latch	equ	8		;Tastaturlatch (A47)
+else
+PIOAD	EQU	0FCH		;DATENAUSGABE KANAL A
+PIOBD	EQU	0FDH		;EINGABEDATEN tatatur
+PIOAC	EQU	0FEH		;STEUERADRESSE KANAL A
+PIOBC	EQU	0FFH		;STEUERADRESSE KANAL B
+endif
+
+;Grafik-Display-Controller 7220	;lesen		schreiben
+gdcc	equ	8eh		;status		daten 
+gdcd	equ	8fh		;daten 		kommando
+
+;CTC-SIO-Karte
+ctca	equ	6ch		;taktgeber fuer sio a
+ctcb	equ	6dh		;taktgeber fuer sio b
+ctcd	equ	6fh		;zeitgeber uhr
+sioad	equ	78h		;sio kanal a: v24/kassette
+siobä	eqõ	79h		;sio kanal b: stromschleife
+sioac	equ	7ah
+siobc	equ	7bh
+
+;Floppy-Disk-Controller 8272/765
+CFDC	EQU	40H		;STEUERUNG FDC
+DFDC	EQU	41H		;DATEN FDC
+TC	EQU	50H		;TERMINAL COUNT (ENDE-IMPULS) 
+
+;2PIO-Karte, Centronics-Schnittstelle 
+p1ad	equ	0ACh		;Daten 
+p1bd	equ	0ADh		;Steuerung Drucker
+p1ac	equ	0AEh
+p1bc	equ	0AFh
+
+;sonstiges
+NDISK	EQU	3		;ANZAHL LAUFWERKE
+
+;CP/M UND SYSTEMKONSTANTEN
+BLKSIZ	EQU	1024	;PUFFERLAENGE
+HSTSIZ	EQU	1024	;DISKSEKTORLAENGE
+HSTSPT	EQU	5	;DISKSEKTOREN PRO SPUR
+HSTBLK	EQU	HSTSIZ/128	;CP/M-SEKT. je DISKSEKTOR
+CPMSPT	EQU	HSTBLK*HSTSPT	;CP/M-SEKTOREN je SPUR
+SECMSK	EQU	HSTBLK-1	;SEKTORMASKE
+;BDOS-KONSTANTEN BEIM SCHREIBEINTRITT
+WRDIR	EQU	1		;VERZEICHNIS SCHREIBEN
+WRUAL	EQU	2		;UNDEFINIERT SCHREIBEN
+
+;hochkopieren
+.phase	8500h
+	ld	hl,cbanf	;Lader-Adresse !
+	ld	de,bios		;Ziel im Ram
+	ld	bc,01FFFH	;Laenge 8k
+	ldir
+cbanf	equ	$
+.dephase
+.phase	bios
+
+BOT:	JP	BOOT 	;Kaltstart (nach RESET)
+WBOTE:	JP	WBOOT	;"Warmstart"
+	JP	CONST	;Consolstatus
+cci:	JP	CONIN	;Zeicheneingabe (A) von Tastatur
+cco:	JP	CONOUT	;Zeichenausgabe (C) auf Bildschirm
+	JP	LIST	;Zeichenausgabe (C) auf Druckerkanal
+	JP	PUNCH	;Zeichenausgabe (C) auf Datenkanal PUN:
+	JP	READER	;Zeicheneingabe (A) von Datenkanal RDR:
+	JP	HOME 	;Diskettenspur 0 einstellen
+	JP	SELDSK	;Diskettenlaufwerk
+	JP	SETTRK	;Spur einstellen
+	JP	SETSEC 	;Sektor einstellen
+	JP	SETDMA 	;Pufferspeicher festlegen
+	JP	DREAD 	;einen Sektor von Diskette lesen
+	JP	WRIT	;einen Sektor auf Diskette schreiben
+	JP	LISTST	;Druckerstatus
+	JP	SECTRAN	;Sektortransformation
+;-----------------------------------------------------------
+DPBAS	EQU	$
+;1. Laufwerk
+DPHA:	DEFW	0	;Adresse Konvertierungstabelle
+	DEFW	0	;Notizspeicher BDOS
+	DEFW	0
+	DEFW	0
+	DEFW	DIRBF	;Adresse Directory-Puffer
+	DEFW	DPBA	;Laufwerkbeschreibung
+	DEFW	CHK0	;Adresse Prueffeld
+	DEFW	ALL0	;Adresse Belegungsfeld
+DPHB:	DEFW	0	;2.Laufwerk
+	DEFW	0
+	DEFW	0
+	DEFW	0
+	DEFW	DIRBF
+	DEFW	DPBA
+	DEFW	CHK1
+	DEFW	ALL1
+DPHC:	DEFW	0	;RAMDISK
+	DEFW	0
+	DEFW	0
+	DEFW	0
+	DEFW	DIRBF
+	DEFW	DPBC
+	DEFW	CHK2
+	DEFW	ALL2
+
+;DISK-PARAMETER-BLOCK FLOPPYLAUFWERKE 5,25 ZOLL
+;doppelte Dichte (DD), doppelseitig (DS), 80 Spuren (96TPI)
+;780 k
+DPBA:	DEFW	40		;40LOGISCHE*5 PHYSISCHE SEKTOREN/SPUR
+	DB	4		;1K-BLOECKE
+	DB	0FH
+	DB	0
+	DEFW	0185H
+	DEFW	07Fh
+	DEFW	0C0H
+	DEFW	20H
+	DEFW	4		;SYSTEMSPUREN
+;800 k
+DPBB:	DEFW	40
+	DB	4
+	DB	0FH
+	DB	0
+	DEFW	018FH
+	DEFW	07Fh
+	DEFW	0C0H
+	DEFW	20H
+	DEFW	0		;SYSTEMSPUREN
+DPBC:	DEFW	16
+	DB	3
+	DB	07H
+	DB	0
+	DEFW	0255
+	DEFW	03Fh
+	DEFW	0C0H
+	DEFW	0
+	DEFW	0		;SYSTEMSPUREN
+;Steuertabellen fuer Floppycontroller
+CTAB:	DB	0c6H		;MFM LESEN
+UNIT:	DB	0		;LAUFWERK A VOREINGESTELLT
+TRCK:	DB	0		;SPUR
+HED:	DB	0		;DISK-SEITE
+HSTSEC:	DB	1		;SEKTOR
+N:	DB	3		;N=3=1024 BYTES
+EOT:	DB	5		;5 SECTOREN JE SPUR
+GPL:	DB	1BH		;LUECKE
+DTL:	DB	0FFH    	
+RESLT:	DB	0		;STD. RESULT TAB F.FDC
+	DB	0		;ST1
+	DB	0		;ST2
+	DB	0		;CYLINDER
+	DB	0		;HEAD
+	DB	0		;RECORD
+	DB	0		;N
+SEKDSK:	DB	0
+SEKTRK:	DB	0
+HEAD:	DB	0
+SEKHST:	DB	0
+HSTDSK:	DB	0
+HSTTRK:	DB	0
+WRTYPE:	DB	0
+WRFLG:	DB	0
+inibit:	DB	0
+SEKSEC:	DB	1		;BDOS-SEKTOR
+DMAADR:	DW	80H		;BDOS-DMA
+DSKBUf:	DW	HSTBUF
+;-----------------------------------------------------------
+;sonstige Konstanten
+curs:	DW	BRAM		;Cursor=Bildschir-ram
+pos1:	db	0		;Cursorpositionierung
+pos2:	db	80h		;Cursor ein/aus
+ZK:	DB	18H		;30 F.50 BAUD
+	DB	01		;2 F. 50 BAUD
+FLGIO:	DB	0		;steuerung in/out-geraete
+;-----------------------------------------------------------
+;TEXTE
+MSG1:	DB	0AH,0DH,'Y23VO CP/Y2 V.3 780K',0dh,0ah,0
+MSG2:	DB	0dh,0ah,'Laufwerk nicht bereit.'
+MSG5:	DB	0AH,0DH,'abbrechen  j/n ?',0dh,0ah,0
+MSG3:	DB	0dh,0ah,'Fehler nicht zu beheben.',0dh,0ah,0
+;-----------------------------------------------------------
+;LAUFWERK AUSWAEHLEN
+;IN:C LAUFWERK (A ODER B)
+;OUT:HL DPH-VEKTOR
+SELDSK:	LD 	HL,0
+	LD	A,C
+	CP	ndisk
+	ret	NC
+	LD	(SEKDSK),A
+	LD	L,A
+	ADD	HL,HL
+	ADD	HL,HL
+	ADD	HL,HL
+	ADD	HL,HL		;*16
+	LD	DE,DPBAS	;DPH-VECTOR 1.LW
+	ADD	HL,DE
+	and	3		;Test lw b
+	ret	z		;nein
+	cp	2		;test lw c
+	ret	z		;nein
+	push	hl
+	ld	hl,inibit	;test ob 1.mal
+	bit	0,(hl)
+	jr	nz,sdsk1	;nein, kein recal noetig
+	ld	a,0ffh		;markieren
+	ld	(hl),a
+	ld	a,1
+	ld	(unit),a
+	call	recal
+sdsk1:	pop	hl
+	RET
+LISTST:	ld	a,0ffh		;ohne Kontrolle!
+	RET			;LISTER STATUS
+;SECTOR TRANSFORMATION
+;IN: BC LOG. SECTOR
+;    DE = 0 = keine Transformation
+SECTRAN:LD	H,B
+	LD	L,C
+	INC	HL
+	RET
+;SECTOR EINSTELLEN
+;IN: C SECTOR
+;OUT: (SEKSEC) =C
+SETSEC:	LD	HL,SEKSEC
+ 	LD	(HL),C
+	RET
+;KOPF AUF SPUR NULL STELLEN
+HOME:	LD	BC,0
+;SPUR ANWAEHLEN
+;IN: C SPUR
+;OUT (SECTRK)=C
+SETTRK:	LD	A,C
+	LD	(SEKTRK),A
+	RET
+;DMA SETZEN
+;IN: BC DMA
+SETDMA:	LD	H,B
+	LD	L,C
+	LD	(DMAADR),HL
+	RET
+;-----------------------------------------------------------
+;Kaltstart, nur nach RESET
+;CCP UND BDOS VON SPUR 2 DER DISKETTE LADEN
+BOOT:	ld	a,71h		;cpurom aus
+	out	(0f7h),a
+	out	(31h),a		;dram ein
+	LD	A,0C3H
+	LD	(0),A
+	LD	HL,WBOTE
+	LD	(1),HL
+	LD	(5),A
+	LD	HL,BDOS+6
+	LD	(6),HL
+	LD	SP,80H
+	CALL	INIT
+	call	dskini
+	LD	HL,MSG1
+	CALL	STR
+	XOR	A
+	LD	(HSTACT),A
+	LD	(UNACNT),A
+	LD	(4),A
+	CALL	INIFD		;INITIALISIERUNG FLOPPY-CONTROLLER
+	LD	C,0		;LAUFWERK A VOREINGESTELLT
+	CALL	SELDSK
+	LD	B,2CH
+	LD	C,2		;SECTORZAEHLER
+	CALL	SETTRK		;SPUR-NR.
+	LD	D,2		;SEKTOR
+	LD	HL,CCP		;LADEZIEL
+SLOAD1:	PUSH	BC		;NAECHSTEN SEKTOR
+	PUSH	DE
+	PUSH	HL
+	LD	C,D
+	CALL	SETSEC		;NEUEN SECT.ANWAEHLEN
+	POP	BC		;BC=LADEADRESSE
+	PUSH	BC		;LADEADR RETTEN
+	CALL	SETDMA
+	CALL	DREAD		;SYSTEM RAUFSCHREIBEN: WFLOP EINSETZEN
+	CP	0				;FEHLER?
+	CALL	NZ,RESTR		;JA
+	POP	HL
+	LD	DE,128
+	ADD	HL,DE		;LADEADR.ERHOEHEN
+	POP	DE
+	POP	BC
+	DEC	B		;SEKTORZAHL - 1
+	JR	Z,BOOT1		;ccp-kopie anlegen
+	INC	D		;NAECHSTEN SEKT.
+	LD	A,D
+	CP	29H		;LETZTER SEKTOR PER TRACK
+	JR	C,SLOAD1
+	LD	D,1		;1.SEKT.NAECHST.SPUR
+	INC	C
+	PUSH	BC
+	PUSH	DE
+	PUSH	HL
+	CALL	SETTRK
+	POP	HL
+	POP	DE
+	POP	BC
+	JR	SLOAD1
+;-----------------------------------------------------------
+BOOT1:	ld	hl,ccp		;ccp-kopie anlegen
+	ld	de,kopie
+	ld	bc,128*17
+	ldir
+;-----------------------------------------------------------
+wboot:	ld	hl,kopie	;Warmstart:ccp kopieren
+	ld	de,ccp
+	ld	bc,128*17
+	ldir
+	XOR	A
+	LD	(HSTACT),A
+	LD	(UNACNT),A
+	ld	sp,80h
+	LD	BC,80H
+	CALL	SETDMA
+	LD	A,(4)		;AKTUELLES LAUFWERK HOLEN
+	LD	C,A
+	JP	CCP
+;====================================================================
+;BLOCKBILDUNG FUER SEKTOREN FUER CP/M 2.0
+DREAD:	LD	A,(sekdsk)		;Test auf RAM-Disk
+	cp	2
+	jp	z,lese		;ram-disk
+	LD	A,1		;Sektor von Diskette lesen
+	LD	(READOP),A	;LESEFUNKTION
+	LD	(RSFLAG),A	;DATEN LESEN
+	LD	A,WRUAL
+	LD	(WRTYPE),A	;ALS NICHT DEF. BEHANDELN
+	JR	RWOPER
+WRIT:	LD	A,(sekdsk)		;Test auf RAM-Disk
+	cp	2
+	jp	z,schr			;ja
+	XOR	A
+	LD	(READOP),A	;SCHREIBEN DES ANGEWEHLTEN CP/M-SEKTORS
+	LD	A,C		;SCHREIBTYP IN A
+	LD	(WRTYPE),A
+	cp	WRUAL		;ORT DEFINIERT ?
+	jr	nz,CHKUNA	;ORT TESTEN
+;UNDEFINIERT SCHREIBEN
+	LD	A,BLKSIZ/128	;NAECHSTE UNBELEGTE SAETZE
+	LD	(UNACNT),A
+	LD	A,(SEKDSK)
+	LD	(UNADSK),A	;ZU SUCHENDES LAUFWERK
+	LD	A,(SEKTRK)	;ZU SUCHENDE SPUR
+	LD	(UNATRK),A
+	LD	A,(SEKSEC)	;ZU SUCHENDER SEKTOR
+	LD	(UNASEC),A
+CHKUNA:	LD	A,(UNACNT)	;TEST AUF SCHREIBEN IN UNBELEGTEN SEKTOR
+	OR	A
+	JR	Z,ALLOC		;SPRUNG WENN NICHT VORHANDEN
+;ES SIND UNBELEGTE DATENSAETZE VORHANDEN
+	DEC	A		;HERUNTERZAEHLEN
+	LD	(UNACNT),A
+	LD	A,(SEKDSK)	;GLEICHES LAUFWERK?
+	LD	HL,UNADSK
+	CP	(HL)
+	JR	NZ,ALLOC	;WENN NEIN, SPRUNG
+;DIE LAUFWERKE SIND DIE GLEICHEN
+	LD	HL,UNATRK
+	LD	A,(SEKTRK)	;GLEICHE SPUR
+	CP	(HL)
+	JR	NZ,ALLOC	;WENN NEIN, SPRUNG
+;DIE SPUREN SIND DIE GLEICHEN
+	LD	A,(SEKSEC)	;GLEICHER SEKTOR
+	LD	HL,UNASEC
+	CP	(HL)
+	JR	NZ,ALLOC	;WENN NICHT, SPRUNG
+;UEBEREINSTIMMUNG, UEBERGANG ZUM NAECHSTEN SEKTOR
+	INC	(HL)		;UNASEC=UNASEC+1
+	LD	A,(HL)		;SPURENDE ?
+	CP	CPMSPT		;CP/M-SEKTOREN/SPUR
+	JR	C,NOOVF		;SPRUNG WENN KEIN UEBERLAUF
+;UEBERLAUF, NAECHSTE SPUR
+	LD	(HL),0		;UNASEC = 0
+	LD	A,(UNATRK)
+	INC	A
+	LD	(UNATRK),A	;UNATRK=UNATRK+1
+NOOVF:	XOR	A		;UEBEREINSTIMMUNG GEFUNDEN.
+	LD	(RSFLAG),A	;UNBEDINGTE LESEOPERATION
+	JR	RWOPER		;SCHREIBEN DURCHFUEHREN
+ALLOC:	XOR	A		;KEIN UNBELEGTER DATENSATZ.
+	LD	(UNACNT),A	;VORHERIGES LESEN NOTWENDIG
+	INC	A
+	LD	(RSFLAG),A	;RSFLAG = 1
+;GEMEINSAMER KODE FUER LESEN UND SCHREIBEN
+RWOPER:	XOR	A
+	LD	(ERFLAG),A	;FEHLER ZURUECKSETZEN
+	LD	A,(SEKSEC)	;DISKSEKTOR BERECHNEN
+	LD	B,1
+SC1:	SUB	8
+	JR	Z,SC2
+	JP	M,SC2
+	INC	B
+	JR	SC1
+SC2:	LD	A,B
+	LD	(SEKHST),A	;ZU SUCHENDER DISKSEKTOR
+;DISKSEKTOR AKTIV ?
+	LD	HL,HSTACT
+	LD	A,(HL)
+	LD	(HL),1
+	OR	A		;BEREITS GESETZT
+	JR	Z,FILHST	;SPEICHER FUELLEN
+;AKTIVER PUFFER GLEICH GESUCHTEM ?
+	LD	A,(SEKDSK)
+	LD	HL,HSTDSK	;GLEICHE LAUFWERKE
+	CP	(HL)
+	JR	NZ,NOMATC
+;GLEICHE SPUR ?
+	LD	A,(SEKTRK)
+	LD	HL,HSTTRK
+	CP	(HL)
+	JR	NZ,NOMATC
+;GLEICHER PUFFER
+	LD	A,(SEKHST)
+	LD	HL,HSTSEC	;SEKHST=HSTSEC ?
+	CP	(HL)
+	JR	Z,MATCH		;WENN JA, SPRUNG
+NOMATC:	LD	A,(HSTWRT)	;DISKSEKTOR GESCHRIEBEN ?
+;RICHTIGES LAUFWERK, ABER NICHT GLEICHER SEKTOR
+	OR	A
+	JR	Z,FILHST
+	CALL	WRIHST		;DISKPUFFER LEEREN
+FILHST:	LD	A,(SEKDSK)
+;DISKPUFFER FUELLEN
+	LD	(HSTDSK),A
+	LD	A,(SEKTRK)
+	LD	(HSTTRK),A
+	LD	A,(SEKHST)
+	LD	(HSTSEC),A
+	LD	A,(RSFLAG)	;LESEN NOTWENDIG
+	OR	A
+	CALL	NZ,REAHST
+	XOR	A
+	LD	(HSTWRT),A	;KEIN SCHREIBEN
+MATCH:	LD	A,(SEKSEC)
+	AND	SECMSK
+	CP	0
+	JR	NZ,MATCH2
+	LD	A,8
+MATCH2:	LD	HL,HSTBUF-128
+	ld	b,a
+	ld	de,080h
+match1:	add	hl,de
+	djnz	match1
+	ex	de,hl
+	ld	hl,(dmaadr)
+	ld	c,128
+	ld	a,(readop)
+	or	a
+	jr	nz,rwmove
+	ld	a,1
+	ld	(hstwrt),a
+	EX	DE,HL		;QUELLE/SENKE TAUSCHEN
+RWMOVE:	LD	A,(DE)		;QUELLZEICHEN
+	INC	DE
+	LD	(HL),A		;ZUR SENKE
+	INC	HL
+	DEC	C		;128*
+	JR	NZ,RWMOVE
+;DATENTRANSFER BEENDET
+	LD	A,(SEKDSK)
+	LD	(UNADSK),A
+	LD	A,(SEKTRK)
+	LD	(UNATRK),A
+	LD	A,(SEKSEC)
+	LD	(UNASEC),A
+	LD	A,(WRTYPE)	;SCHREIBTYP HOLEN
+	CP	WRDIR		;IHV-EINTRAG ?
+	LD	A,(ERFLAG)	;FEHLERFLAG HOLEN
+	RET	NZ		;KEIN IHV, ZURUECK
+;FREMPUFFER LEEREN (Verzeichnis-EINTRAG)
+	OR	A		;FEHLER ?
+	RET	NZ		;ZURUECK FALLS JA
+	XOR	A
+	LD	(HSTWRT),A	;PUFFER GESCHRIEBEN
+	CALL	WRIHST
+	LD	A,(ERFLAG)
+	RET
+
+include MPRDSK.MAC
+include FDC780.MAC
+if	z1013
+include ZBIO.MAC
+include Z13CI40A.MAC
+else
+include	BIO.MAC
+include CI80.MAC
+include TTAB80.MAC
+endif
+include	BCCO.MAC
+
+;Diskettenpuffer
+hstact	equ	$		;AKTIVIERUNGSFLAG
+HSTWRT	equ	hstact+1	;SCHREIBFLAG
+UNACNT	equ	hstwrt+1	;ZAEHLER FUER N. BELEGTE SAETZE
+UNADSK	equ	unacnt+1	;LETZTES NICHT BELEGTES LAUFWERK
+UNATRK	equ	unadsk+1	;LETZTE NICHT BELEGTE SPUR
+UNASEC	equ	unatrk+1	;LETZTER NICHT BELEGTER SEKTOR
+ERFLAG	equ	unasec+1	;FEHLERCODE
+RSFLAG	equ	erflag+1	;LESEFLAG
+READOP	equ	rsflag+1	;1 BEI LESEOPERATION
+ALL0	equ	readop+1
+CHK0	equ	all0+80
+ALL1	equ	chk0+80
+CHK1	equ	all1+80
+ALL2	equ	chk1+80
+CHK2	equ	all2+32
+DIRBF	equ	chk2+8		;Inhaltsverzeichnis Diskette
+HSTBUF	equ	dirbf+129	;Zwischenspeicher fuer Diskette
+kopie	equ	hstbuf+1025	;ccp-kopie
+if	gc
+gdcanf	equ	$
+.dephase
+.phase	gdcram
+include	GRAFIK.MAC
+include	GDCZG2.MAC
+lgdc	equ	$-gdcini
+.dephase
+endif
+end

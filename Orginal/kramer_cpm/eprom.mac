@@ -1,0 +1,99 @@
+.z80
+aseg
+org	100h
+
+;Programmteil zum Abspeichern eines Speicherbereichs
+;ab Adresse 4000h auf Diskette, Dateiname waehlbar
+;Extend: .ROM, Test ob Datei schon existiert
+
+bdos	equ	5
+
+init:	ld	de,txt1		;Dateiname ?
+	ld	c,9		;Textausgabe
+	call	bdos
+	ld	de,fcb1		;Eingabepuffer
+	ld	c,10		;Textkette eingeben
+	call	bdos		;GROSSE BUCHSTABEN !
+	ld	hl,fcb1+2	;Voreinstellung des fcb
+	ld	de,fcb2+1	;spaeter wirksamer fcb
+	ld	bc,33		;Anzahl Bytes
+	ldir			;uebertragen
+	ld	de,fcb2		;test ob schon vorhanden
+	ld	c,17		;erste Eintragung suchen
+	call	bdos
+	inc	a		;test directorycode
+	jr	z,make
+	ld	de,txt2		;Datei vorhanden
+	ld	c,9
+	call	bdos
+	ld	hl,fcb1+1	;Puffer loeschen
+	xor	(hl)
+	ld	a,20h
+	ld 	b,8
+loe1:	inc	hl
+	ld	(hl),a
+	djnz	loe1
+	jr	init		;neuen Namen eingeben
+make:	ld	de,fcb2
+	ld	c,22		;Datei anlegen
+	call	bdos
+	inc	a
+	jr	nz,make1
+	ld	de,txt4		;Fehlermeldung
+	ld	c,9
+	call	bdos
+	jr	exit
+make1:	ld	hl,4000h-128 	;EPROM-Puffer
+	ld	de,128		;Sektorgroesse
+	ld	a,(typ)
+	ld	b,a		;Anzahl Sektoren
+loop:	push	bc		;Schleife Sektoren schreiben
+	push	de
+	add	hl,de
+	push	hl
+	ld	d,h
+	ld	e,l
+	ld	c,26		;dma einstellen
+	call	bdos
+	ld	de,fcb2
+	ld	c,21		;sequentiell schreiben
+	call	bdos
+	or	a
+	jr	z,loop1		;kein Fehler
+	ld	de,txt3
+	ld	c,9		;Fehlermeldung
+	call	bdos
+	jr	exit
+loop1:	pop	hl
+	pop	de
+	pop	bc
+	djnz	loop
+	ld	de,fcb2
+	ld	c,16		;Datei schliessen
+	call	bdos
+	ld	de,txt5		;Ausgabe OK
+	ld	c,9
+	call	bdos
+exit:	ld	c,0
+	call	bdos
+
+;Eingabepuffer fuer Dateinamen
+fcb1:	db	8		;max. Anzahl
+	db      0               ;zaehler
+	ds      8,20h           ;Platz fuer Dateinamen
+	db      'ROM'           ;vorgegebener Extend
+	ds      21,0            ;Voreinstellung
+
+
+;fcb fuer Diskettenzugriff
+fcb2:	db	0
+	ds	33
+
+typ:	db	64		;EPROM-Typ
+txt1:	defm	0dh,0ah,'Dateiname : $'
+txt2:   defm	0dh,0ah,'Datei existiert schon !$'
+txt3:   defm	0dh,0ah,'Diskette voll !$'
+txt4:   defm	0dh,0ah,'Directory voll !$'
+txt5:   defm	0dh,0ah,'OK$'
+
+end

@@ -1,0 +1,43 @@
+.z80
+aseg
+org	100h
+	TITLE	'DIALOG'
+bdos	equ	5		;Standardeinsprung
+
+start:	ld	de,text1	;Adresse Text
+	ld	c,9		;Ausgabe Zeichenkette
+	call	bdos
+	ld	c,1		;Konsoleingabe
+	call	bdos
+	bit	6,a		;Test auf kleine Buchstaben
+	jr	z,dia1
+	res	5,a		;Umwandlung in grosse
+dia1:	cp	'J'		;Ja
+	jr	nz,exit		;zum Progranmende
+	ld	de,text2	;Adresse Text fuer Drucker
+	ld	c,9		;Textausgabe
+	call	bdos
+	ld	de,puffer	;Zwischenspeicher Text
+				;(Druckpuffer)
+	ld	c,10		;Texteingabe in Puffer
+	call	bdos
+	ld	hl,puffer+1	;Druckerausgabe vorbereiten
+	ld	b, (hl)		;Zeichenanzahl
+dia2:	inc	hl		;Textanfang
+	ld	a,(hl)
+	push	bc
+	push	hl
+	ld	c,5		;Druckerausgabe
+	ld	e,a		;Zeichen umladen
+	call	bdos
+	pop	hl
+	pop	bc
+	djnz	dia2
+exit:	ld	c,0
+	call	bdos
+
+text1: 	defm	'Wollen Sie den Drucker testen? (j/n) $'
+text2:	defm	0dh,0ah, 'Geben Sie einen Text ein!',0dh,0ah, '$'
+puffer:	db	0ffh,0
+
+end

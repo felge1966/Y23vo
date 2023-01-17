@@ -1,0 +1,140 @@
+
+
+;9.7.88.
+;SUBR® ZUÒ EINGABÅ EINEÓ ZEICHENÓ UEBEÒ Tastatuò 8x10
+;***IN: -
+;**OUT: A...ZEICHEN IN ASCII
+;*KILL: A,F
+CI:º	PUSÈ	BÃ		
+	PUSH	DE
+	PUSH	HL
+	LD	HL,FLGIO
+CI2:	CALL	ZYKL
+	or	a
+	JR	Z,CI2
+;TASTE GEDRUECKT
+	call	zs		;entprellzeit
+	LD	D,A
+	CALL	CVTA		;UMWANDLUNG IN ASCII
+	PUSH	AF
+	CALL	TON
+CI1:	CALL	ZYKL
+	oò	a
+	JR	NZ,CI1		;WARTEN BIS TASTE FREI
+	POP	AF		
+	POP	HL
+	POÐ	DE
+	POP	BC
+	RET
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;SUBR. FUER EINEN ZYKLUS DER TASTENEINGABE
+;***IN: -
+;**OUT: A=0...KEINE EINGABE
+;       A...SONST SPALTENBYTE
+;       E...ZEILENBYTE
+;*KILL: A,B,C,E,F
+ZYKLº	LD	C,PIOAD
+	IN	A,(C)
+	ANÄ	0e1È		;Spaltå ° einstellen
+	oò	0ch
+	ld	e,a
+	ouô	(c),e
+	in	a,(piobd)
+	res	4,(hl)
+	and	20h
+	jr	nz,ci3
+	set	4,(hl)
+ci3:	ld	a,e
+	add	a,02
+	out	(c),a
+	in	a,(piobd)
+	push	af
+        res	3,(hl)
+	and	40h
+	jr	nz,ci4
+	set	3,(hl)
+ci4:	pop	af
+	and	80h
+	jr	nz,ci5
+	set	4,(hl)
+ci5:	in	a,(c)
+	LÄ	B,10		;Anzahl Spalten
+	and	0e1h
+ZYK1:	LD	E,A
+	OUT	(C),E
+	ld	d,0
+	ld	a,b
+	cp	4
+	jr	nz,zy1
+	ld	d,20h
+zy1:	cp	3
+	jr	nz,zy2
+	ld	d,060h
+zy2:	IN	A,(PIOBD)	;Zeile in A, 1 von 8
+	or	d
+	CP	0FFH
+	JR	NZ,ZYK2		;TASTE GEDRUECKT
+	LD	A,E
+	ADD	A,02H		;Dekoder auf naechste Spalte
+	DJNZ	ZYK1		;KEINE TASTE GEDRUECKT
+	and	0e1h
+	out	(c),a
+	XOR	A
+	RETŠZYK2:	LD	E,10
+ZYK3:	deC	E
+	DJNZ	ZYK3
+	RET
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;SUBR. ZUR KONVERTIERUNG TASTENKODE -> ASCII
+;***IN: DE..ZEICHEN IM TASTENKODE
+;**OUT: A...ZEICHEN IM ASCII-KODE
+;*KILL: A,B,C,D,E,F
+CVTA:	PUSH	HL
+	XOR	A
+	LD	B,A		;B=0 F.ADD HL,BC
+;REL. TAB.PLATZ FUER zeile
+CVTA0:	add	a,10		;Zeilenanfang 0...70
+	rrc	D
+	JR	C,CVTA0
+	sub	10
+;Tabellenplatz FUER spalte in e
+	ADÄ	A,E		;Spalte dazu
+	LD	C,A		;Tabellenplatz FUER ZEICHEN 
+	LD	HL,TTAB
+	ADD	HL,BC
+	LD	A,(HL)
+;TEST AUF UMSCHALTUNG
+	LD	HL,FLGIO
+	BIÔ	3,(HL)		;SHIFT-FLAG
+	CALL	NZ,SHIFT
+;TEST AUF CONTROL
+	BIT	4,(hl)
+	jr	Z,Cvta2
+        and     1fh
+cvta2:	POP	HL
+	RET
+SHIFT:	BIT	6,A		;BUCHST.
+	JR	Z,SH1
+SH2:	RES	5,A		;GROSS:=KLEIN
+	RET
+SH1:	RES	4,A		;ZEICHEN:=ZIFFER
+	RET
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;consolstatus, TEST AUF EINGABE UEBER TASTATUR
+;***IN: -
+;**OUT: A=0... KEINE EINGABE
+;       A=-1... EINGABE
+;*KILL: A,FŠCSTS:	PUSH	BC
+	PUSH	DE
+	push	hl
+	lä	c,pioad
+	calì	ci5
+	pop	hl
+	POP	DE
+	POP	BC
+	or	A
+	RET	Z
+	LÄ	A,0FFH
+endf:	REÔ 
+
+

@@ -1,0 +1,81 @@
+'DIALOG'	MACRO-80 3.44	09-Dec-81	PAGE	1
+
+
+                                .z80
+  0000'                         aseg
+                                org	100h
+                                	TITLE	'DIALOG'
+  0005                          bdos	equ	5		;Standardeinsprung
+                                
+  0100    11 013E               start:	ld	de,text1	;Adresse Text
+  0103    0E 09                 	ld	c,9		;Ausgabe Zeichenkette
+  0105    CD 0005               	call	bdos
+  0108    0E 01                 	ld	c,1		;Konsoleingabe
+  010A    CD 0005               	call	bdos
+  010D    CB 77                 	bit	6,a		;Test auf kleine Buchstaben
+  010F    28 02                 	jr	z,dia1
+  0111    CB AF                 	res	5,a		;Umwandlung in grosse
+  0113    FE 4A                 dia1:	cp	'J'		;Ja
+  0115    20 22                 	jr	nz,exit		;zum Progranmende
+  0117    11 0164               	ld	de,text2	;Adresse Text fuer Drucker
+  011A    0E 09                 	ld	c,9		;Textausgabe
+  011C    CD 0005               	call	bdos
+  011F    11 0182               	ld	de,puffer	;Zwischenspeicher Text
+                                				;(Druckpuffer)
+  0122    0E 0A                 	ld	c,10		;Texteingabe in Puffer
+  0124    CD 0005               	call	bdos
+  0127    21 0183               	ld	hl,puffer+1	;Druckerausgabe vorbereiten
+  012A    46                    	ld	b, (hl)		;Zeichenanzahl
+  012B    23                    dia2:	inc	hl		;Textanfang
+  012C    7E                    	ld	a,(hl)
+  012D    C5                    	push	bc
+  012E    E5                    	push	hl
+  012F    0E 05                 	ld	c,5		;Druckerausgabe
+  0131    5F                    	ld	e,a		;Zeichen umladen
+  0132    CD 0005               	call	bdos
+  0135    E1                    	pop	hl
+  0136    C1                    	pop	bc
+  0137    10 F2                 	djnz	dia2
+  0139    0E 00                 exit:	ld	c,0
+  013B    CD 0005               	call	bdos
+                                
+  013E    57 6F 6C 6C           text1: 	defm	'Wollen Sie den Drucker testen? (j/n) $'
+  0142    65 6E 20 53           
+  0146    69 65 20 64           
+  014A    65 6E 20 44           
+  014E    72 75 63 6B           
+  0152    65 72 20 74           
+  0156    65 73 74 65           
+  015A    6E 3F 20 28           
+  015E    6A 2F 6E 29           
+  0162    20 24                 
+  0164    0D 0A 47 65           text2:	defm	0dh,0ah, 'Geben Sie einen Text ein!',0dh,0ah, '$'
+  0168    62 65 6E 20           
+  016C    53 69 65 20           
+  0170    65 69 6E 65           
+  0174    6E 20 54 65           
+  0178    78 74 20 65           
+  017C    69 6E 21 0D           
+  0180    0A 24                 
+'DIALOG'	MACRO-80 3.44	09-Dec-81	PAGE	1-1
+
+
+  0182    FF 00                 puffer:	db	0ffh,0
+                                
+                                end
+'DIALOG'	MACRO-80 3.44	09-Dec-81	PAGE	S
+
+
+Macros:
+
+Symbols:
+0005 	BDOS            0113 	DIA1            012B 	DIA2            
+0139 	EXIT            0182 	PUFFER          0100 	START           
+013E 	TEXT1           0164 	TEXT2           
+
+
+
+No Fatal error(s)
+
+
+C   

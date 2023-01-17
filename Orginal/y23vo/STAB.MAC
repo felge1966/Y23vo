@@ -1,0 +1,55 @@
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;SYSTEMTABELLEN
+.phase	stack
+USER	EQU	stack-8
+;TABELLE DER REGISTERINHALTE DES ANWENDERPROGRAMMS
+ELOC::	DB	0EEH
+DLOC::	DB	0DDH
+CLOC::	DB	0CCH
+BLOC::	DB	0BBH
+FLOC::	DB	0FFH
+ALOC::	DB	0AAH
+XLOC::	DW	1234H
+YLOC::	DW	5678H
+MLOC:	DB	0
+ILOC::	DB	high(iloc)
+LSLC::	DB	00H
+HSLC::	DB	00H
+ESLC::	DB	0EH
+DSLC::	DB	0DH
+CSLCº:	DÂ	0CH
+BSLC::	DB	0BH
+FSLC::	DB	0FH
+ASLC::	DB	0AH
+	DB	LOW(USER)
+SLOC::	DB	0
+EXI1::	DB	21H		;LD	HL,1234H
+LLOC::	DB	34H
+HLOC::	DB	12H
+	EI
+RAMJP:	DB	0C3H		;JP	6789H 
+	DB	89H
+PLOC::	DB	67H
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;TABELLE DER HALTEPUNKTE
+TLOC::	DW	0
+	DB	0
+	DW	0
+	DB	0
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+curs:	DW	BRAM		;bildschirm-ram
+pos1:	db	0		;Cursorpositionierung
+pos2:	db	80h		;Cursor ein/aus
+res:	dw	0		;Reserve	
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;einspruenge fuer anwendergeraete
+riusr:	JP	ci		;lesekanal
+wousr:	JP	mco		;schreibkanal
+lousr:	JP	mco		;drucker
+ZK:	DB	18H		;30 F.50 BAUD
+	DB	01		;2 F. 50 BAUD
+FLGIO:	DB	0		;steuerung in/out-geraete
+IOBYT:	db	0		;zuweisung in/out-geraete
+LTOÓ	EQÕ	$-sTack
+.dephase
+

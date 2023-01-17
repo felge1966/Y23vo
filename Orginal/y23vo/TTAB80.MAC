@@ -1,0 +1,27 @@
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;16.10.88
+;S6011-TASTATUR 8x10  
+;KONVERTIERUNGSTABELLE FUER TASTEN
+;nb=nicht belegt, Fn = Funktionstaste n
+TTAB:	DB	'1','3','5','7','9','?',04,00h,00h,0ffh
+;				           nb   nb   F7  
+	DB	71H,65h,74h,75h,6fh,7dh,0dh,00h,07fh,0ffh
+	;	 q   e   t   u   o   ue  cr  nb	 del  F8  
+;
+	DB	61H,64h,67h,6ah,6ch,7bh,12h,00h,09h,0ffh
+	;	 a   d   g   j   l   ae      nb tab  F9
+;
+	DB	79H,63h,62h,6dH,':',08h,03h,00h,0ffh,0ffh
+	;	 y   c   b   m      bs       nb  F1  F10
+;
+	DB	'2','4','6','8','0',18H,20H,00h,0ffh,0ffh
+;					     nb  F2  F11 	
+	DB	77H,72H,7AH,69H,70H,';',82H,00h,0ffh,060h
+	;	 w   r   z   i   p      ctrl nb  F3   `
+;
+	DB	73H,66H,68H,6BH,7cH,'<',01,81H,0ffh,05h
+	;	 s   f   h   k   oe       shift F4
+;
+	DB	78H,76H,6EH,'=','>',7eH,06,83h,0ffh,1bh
+	;	 x   v   n           ~     lock F6  esc
+

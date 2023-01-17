@@ -1,0 +1,75 @@
+.z80
+
+	SUBTTL	'Urlader'
+
+
+
+;Lader fuer erste 5 Sektoren und Sprung dorthin
+;(c) Y23VO 1989
+;public domain
+
+lram	equ	8100h	;Arbeitsbereich Ladeprogramm
+lstack	equ	lram-20h
+dskbuf	equ	lram-10h	;Speicherplatz Ladeadresse
+hstsiz	equ	400h	;Sektorgroesse
+cci	equ	mci
+
+;System: Bios ab Spur 0, Sektor 1
+;	 Intellader,CCP und BDOS ab Spur 2, Sektor 1
+
+
+bium:	ld	sp,lstack
+	call	inifd
+	ld	b,5		;Anzahl Sektoren
+	ld	de,hstsiz	;Sektorlaenge
+	ld	hl,lram+hstsiz	;Zieladresse
+	ld	(dskbuf),hl
+lader:	push	bc
+	push	de
+	push	hl
+	call	reahst		;sektorlesen
+	or	a
+	jp	nz,error	
+	ld	hl,hstsec	;naechster
+	inc	(hl)
+	pop	hl
+	pop	de
+	pop	bc
+	add	hl,de		;naechste Ladeadresse
+	ld	(dskbuf),hl
+	djnz	lader
+	jp	lram+hstsiz
+
+;Steuertabelle fuer Floppycontroller
+CTAB:	DB	0c6H		;MFM LESEN
+UNIT:	DB	0		;LAUFWERK A VOREINGESTELLT
+TRCK:	DB	0		;SPUR
+HED:	DB	0		;DISK-SEITE
+HSTSEC:	DB	1		;SECTOR
+N:	DB	3		;N=3=1024 BYTES
+EOT:	DB	5		;5 SECTOREN JE SPUR
+GPL:	DB	1BH		;LUECKE
+DTL:	DB	0FFH
+RESLTº	DB	0		;ST°, RESULÔ TAÂ F.FDC
+	DB	0		;ST1
+	DB	0		;ST2
+	DÂ	°		;CYLINDER
+	DB	0		;HEAD
+	DB	0		;RECORD
+	DB	0		;N
+RWCDE:	DB	0
+SEKDSK:	DB	0
+SEKTRKº	DB	0
+HEAD:	DB	0
+SEKHST:	DB	0	
+HSTDSK:	DB	0
+HSTTRK:	DB	0
+WRTYPE:	DB	2		
+WRFLG:	DB	0
+inibit:	db	0
+SEKSEC:	DB	1		;BDOS-SEKTOR
+DMAADR:	DEFW	80H		;BDOS-DMA
+erflag	equ	$		;nicht benutzt
+msg2	equ	$		;nicht benutzt
+
+

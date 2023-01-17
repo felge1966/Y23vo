@@ -1,0 +1,243 @@
+.z80
+aseg
+; Kassettenspeicherung
+; DEFINTION VON KONSTANTEN
+
+;save: cpu-pio a5, load: cpu-pio a6
+
+; ZEITKONSTANTEN SAVE
+SHDTON	EQU	1f80H
+SDTTOÎ	EQÕ	0c98H
+SHEAD	EQU	0a4H
+SSYN1	EQU	2fH
+SSYN2	EQU	37H
+SBITBC	EQU	2220H
+SBIT0	EQU	3eH
+SBIT1	EQU	42H
+SBITS2	EQU	31H
+SENDE	EQU	3BH
+
+;ZEITKONSTANTEN LOAD
+LDWART	EQU	414h
+LHEADA	EQU	9ch
+LHEADE	EQU	LHEADA+2ah
+LSYNA	EQU	0c9h
+LSYNE	EQU	LSYNA+0bh
+LBITA0	EQU	0b0h
+LBITA1	EQU	LBITA0+2
+LBITE	EQU	LBITA1+1bh
+LFLNK0	EQU	16h
+
+sv:	call	adr
+	ld	a,0ffh
+	jp	save0
+ld:	call	adr
+	ld	a,0ffh
+	scf
+	jp	load1
+
+adr:	ld	c,2
+	call	expr
+	pop	hl	;endeadresse
+	pop	de	;anfangsadresse
+	push	de
+	sbc	hl,de	;laenge ermitteln
+	jp	c,error
+	ex	de,hl
+	pop	ix	;anfangsadresse
+	ret
+;*----*----*----*----*----*----*----*----*----*----*-----*-----*
+; ELEMENTARROUTINEN fuer einen block
+;*----*----*----*----*----*----*----*----*----*----*-----*-----*
+;Block laden 
+;***IN:	IX	Ladeadresse 
+;	DE	Laenge
+;	A	Kennung, BIT 6 = 0 = Header, BIT 7 = 1 = Daten"
+;  	Standard A=0 bzw.A=255"
+;**OUT:	1.Byte = A, 2....N.= Daten, N+1.=  Paritaet
+
+SAVE0:	LD	HL,SAVLD		; RETURNADRESSE AUF STACK
+	PUSH	HL
+	LD      HL,SHDTON
+	BIT	7,A
+	JR	Z,HD
+	LD      HL,SDTTON
+HD:	EX	AF,AF'
+	INC	DE
+	DEC	IX
+;  "Headerton senden"
+	LD	A,2
+	LD	B,A
+HEADR:	DJNZ	HEADR
+	OUT	(PIOAD),A
+	XOR	20H
+	LD	B,SHEAD		;bitperiode headerton
+	DEC	L
+        JR	NZ,HEADR
+	DEC	B
+	DEC	H
+	JP	P,HEADR
+;  "Synchronimpuls senden"
+	LD	B,SSYN1
+SYN1:	DJNZ	SYN1
+	OUT	(PIOAD),A
+	LD	A,020h
+	LD	B,SSYN2
+SYN2:	DJNZ	SYN2
+	OUT	(PIOAD),A
+;  "Vorbereitung zur Ausgabe"
+	LD	BC,SBITBC
+	EX	AF,AF'
+	LD	L,A
+	JR	BOUT1
+BOUT:	LD	A,D
+	OR	E
+	JR	Z,BEND
+	LD	L,(IX+0)
+PAR:	LD	A,H	;  "Parity-Bildung"
+        XOR	L
+BOUT1:	LD      H,A
+	LD	A,01H 	; INIT A=1. PENDELT ZW. 1 UND 0
+	SCF		; CY ALS ENDEMARKIERUNG
+	JR	SAVE8
+BEND:	LD      L,H	;  "Bit senden"
+	JR	PAR
+BIEND:	LD	A,C	; C=14 UNVERAENDERT
+	BIT	7,B
+BIANF:	DJNZ	BIANF
+	JR	NC,BIOUT
+	LD	B,SBIT0
+BISET:	DJNZ	BISET
+BIOUT:	OUT	(PIOAD),A
+	LD	B,SBIT1
+	JR	NZ,BIEND
+	DEC	B
+	XOR	A
+	INC	A
+SAVE8:	RL	L
+	JP	NZ,BIANF
+	DEC	DE	;  "Naechstes Byte"
+	INC	IX
+	LD	B,SBITS2
+	LD	A,D	;  "D schon FF?"
+	INC	A
+	JR	NZ,BOUT
+	LD	B,SENDE	;  "Alles fertig"
+WAIT:	DJNZ	WAIT
+SAVLD:	EI
+	RET
+;x----x----x----x----x----x----x----x----x----y----x----x----x
+;  Block laden
+;***IN:	IX  Zieladresse, DE  Laenge des Datenblockes, A   Typ
+;	muss mit 1.geladenem Byte identisch sein, sonst RETURN
+;	Carry = 1; LOAD, Carry = 0: VERIFY
+;  	Falls D=0FFH, wird alles geladen, unabhaengig von A
+;	A wird aber dann selbst mit gespeichert, wodurch der 
+;	Datenblock um ein Byte versetzt im Speicher steht
+
+LOAD1:	INC	D
+	EX	AF,AF'
+	DEC	D
+	DI
+;  	INITIALISIERUNG
+	LD	HL,SAVLD
+	PUSH	HL
+	IN	A,(PIOAD)
+	AND	40H 
+	OR	2
+	LD	C,A
+	CP	A
+LDBRK:	CALL	BREAK		; BREAK GEDRUECKT?
+LDBEG:	CALL	FLNK1
+	JR	NC,LDBRK
+	LD	HL,LDWART
+LDWRT:	DJNZ	LDWRT
+	DEC	HL
+	LD	A,H
+	OR      L
+	JR	NZ,LDWRT
+	CALL	FLNK2
+	JR	NC,LDBRK
+HEDIN:	LD	B,LHEADA	;  "Nur ein Headersignal akzeptieren"
+	CALL	FLNK2
+	JR	NC,LDBRK
+	LD	A,LHEADE
+	CP	B
+	JR	NC,LDBEG
+	INC	H
+	JR	NZ,HEDIN
+SYNWT:	LD	B,LSYNA		;  "Synchronimpuls?"
+	CALL	FLNK1
+	JR	NC,LDBRK
+	LD	A,B
+	CP	LSYNE
+	JR	NC,SYNWT
+	CALL	FLNK1
+	RET	NC
+	LD	A,C		;Bytes LOAD oder VERIFY
+	XOR	3
+	LD	C,A
+	LD	H,0
+	LD	B,LBITA0
+	JR	CFLAG
+EXAF:	EX	AF,AF'
+	JR	NZ,LDTYP
+	JR	NC,VERFY
+	LD	(IX+0),L
+	JR	WEITR
+LDTYP:	RL	C
+	XOR	L
+	RET	NZ
+	LD	A,C
+	RRA
+	LD	C,A
+	INC	DE
+	JR	MK1
+VERFY:	LD	A,(IX+0)
+	XOR	L
+	RET	NZ
+WEITR:	INC	IX
+MK1:	DEC	DE
+	EX	AF,AF'
+	LD	B,LBITA1
+CFLAG:	LD	L,1
+BIT:	CALL	FLNK2
+	RET	NC
+	LD	A,LBITE		; ORIGINALWERT 0CBH
+	CP	B
+	RL	L
+	LD	B,LBITA0
+	JP	NC,BIT
+	LD	A,H
+	XOR	L
+	LD	H,A
+	LD	A,D
+	OR	E
+	JR	NZ,EXAF
+	LD	A,H
+	CP	1
+	RET
+;  "Flankenerfassung. B dient als Zaehler."
+;  "Falls nicht gefunden, error mit CY=0"
+FLNK2:	CALL	FLNK1
+	RET	NC
+FLNK1:	LD	A,LFLNK0
+WRTLD:	DEC	A
+	JR	NZ,WRTLD
+	AND	A
+FLNK:	INC	B
+	RET	Z
+ 	LD	A,7FH
+	IN	A,(PIOAD)
+	XOR	C
+	AND	40H 	; BIT 5 BEHALTEN
+	JR	Z,FLNK
+;  "Innerhalb der erlaubten Zeit (B) wurde Flanke"
+;  "erkannt"
+	LD	A,C
+	CPL
+	LD	C,A
+	SCF		; CY SETZEN: OKAY
+	RET
+
+

@@ -1,0 +1,56 @@
+;ramdisk nach "Mikroprozessortechnik" 3/88
+.z80
+gadr	equ	98h	;Basisadresse der Karte
+
+lese:	call	adre
+	inir
+	xor	a
+	ret
+schr:	call	adre
+	otir
+	xor	a
+	ret
+adre:	ld	a,(sektrk)
+	ld	l,a
+	ld	h,0
+	add	hl,hl		;Umwandlung in Sektore
+	add	hl,hl
+	add	hl,hl
+	add	hl,hl
+	ld	a,(seksec)	;aktuelle Sektor dazu
+	ld	e,a
+	ld	d,0
+	add	hl,de
+	xor	a
+	rr	h
+	rr	l
+	rr	a
+	out	(gadr+7),a	;low-adr
+	ld	a,l
+	out	(gadr+6),a	;mittlere adr
+	ld	a,h		;Bank
+	and	3
+	or	gadr
+	ld	c,a
+	ld	b,128
+	ld	hl,(dmaadr)
+	ret
+;Ramdisk loeschen (mit E5)
+dskini:	xor	a
+	ld	c,a
+	out	(gadr+6),a
+dskin1:	xor	a
+	ld	b,a
+	out	(gadr+7),a
+	ld	a,0e5h
+dskin2:	out	(gadr),a
+	djnz	dskin2
+	inc	c
+	ld	a,c
+	out	(gadr+6),a
+	cp	9
+	jr	dskin1
+	ret
+	
+		
+	

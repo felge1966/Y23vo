@@ -1,0 +1,78 @@
+
+;10.10.88
+;DEFINITION VON KONSTANTEN
+;Schalter
+V24	EQU	1		;DRUCKERSCHNITTSTELLE
+GC	EQU	1		;CONSOLEAUSGABE  = GRAFIK-BILDSCHIRM
+;zeichenorientierter Eingabekanal "rdr:"
+rmsk	equ	0f3h		;Maske
+IT	EQU	0		;"IN"-GERAET   I = TERMINAL (TASTATUR)
+IP	EQU	4		;"IN"-GERAET   I = Fernschreiber PIO A	
+IS	EQU	8		;"IN"-GERAET   I = Stromschleife SIO B
+IU	EQU	0CH		;"IN"-GERAET   I = VOM ANWENDER IM RAM DEFINIERT
+;zeichenorientierter Ausgabekanal "pun:"
+pmsk	equ	0cfh		;Maske
+OT	EQU	0		;"OUT"-GERAET  O = TERMINAL (BILDSCHIRM)
+OP	EQU	10H		;"OUT"-GERAET  O = Fernschreiber PIO A
+OS	EQU	20H		;"OUT"-GERAET  O = Stromschleife SIO B
+OU	EQU	30H		;"OUT"-GERAET  O = VOM ANWENDER DEF. GERAET
+;Druckerkanal "lst:"	
+lmsk	equ	03fh		;Maske 
+LT	EQU	0		;LIST-GERAET   L = TERMINAL (BILDSCHIRM)
+LV	EQU	40H		;LIST-GERAET   L = V24-Schnittstelle SIO A
+LC	EQU	80H		;LIST-GERAET   L = Centronics-Schnittstelle 
+LU	EQU	0C0H		;LIST-GERAET   L = VOM ANWENDER DEF. GERAET
+ETX	EQU	003H		;CONTROL/C ( OF TEXT)
+APST	EQU	27H		;APOSTROPH 
+NDISË	EQÕ	²		;ANZAHÌ LAUFWERKE,± IÍ RAÍ SIMULIERT
+
+;Speicheradressen
+MONITOR	EQU	0C000h		;Anfang Monitorprogramm
+BIOÓ	EQÕ	0BE00È		;49Ë-cpm 
+BDOÓ	EQÕ	BIOS-0E00H
+CCP	EQU	BIOS-1600H
+RDSK	EQU	7000H		;IM RAM SIMULIERTE FLOPPY
+eom	equ	0F500h		;Beginn Systemram fuer Monitor
+gdcram	equ	0F600h		;Ramtabelle Grafik-Controller
+STACK	EQU	eom+0cah
+BRAM	EQU	0FC00H		;BILDSCHIRM-RAM
+ASS	EQU	0B400H		;Assembler
+BASIC	EQU	8000H
+TEXT	EQU	0B000h		;TEXTEDITOR
+
+;Adressen von Peripherieschaltkreisen
+;PIO auf CPU-Karte
+PIOAD	EQU	0FCH		;DATENAUSGABE KANAL A
+PIOBÄ	EQÕ	0FDÈ		;EINGABEDATEÎ tastatur
+PIOAC	EQU	0FEH		;STEUERADRESSE KANAL A
+PIOBC	EQU	0FFH		;STEUERADRESSE KANAL B
+
+;Grafik-Display-Controller 7220	;lesen		schreiben
+gdcc	equ	8eh		;status		daten 
+gdcd	equ	8fh		;daten 		kommando
+
+;CTC-SIO-Karte
+ctca	equ	6ch		;taktgeber fuer sio a
+ctcb	equ	6dh		;taktgeber fuer sio b
+ctcd	equ	6fh		;zeitgeber uhr
+sioad	equ	78h		;sio kanal a: v24/kassette
+siobä	eqõ	79h		;sio kanal b: stromschleife
+sioac	equ	7ah
+siobc	equ	7bh
+
+
+;Floppy-Disk-Controller 8272/765
+CFDC	EQU	40H		;STEUERUNG FDC
+DFDC	EQU	41H		;DATEN FDC
+TC	EQU	50H		;TERMINAL COUNT (ENDE-IMPULS) 
+
+;2PIO-Karte, Centronics-Schnittstelle 
+p1ad	equ	0ACh		;Daten 
+p1bd	equ	0ADh		;Steuerung Drucker
+p1ac	equ	0AEh
+p1bc	equ	0AFh
+
+
+
+
+

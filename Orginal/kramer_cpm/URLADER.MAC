@@ -1,0 +1,95 @@
+.z80
+aseg
+	org	100h
+
+	TITLE	'Lader'
+
+
+
+;Lader fuer erste 5 Sektoren und Sprung dorthin
+;(c) Y23VO 1989
+;public domain
+
+ram	equ	8100h	;Arbeitsbereich Ladeprogramm
+stack	equ	ram-20h
+dskbuf	equ	ram-10h	;Speicherplatz Ladeadresse
+hstsiz	equ	400h	;Sektorgroesse
+
+;Floppy-Disk-Controller 8272/765
+cfdc	equ	40h	;Steuerung
+dfdc	equ	41h	;Daten
+tc	equ	10h	;Ende-Impuls
+
+;System: Bios ab Spur 0, Sektor 1
+;	 Intellader,CCP und BDOS ab Spur 2, Sektor 1
+;Umkopieren
+	ld	hl,anf		;Quelladresse
+	ld	de,ram		;Zieladresse
+	ld	bc,400h		;PRogrammlaenge
+	ldir
+	jp	ram
+anf	equ	$
+	.phase	ram	
+start:	ld	sp,stack
+	call	inifd
+restr:	ld	b,5		;Anzahl Sektoren
+	ld	de,hstsiz	;Sektorlaenge
+	ld	hl,ram+hstsiz	;Zieladresse
+	ld	(dskbuf),hl
+lader:	push	bc
+	push	de
+	push	hl
+	call	reahst		;sektorlesen
+	or	a
+	jr	nz,error	
+	ld	hl,hstsec	;naechster
+	inc	(hl)
+	pop	hl
+	pop	de
+	pop	bc
+	add	hl,de		;naechste Ladeadresse
+	ld	(dskbuf),hl
+	djnz	lader
+	jp	ram+hstsiz
+
+error:	halt
+str:
+cci:	ret
+
+;Steuertabelle fuer Floppycontroller
+CTAB:	DB	0c6H		;MFM LESEN
+UNIT:	DB	0		;LAUFWERK A VOREINGESTELLT
+TRCK:	DB	0		;SPUR
+HED:	DB	0		;DISK-SEITE
+HSTSEC:	DB	1		;SECTOR
+N:	DB	3		;N=3=1024 BYTES
+EOT:	DB	5		;5 SECTOREN JE SPUR
+GPL:	DB	1BH		;LUECKE
+DTL:	DB	0FFH
+RESLT:	DB	0		;ST0, RESULT TAB F.FDC
+	DB	0		;ST1
+	DB	0		;ST2
+	DB	0		;CYLINDER
+	DB	0		;HEAD
+	DB	0		;RECORD
+	DB	0		;N
+RWCDE:	DB	0
+SEKDSK:	DB	0
+SEKTRK:	DB	0
+HEAD:	DB	0
+SEKHST:	DB	0	
+HSTDSK:	DB	0
+HSTTRK:	DB	0
+WRTYPE:	DB	2		
+WRFLG:	DB	0
+inibit:	db	0
+SEKSEC:	DB	1		;BDOS-SEKTOR
+DMAADR:	DEFW	80H		;BDOS-DMA
+erflag	equ	$		;nicht benutzt
+msg2	equ	$		;nicht benutzt
+
+;es folgt FDC780.MAC
+include	FDC780.MAC
+
+	.dephase
+	end

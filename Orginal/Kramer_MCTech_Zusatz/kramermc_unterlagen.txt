@@ -1,0 +1,239 @@
+#------------------------------------------------------------------------------
+# Manfred Kramer http://www.dl2kmk.de
+# Buch "Praktische Mikrorechentechnik", Reihe Amateurbibliothek, Militärverlag DDR,1987
+#------------------------------------------------------------------------------
+
+
+CPU  U880
+RAM/ROM  64 KByte
+Takt  1.5 MHz
+Anzeige  64 x 16 Zeichen s/w Darstellung auf TV, 1 KByte Bildwiederholspeicher
+Tastatur  alphanum.
+Peripherie  1 PIO für Tastaturansteuerung, Beeper, und serielle Ein- und Ausgabe
+Software  Monitor, Debugger, Reassembler, Editor, Assembler, BASIC
+
+
+Speicheraufteilung (S. 77)
+------------------
+
+Speicherbereich Inhalt Buchhinweise
+0000-03FF  Monitor  S. 44ff
+0400-07ff  Debugger  S. 66
+0800-0BFF  Reassembler
+0C00-0FFF  System-RAM
+1000-FBFF  freier RAM
+4000-7FFF  Textspeicher f. Editor
+8000-AFFF  BASIC  S. 41ff
+C000-C3FF  Editor  S. 72
+C400-DFFF  Assembler  S. 74
+FC00-FFFF  Bildwiederholspeicher
+
+PIO	A0 	Serieller Ausgang
+	A1-A3 	Zeilen Tastatur (s. Bild 1.9, S. 25)
+	A5 	Beeper
+	A7	Serieller Eingang
+
+	B0-B7	Spalten Tastatur
+
+
+BWS
+---
+
+64x16, FC00-FFFF  1 KByte Bildwiederholspeicher
+7-Bit - ASCII-Code, Zeichenmatrix 6x8 Pixel
+FC00 ist links oben
+Nach sieben Bildpunkten einer Zeile beginnt ein neues Zeichen
+8 Bildschirmzeilen / SchriftZeile, dann 8 leere Bildschirmzeilen (S. 30)
+
+Ein Umbau auf 64x32 wäre mit 2K BWS-RAM möglich (S. 30), wird aber nirgends genutzt!
+die Software arbeitet mit BRAM=FC00 (ed)
+
+
+#------------------------------------------------------------------------------
+# Monitor
+#------------------------------------------------------------------------------
+
+Einsprungtabelle
+
+Adresse  Befehl  Bemerkung  
+Adresse	Befehl		Bemerkung
+0E0H	MCI: JMP CI	Einzelzeicheneingabe Tastatur, Zeichen in Register A
+0E3H	MRI: JMP RI	Einzelzeicheneingabe INPUT-Kanal, Zeichen in Register A
+0E6H	MCO: JMP CO	Einzelzeichenausgabe Bildschirm, Zeichen in Register C
+0E9H	MWO: JMP WO	Einzelzeichenausgabe OUTPUT-Kanal, Zeichen in Register C
+0ECH	MLO: JMP LO	Einzelzeichenausgabe LIST-Kanal, Zeichen in Register C
+0EFH	MCSTS: JMP CSTS	Tastaturstatus 0 = kein Zeichen
+					-1 = Zeichen
+0F2H 	MIOC: JMP IOCHK	IN/OUT-Zuweisung abfragen, Byte in Register A
+0F5H	MIOS: JMP IOSET	IN/OUT-Gerät zuweisen, Byte in Register A
+
+
+1 Buchstabe tippen
+
+Kommando Funktion 		Syntax, Parameter 
+A  Assembler-Aufruf  		A  
+B  BASIC-Aufruf  		B  
+C  COPY WO: = RI  		C  
+D  DUMP  			DAADR, EADR  
+E  End-File  			EAADR  
+F  Fill  			FAADR,EADR,Byte  
+G  GO  				GAADR,EADR1,EADR2 oder GAADR oder G  
+H  HEX-Arithmetik  		HADR,ADR  
+I  INPUT-Kanal zuweisen 	IT oder IL oder IU  
+J  JUMP RAM-Tabelle  		J  
+K  KNOW RAM-Test  		KAADR,EADR  
+L  LIST-Zuweisung  		LT oder LL oder LU  
+M  MOVE  			MAADR,EADR,ZADR  
+O  OUTPUT-Kanal zuweisen	OT oder OL oder OU  
+P  PRINT Disassembler  		PAADR,EADR  
+R  READ ext. Speicher  		RADR  
+S  SUBSTITUTE  			SADR,  
+T  TEXT Editor  		T  
+V  VERIFY  			VAADR,EADR,ZADR  
+W  WRITE  			WAADR,EADR  
+X  Register anzeigen  		X oder Xr  
+Z  Zweitregistersatz  		Z oder Zr  
+
+ADR Adresse, AADR Anfangsadresse, EADR Endeadresse, ZADR Zieladresse
+r Register A, B, ...
+
+IT:	"IN"-GERAET   I = TERMINAL (TASTATUR)
+IL:	"IN"-GERAET   I = KASSETTENREKORDER
+IU:	"IN"-GERAET   I = VOM ANWENDER DEF. GERAET
+OT:	"OUT"-GERAET  O = TERMINAL (BILDSCHIRM)
+OL:	"OUT"-GERAET  O = KASSETTENREKORDER
+OU:	"OUT"-GERAET  O = VOM ANWENDER DEF. GERAET
+LT:	LIST-GERAET   L = TERMINAL (BILDSCHIRM)
+LL:	LIST-GERAET   L = FERNSCHREIBER
+LU:	LIST-GERAET   L = VOM ANWENDER DEF. GERAET
+
+#------------------------------------------------------------------------------
+# Editor	T
+#------------------------------------------------------------------------------
+
+Kommando Funktion Syntax, Parameter 
+
+
+A(sign)  	Textspeicherzuweisung  				A nnnn (CR)
+ 								nnnn (CR)  
+D(isplay)  	Darstellen einer Anzahl von n Zeilen mit 
+ 		Weiterstellen des Zeilenzählers  		Dn (CR) oder 
+							 	D(Leerz.)…(CR)  
+E(dit)  	Texteingabe-Modus  				En (CR)  
+G(o)  		Weiterstellen des Zeilenzählers vorwärts um n Zeilen  Gn (CR)  
+I(nput)  	Zuweisung Eingabekanal  			IT, IL oder IU  
+L(ist)  	Zuweisung Druckerkanal  			LT, LL oder LU  
+0(utput)  	Zuweisung Ausgabekanal  			OT, OL oder OU  
+P(rint)  	Ausgabe aller Zeilen auf Listkanal  		P  
+Q(uit)  	Rücksprung in den Monitor  			Q  
+R(ead)  	Lesen des Eingabekanals bis zum ETX-Zeichen  	R  
+T(op)  		Rückstellen des Zeilenzählers an den Anfang  	T  
+U(p)  		Rückstellen des Zeilenzählers um n Zeilen 	Un (CR)  
+W(rite)  	Ausgabe einer Anzahl oder aller Zeilen  	Wn(CR) oder 
+ 								W (CR)  
+n: Hexa-Zahl, max. vierstellig
+ (CR): Wagenrücklauf-Taste 
+
+Taste Funktion 
+BS  	Cursor nach links, Korrektur durch Überschreiben möglich  
+DEL  	Inhalt der Anzeigezeile löschen  
+LP  	Zeile in Textpuffer übernehmen, nächste Zeile aus dem Puffer anzeigen  
+CR  	Zeile in Puffer übernehmen, E-Kommando verlassen  
+Control D  vorletzte Zeile in Arbeitszeile doppeln  
+Control Z  Zeile in Puffer übernehmen, neue Zeile beginnen  
+Control X  Zeichen über dem Cursor löschen, Rest nach links verschieben  
+Control S  Zeichen über dem Cursor einfügen, Rest nach rechts verschieben  
+
+#------------------------------------------------------------------------------
+# Assembler	A
+#------------------------------------------------------------------------------
+
+Arbeitsspeicher des Assemblers (1000H bis 2FFFH) 
+
+Pass: 1 nötig,
+dann 
+Pass O Objektprogramm 
+Pass P Listing
+
+Die Übersetzung längerer Programme ist zwar möglich, jedoch müssen dann 2
+externe Geräte am Computer arbeiten: Der Inputkanal muß das Quellprogramm
+liefern, Out- und Listkanal müssen den Objektcode und die Liste aufnehmen und
+speichern bzw. drucken. Ist als Listgerät der Bildschirm zugewiesen (LT),
+erscheint die Liste mit je 16 Zeilen. Nach Eingabe eines Leerzeichens folgen die
+nächsten 16. 
+
+Assembler-Fehlermeldungen
+
+20  Fehlerhafter Programmname  
+21  Markenfehler (zu lang, Syntax)  
+22  Marke doppelt  
+24  Fehlerhalte Mnemonik  
+25  Operandenfehler  
+27  Zeichenkette zu lang  
+28  Symboltabelle voll  
+29  Relativsprung zu weit  
+
+
+#------------------------------------------------------------------------------
+
+#------------------------------------------------------------------------------
+
++-----------------------+ FFFF
+| Bildwiederholsp.      |
++-----------------------+ FC00
+| z.Zt. frei            |
++-----------------------+ E000
+| ASSEMBLER (7k)        |
++-----------------------+ C400
+| EDITOR                |
++-----------------------+ C000
+| z.Zt. frei            |
++-----------------------+ B000
+|                       |
+| BASIC (12k)           |
+|                       |
++-----------------------+ 8000
+|                       |
+|                       |
+| dyn. RAM (16k)        |
+|                       |
+|                       |
++-----------------------+ 4000
+|                       |
+| stat. RAM (12k)       |
+|                       |
++-----------------------+ 1000
+| System-RAM            |
++-----------------------+ 0C00
+| Reassembler           |
++-----------------------+ 0800
+| Debugger              |
++-----------------------+ 0400
+| In-Out-Routinen       |
++-----------------------+ 0000
+
+
+#------------------------------------------------------------------------------
+
+
+Ausbaustufe CP/M (S.119)
+-----------------------
+
+Takt  2.625 MHz
+RAM ab 0000
+Monitor ab F000
+Nach Einschalten ist Monitor auf 0000 ansprechbar, der RAM ist deaktiviert.
+Ein Sprung auf Adresse F003 schaltet den Monitor auf Adresse F000 und aktiviert 
+den RAM.
+Einbeziehung Kassetteninterface nach Bild 4.1 in die Monitorroutinen RI und WO
+Das CBIOS wird von Kassette geladen
+
+FC00-FFFF  Bildwiederholspeicher
+F800-FBFF  Monitor-RAM
+F000-F7FF  Monitor (ohne Disassembler)
+E200-EFFF  CBIOS
+D400-E1FF  BDOS
+CC00-D3FF  CCP
+0100-C000  freier RAM (TPA)
+0000-00FF  freier RAM (Zero-Page)
+

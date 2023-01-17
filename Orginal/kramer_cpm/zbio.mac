@@ -1,0 +1,214 @@
+.z80
+;Ein- /Ausgaberoutinen Pheripherieschaltkreise
+;PROGRAMMIERUNG PIO FUER MATRIXTASTATUR
+init:
+if	z1013
+	ld	hl,tpiob
+	ld	c,piobc
+	ld	b,lpiob
+	otir
+else
+	LD	B,LPIOA		;LAENGE
+	LD	C,PIOAC		;ADRESSE PORT A COMMANDO
+	LD	HL,TPIOA	;TAB.-ANFANG
+	OTIR
+	LD	B,LPIOB
+	INC	C
+	OTIR
+endif
+;Initialisierung SIOA f.V24 AUSGABE
+;1200 Baud 8 Bit 
+	ld	a,5		;Bytes f}r CTC
+	out	(ctca),a
+	ld	a,13	
+	out	(ctca),a
+	ld	b,lsioa		;Anzahl Bytes f}r SIO
+	ld	c,sioac		;Zieladresse SIO
+	otir
+;Rechnerkopplung mit Stromschleife 20mA; 600 Baud 
+;SIOB
+	LD	A,5		;Initialisierung CTC 
+	OUT	(CTCb),A
+ 	LD	A,8		
+	OUT	(CTCb),A
+	LD	B,lsiob		;Initialisierung SIO
+	LD	C,SIObC		;Statusport
+	OTIR
+if	cntr	
+;drucker mit CENTRONICS-Schnittstelle
+;2-PIO-Karte
+	ld	a,0cfh
+	out	(p1ac),a
+	xor	a
+	out	(p1ac),a
+	ld	a,0cfh
+	out	(p1bc),a
+	ld	a,2
+	out	(p1bc),a
+	ld	a,3
+	out	(p1ac),a
+	out	(p1bc),a
+	ld	a,0ffh
+	out	(p1bd),a
+endif	
+;test, ob grafik-kontroller vorhanden ist
+	in	a,(gdcc)
+	and	2
+	jr	nz,init1
+if	gc
+	ld	hl,gdcanf
+	ld	de,gdcram
+	ld	bc,lgdc
+	ldir
+	call	gdcini		;wenn vorhanden
+endif	
+init1:	ld	c,0ch		;bildsch. loeschen
+	call	CONOUT
+	RET
+;pio-tabellen
+TPIOA:	DB	0CFH,0C0H,7
+LPIOA	EQU	$-TPIOA
+TPIOB:	DB	0CFH,0FFH,7
+LPIOB	EQU	$-TPIOB   
+;sio-tabellen
+TSIOAº	DEFÂ 	18h,4,044H,3,0c1H,5,68È	;Cx16¬ 1 Stop¬ 8bit, keine parit{t
+lsioa	equ	$-tsioa
+Tsiobº	dâ	18h,4,0C4h,5,28h,3,41è	;Cx64¬ ± Stop¬ 7Bit, keine Parit{t
+lsiob	equ	$-tsiob
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;SUBR. ZUR AUSGABE UEBER BILDSCHIRM MIT TEST AUF CTRL/C
+;***IN: C...ZEICHEN
+;**OUT: -
+;*KILL: A,F
+CONOUT:	ld	a,(iobyt)
+	and	1		
+	JP	nz,gdcram+3	;Grafikbildschirm	
+	jp	bs1co		;alphanumerischer Bildschirm
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;EINGABE EINES ZEICHENS UEBER DAS GERAET RDR:
+;***INº -
+;**OUT: A...ZEICHEN
+READER	EQU	$
+;EINGABE SIO KANAL B, STROMSCHLEIFE
+esio:	call	break
+	IN 	A,(SIOBC)	;statusabfrege
+	RRCA
+	JR	NC,esio
+	IN	A,(SIOBD)	;zeicheneingabe
+	AND 	7FH
+	RET
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;Ausgabe eines Zeichens ueber Geraet pun:
+;***IN: C...ZEICHEN
+;**OUT: -
+;*KILL: A,F
+PUNCH	EQU	$
+;AUSGABE sio KANAL B, stromschleife, ZEICHEN IN C
+asio:	call	break
+	IN	A,(SIOBC)
+	AND	4
+	JR	Z,asio
+	LD	A,C
+	OUT	(SIOBD),A
+	RET
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;AUSGABE UEBER GERAE "LST:" MIT TEST AUF CTRL/C
+;***IN: C...ZEICHEN
+;**OUT: -
+;*KILL: A,F
+LIST	EQU	$
+if	V24
+;Druckprogramí V24, 1200 Baud
+;in:	Zeichen in C
+;out:	A=C
+;kill:	A,F
+lstv24º	pusè	bc
+v241º	iî	a,(sioac)
+	and	4		;Sendepuffer leer ?
+	jr	z,v241
+lst2:	call	break
+	ld	a,10h
+	out	(sioac),a	;reset extern status
+	in	a,(sioac)	;status lesen
+	and	20h		;CTS-Test
+	jr	nz,lst2		;warten auf Freigabe
+	ld	a,c
+	out	(sioad),a	;Zeichenausgabe
+	pop	bc
+	ret
+else	
+;Drucker mit IFSS-Schnittstelle 1200 Baud
+SD1152:	PUSH	BC
+	IN	A,(SIOAC)
+	BIT	0,A
+	JR	Z,SDR3
+SDR1:	IN	A,(SIOAD)
+	CP	91H		;Freigabe Drucker
+	JR	Z,SDR3
+	CP	94H		;Status Drucker
+	JR	Z,SDR4
+SDR2:	IN 	A,(SIOAC)	;
+	BIT	0,A
+	JR	Z,SDR2
+	JR	SDR1
+SDR3:	IN	A,(SIOAC)
+	BIT	2,A		;Sendepuffer leer ?
+	JR	Z,SDR3
+	LD	A,C
+	OUT	(SIOAD),A	;Zeichenausgabe
+SDR4:	POP	BC
+	RET
+endif
+if	cntr
+;Drucker mit CENTRONICS-Schnittstelle
+;2-PIO-Karte
+;Drucker an pio1,Kanal a Daten, Kanal b Steuerung
+centr:	call	break
+	in	a,(p1bd)	;warten auf Fertigmeldung des Druckers
+	rra
+	rra
+	jr	c,centr
+	ld	a,c
+	out	(p1ad),a	;Ausgabedaten
+	ld	a,02fh
+centr1:	dec	a
+	jr	nz,centr1
+	ld	a,0		;Abtastimpuls erzeugen
+	out	(p1bd),a
+	dec	a
+	out	(p1bd),a
+	ret
+endif
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;SUBR. ZUM TEST, OB UNTERBRECHUNG EINGEGEBEN WURDE
+;***IN: -
+;**OUT: A=0...KEIN ZEICHEN
+;       A SONST...ZEICHEN
+;*KILL: A,F
+BREAK:	CALL	CONST
+	OR	A
+	RET	Z
+	call	conin
+	cp	3
+	ret	nz
+	jp	0
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;Abbruch bei nicht behebbarem Fehler
+restr:	ld	sp,80h
+	ld	hl,msg3		;Fehlermeldung
+	call	str		;Ausgabe
+	halt
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;SUBROUTINE ZUR AUSGABE EINER ZEICHENFOLGE,ABSCHLUSS DER FOLGE MIT 00
+;***IN: ANFANGSADR. IN HL
+;**OUT: -
+;*KILL: AF,HL
+STR:	LD	A,(HL)
+	LD	C,A
+	INC	HL
+	OR	A
+	RET	Z
+	CALL	CONOUT
+	JR	STR
+
+	

@@ -1,0 +1,715 @@
+.z80
+	SUBTTL	'Ein-/Ausgabe-Routinen'
+
+BEGIN:	LD	HL,STACK	;ZIEL
+	LD	DE,TOS		;QUELLE
+	LD	BC,LTOS		;LAENGE
+	LD	SP,HL
+	EX	DE,HL
+	LDIR
+	call	init	;initialisierung peripherieschaltkreise	
+	LD	HL,SLOC		;USER-STACK
+	LD	(HL),H
+	DEC	(HL)
+if	monitor
+	ld	a,0c3h		;Haltepunkt vorbereiten
+	ld	(38h),a	
+	ld	hl,restr
+	ld	(39h),hl
+endif
+	LD	HL,RUFZ		;CALL-AUSGABE
+	CALL	STR
+	JR	START
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+if	monitor
+else
+org	monitor+20h
+endif
+;SUBR. Zur AUSgabe Eines ZEICHENS UEBer TERMINAL
+;***IN: ZEICHEN AUF SPEICHERPLATZ HINTER CALL
+;**OUT: C...ZEICHEN
+;       (SP)=(SP)+1
+;*KILL: A,F,C
+COMC::	EX	(SP),HL
+	LD	C,(HL)
+	INC	HL
+	EX	(SP),HL
+	JP	MCO 
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+if	monitor
+else
+org	monitor+28h
+endif
+;ZEITSCHLEIFE
+ZS::	PUSH	HL
+	PUSH	AF
+	LD	HL,(ZK)
+ZS1:	DEC	HL
+	LD	A,H
+	OR	L
+	JR	NZ,ZS1
+	POP	AF
+	POP	HL
+	RET
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+if	monitor
+else
+	ORG	Monitor+38H
+	JP	RESTR
+endif
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+RUFZ:	DB	'Y23'
+	DB	'VO'
+	DB	00H
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+ERROR::	LD	SP,STACK	;STACK RESET
+	CALL	COMC
+	DÂ	'?§		;FEHLERMELDUNG
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;ANFORDERUNG EINES KOMMANDOS
+START::	CALL	CRLF		;LEERZEILE
+	CALL	TON
+	CALL	COMC
+	DB	'>'
+;RETTEN DER STARTADRESSE
+	LD	DE,START
+	PUSH	DE
+;EINGABE PROGRAMMNAME
+	CALL	TI		;ZEICHENEINGABE+ECHO
+	LD	HL,JPTBL	;SPRUNGTABELLE
+	CALL	FCGA		;SUCHE
+	JR	C,ERROR		;WENN NICHT GEFUNDEN
+	LD	C,2		;PARAMETERANZAHL
+	JP	(HL)
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;                SUBROUTINEN
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+if	monitor
+else
+;NMI-EINSPRUNG
+ORG	Monitor+66H
+	LD	HL,RAMJP
+	EX	(SP),HL
+	EI
+	RETN
+endif
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;SUBROUTINE VERZWEIGUNG
+;IN:  ZEICHEN IN A
+;     TABELLENADRESSE IN HL
+;OUT: CY=0:HL=ADR,CY=1:Nicht gefunden
+FCGA::	PUSH	DE
+	LD	E,A		;ZEICHEN
+FCGA1:	LÄ	A,(HL)
+	CP	0ffh		;tabellenende
+	JR	Z,FCGA3
+	CP	E
+	JR	Z,FCGA2		;gefunden
+	INC	HL
+	INC	HL
+	INC	HL
+	JR	FCGA1
+FCGA2:	LD	A,E
+	INC	HL
+	LD	E,(HL)
+	INC	HL
+	LD	D,(HL)
+	INC	HL
+	EX	DE,HL
+	JR	FCGA4
+FCGA3:	SCF			;nicht gefunden
+	LD	A,E
+FCGA4:	POP	DE
+	RET
+;ADRESSTABELLE KOMMANDOS
+JPTBL:	DB	'A'
+	DW	ASGN		;Peripheriegeraete zuweisen 
+	DB	'B'
+	DW	BASIC		;sprung in basic
+	DB	'C'
+	DW	COPY		;eingabe- auf ausgabekanal
+	DB	'D'
+	DW	DISP		;speicher darstellen 
+	DB	'E'
+	DW	EOF		;endezeichen intel-hex-code
+	DB	'F'
+	DW	FILL		;speicher fuellen
+	DB	'G'
+	DW	GOTO		;programmstart
+	DB	'H'
+	DW	HEXN		;hexadezimalarithmetik
+	DB	'I'
+	DW	LD		;Kassetteneingabe
+	DB	'J'		
+	DW	RAMJP		;sprung in ram
+	DB	'K'
+	DW	KNOW		;speichertest
+	DÂ	'L'
+	DW	LINK		;Terminalbetrieb
+	DB	'M'
+	DW	MOVE		;speicherinhalt verschieben 
+	DB	'N'
+	DW	bium		;sprung in cp/y2
+	DB	'O'
+	DW	SV		;Kassettenausgabe
+	DB	'P'
+	DW	PRINT		;DISASSEMBLER
+	DB	'Q'
+	DW	query		;Abfrage Zuweisung
+	DB	'R'
+	DW	READ		;intel-hex-code lesen
+	DB	'S'
+	DW	SUBS		;speicherinhalt ersetzen
+	DB	'T'
+	DW	TEXT		;sprung in texteditor
+	DB	'V'
+	DW	VER		;speicherinhalt vergleichen
+	DB	'W'
+	DW	WRITE		;intel-hex-code schreiben
+	DB	'X'
+	DW	X		;register anzeigen
+	DB	'Y'
+	DW	0		;speicher ein-/ausschalten
+	DB	'Z'		
+	DW	ZR		;zweitregister anzeigen
+	DB	0ffh		;tabellenendekennzeichen
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+ds	monitor+0E0H-$,0ffh
+MCI::	JP	CI		;CONSOLE INPUT =TASTATUR
+MRIº:	JÐ	RI		;READER INPUT  =LESEKANAL
+MCOº:	JÐ	CÏ		;CONSOLÅ OUTPUT=BILDSCHIRM
+MWO::	JP	WO		;WRITE OUTPUT  =SCHREIBKANAL
+MLO:: 	JP	LO		;LISTER OUTPUT =DRUCKER
+MCSTS:	JP	CSTS		;CONSOLE STATUS
+MIOC:	JP	IOCHK
+MIOS:	JP	IOSET
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;SUBROUTINE ZUR AUSGABE EINER ZEICHENFOLGE,ABSCHLUSS DER FOLGE MIT 00
+;***IN: ANFANGSADR. IN HL
+;**OUT: -
+;*KILL: AF,HL
+STR:	LD	A,(HL)
+	LD	C,A
+	INC	HL
+	OR	A
+	RET	Z
+	CALL	MCO
+	JR	STR
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;SUBR. ZUR ABFRAGE DER AKTUELLEN GERAETEZUWEISUNG
+;***IN: -
+;**OUT: A...AKTUELLE ZUWEISUNG
+;*KILL: A
+IOCHK:	LD	A,(IOBYT)
+	RET
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;SUBR. ZUR VERAENDERUNG DER AKT. GERAETEZUWEISUNG
+;***IN: C...NEUE GERAETEZUWEISUNG
+;**OUT: -
+;*KILL: A
+IOSET:	LD	A,C
+	LD	(IOBYT),A
+	RET
+;-----------------------------------------------------------
+;Initialisierung Peripherieschaltkreise
+;PROGRAMMIERUNG PIO FUER TASTATUR
+init:	LD	B,LPIOA		;LAENGE
+	LD	C,PIOAC		;ADRESSE PORT A COMMANDO
+	LD	HL,TPIOA	;TAB.-ANFANG
+	OTIR
+	LD	B,LPIOB
+	INC	C
+	OTIR
+;Initialisierung SIOA f.V24 AUSGABE
+;1200 Baud 8 Bit 
+iv24:	ld	a,5		;Bytes f}r CTC
+	out	(ctca),a
+	ld	a,13	
+	out	(ctca),a
+	ld	b,lsioa		;Anzahl Bytes f}r SIO
+	ld	c,sioac		;Zieladresse SIO
+	otir
+;Rechnerkopplung mit Stromschleife 20mA; 600 Baud 
+;SIOB
+	LD	A,5		;Initialisierung CTC 
+	OUT	(CTCb),A
+ 	LD	A,8		
+	OUT	(CTCb),A
+	LD	B,lsiob		;Initialisierung SIO
+	LD	C,SIObC		;Statusport
+	OTIR
+;drucker mit CENTRONICS-Schnittstelle
+;2-PIO-Karte
+	ld	a,0cfh
+	out	(p1ac),a
+	xor	a
+	out	(p1ac),a
+	ld	a,0cfh
+	out	(p1bc),a
+	ld	a,2
+	out	(p1bc),a
+	ld	a,3
+	out	(p1ac),a
+	out	(p1bc),a
+	ld	a,0ffh
+	out	(p1bd),a
+;test, ob grafik-kontroller vorhanden ist
+	in	a,(gdcc)
+	and	2
+	call	z,inigdc	;wenn vorhanden
+	ld	c,0ch		;bildsch. loeschen
+	call	MCO
+	RET
+;pio-tabellen
+TPIOA:	DB	0CFH,0C0H,7
+LPIOA	EQU	$-TPIOA
+TPIOB:	DB	0CFH,0FFH,7
+LPIOB	EQU	$-TPIOB   
+;sio-tabellen
+TSIOAº	DEFÂ 	18h,4,044H,3,0c1H,5,68È	;Cx16¬ 1 Stop¬ 8bit, keine parit{t
+lsioa	equ	$-tsioa
+Tsiobº	dâ	18h,4,0C4h,5,28h,3,41è	;Cx64¬ ± Stop¬ 7Bit, keine Parit{t
+lsiob	equ	$-tsiob
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;SUBR. ZUM TEST, OB UNTERBRECHUNG EINGEGEBEN WURDE
+;***IN: -
+;**OUT: A=0...KEIN ZEICHEN
+;       A SONST...ZEICHEN
+;*KILL: A,F
+BREAK:	CALL	CSTS
+	OR	A
+	RET	Z
+;*---*--*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;SUBR. ZUR EINGABE EINES ASCII-ZEICHENS UEBER DAS TERMINAL
+;UND AUSGABE DES ECHOS
+;***IN: -
+;**OUT: A...ZEICHEN
+;*KILL: A,F
+TI::	PUSH	BC
+	CALL	MCI
+	CP	ETX
+	JP	Z,START
+	LD	C,A
+	CALL	MCO
+	LD	A,C
+	BIT	6,A		;KLEINBUCHSTABE ?
+	JR	Z,TI1
+	RES	5,A
+TI1:	POP	BC
+	RET
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;SUBR. ZUR AUSGABE EINES LEERZEICHENS UEBER BILDSCHIRM
+BLK::	LD	C,' '
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;SUBR. ZUR AUSGABE UEBER BILDSCHIRM MIT TEST AUF CTRL/C
+;***IN: C...ZEICHEN
+;**OUT: -
+;*KILL: A,F
+CO:	LD	A,(IOBYT)
+	AND	03H		
+	JP	NZ,gdcco	;Grafikbildschirm	
+	JP	bs1co		;alphanumerischer Bildschirm
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;SUBR. ZUR EINGABE EINES ZEICHENS UEBER DAS GERAET rdr:
+;***INº -
+;**OUT: A...ZEICHEN
+RI::	LD	A,(IOBYT)
+	AND	0CH		;bits ausblenden
+	JP	Z,MCI		;EINGABE UEBER TASTATUR
+	CP	IP
+	jr	z,fep		;Fernschrebeingabe pio 
+	cp	is
+	JP	nz,riusr	;vom anwender definiertes geraet
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;EINGABE sio KANAL B, stromschleife, ZEICHEN IN A
+esio:	call	break
+	IN 	A,(SIOBC)	;statusabfrege
+	RRCA
+	JR	NC,esio
+	IN	A,(SIOBD)	;zeicheneingabe
+	RET
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;FERNSCHREIBEINGABE UEBER PIO
+FEP:	call	break
+	IN	A,(PIOAD)
+	BIT	7,A		;WARTEN AUF STARTBIT
+	JR	Z,FEP
+	CALL	FSE
+	RRA			;STARTBIT RAUSSCHIEBEN
+	AND	1FH		;STOPBITS AUSBLENDEN
+	CALL	CVCA
+	JR	Z,FEP
+	RET
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;Ausgabe eines Zeichens ueber Geraet pun:
+;***IN: C...ZEICHEN
+;**OUT: -
+;*KILL: A,F
+WO::	LD	A,(IOBYT)
+	AND	30H		;bits ausblenden
+WO1:	JP	Z,MCO		;ausgabe ueber bildschirm
+	CP	OP
+	JR	Z,fap		;Fernschreibausgabe ueber pio
+	cp	os
+	jp	nz,wousr		;AUSGABE UEBER ANWENDERGERAET
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;AUSGABE sio KANAL B, stromschleife, ZEICHEN IN C
+asio:	IN	A,(SIOBC)
+	AND	4
+	JR	Z,asio
+	LD	A,C
+	OUT	(SIOBD),A
+	RET
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;SUBR. ZUR AUSGABE UEB. D. GER. "lst:" MIT TEST AUF CTRL/C
+;***IN: C...ZEICHEN
+;**OUT: -
+;*KILL: A,F
+LO:	call	break
+	LD	A,(IOBYT)
+	AND	0C0H		;BITS AUSBLENDEN
+	JP	Z,MCO		;AUSGABE UEBER BILDSCHIRM
+	CÐ	LC
+	JR	Z,centr		;AUSGABE UEBER centronics an DRUCKER
+	CP	LV
+	JP	NZ,LOUSR	;AUSGABE UEBER ANWENDERGERAET
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;Druckprogramí V24
+;in:	Zeichen in C
+;out:	A=C
+;kill:	A,F
+lstv24º	pusè	bc
+v241º	iî	a,(sioac)
+	and	4		;Sendepuffer leer ?
+	jr	z,v241
+lst2:	call	break
+	ld	a,10h
+	out	(sioac),a	;reset extern status
+	in	a,(sioac)	;status lesen
+	and	20h		;CTS-Test
+	jr	nz,lst2		;warten auf Freigabe
+	ld	a,c
+	out	(sioad),a	;Zeichenausgabe
+	pop	bc
+	ret
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;Drucker mit CENTRONICS-Schnittstelle
+;2-PIO-Karte
+;Drucker an pio1,Kanal a Daten, Kanal b Steuerung
+centr:	call	break
+	in	a,(p1bd)	;warten auf Fertigmeldung des Druckers
+	rra
+	rra
+	jr	c,centr
+	ld	a,c
+	out	(p1ad),a	;Ausgabedaten
+	ld	a,02fh
+centr1:	dec	a
+	jr	nz,centr1
+	ld	a,0		;Abtastimpuls erzeugen
+	out	(p1bd),a
+	dec	a
+	out	(p1bd),a
+	ret
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;FERNSCHREIBAUSGABÅ UEBEÒ PIO
+FAPº	PUSÈ	AF
+	CALÌ	CVAC
+	OÒ	A
+	CALL	NZ,FSA		;ERST STEUERZEICHEN
+	LD	A,C
+	CALL	FSA
+	POP	AF
+	RET
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;SUBR. ZUR KONVERTIERUNG ASCII-CCITT
+;***IN: C...ZEICHEN IM ASCII-KODE
+;**OUT: C...ZEICHEN IM CCITT-KODE
+;       A=0...KEINE UMSCHALTUNG BUCHST.-ZEICHEN
+;       A>0...KODE FUER UMSCH. BUCHST.-ZEICHEN
+;*KILL: A,F,C
+CVAC:	PUSH	HL
+	PUSH	BC
+	LD	A,C
+	AND	7FH
+	BIT	6,A		;GROSS:=KLEIN
+	jr	Z,cvac0
+	res	5,a
+CVAC0º	LÄ	HL,TBCVZ+LTB-1
+	LD	BC,LTB
+	CPDR
+	JR	Z,CVAC1
+	LD	A,'@'
+	JR	CVAC0
+CVAC1:	CP	0dh
+	JR	Z,CVAC6
+	CP	0ah
+	JR	Z,CVAC6
+	CP	' '
+	JR	Z,CVAC6
+CVAC2:	LD	A,C
+	CP	1fh
+	LD	HL,FLGIO
+	JR	NC,CVAC5
+	BIT	1,(HL)		;OZ
+	JR	NZ,CVAC4
+	SET	1,(HL)		;OZ
+CVAC3:	POP	BC
+	LD	C,A
+	LD	A,1bh
+	POP	HL
+	RET
+CVAC6:	LD	A,C
+CVAC4:	POP	BC
+	LD	C,A
+	XOR	A
+	POP	HL
+	RET
+CVAC5:	SUB	20H
+	BIT	1,(HL)		;OZ
+	JR	Z,CVAC4
+	RES	1,(HL)		;OZ
+	POP	BC
+	LD	C,A
+	LD	A,1fh
+	POP	HL
+	RET
+;SUBR.ZUR KONVERTIERUNG CCITT-ASCII
+;***IN: A...CCITT-ZEHBHEN
+;**OUT: A...ASCII-ZEICHEN
+;*KILL A,F
+CVCA:	PUSH	HL
+	LÄ	HL,FLGIO
+	CP	1fh
+	JR	NZ,CVCA1
+	RES	0,(HL)
+CVCA1:	CP	1bh
+	JR	NZ,CVCA2
+	SET	0,(HL)
+CVCA2:	BIT	0,(HL)
+	LD	HL,TBCVZ
+	JR	NZ,CVCA0
+	LD	HL,TBCVB
+CVCA0:	ADD	A,L
+	LD	L,A
+	LD	A,H
+	ADC	A,0
+	LD	H,A
+	LD	A,(HL)
+	POP	HL
+	OR	A
+	RET
+;TABELLE ZUR KONVERTIERUNG CCITT <--> ASCII
+TBCVZ:	DB	'#3'
+	DB	0ah
+	DB	'- '
+	DB	APST
+	DB	'87'
+	DB	0dh
+	DB	ETX
+	DB	'4;,!'
+	DB	':(5+'
+	DB	')2@6'
+	DB	'019'
+	DB	'?%'
+	DB	0
+	DB	'./='
+	DB	0
+TBCVB:	DB	'*E'
+	DB	0ah
+	DB	'A '
+	DB	'SIU'
+	DB	0dh
+	DB	'DRJN'
+	DB	'FCKT'
+	DB	'ZLWH'
+	DB	'YPQO'
+	DB	'BG'
+	DB	0
+	DB	'MXV'
+	DB	0
+LTB	EQU	$-TBCVZ
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;FERNSCHREIBZEICHENAUSGABE(PIO)
+;IN:A-ZEICHEN IN CCITT OHNE START- UND STOP-BITS
+;OUT:A-ZEICHEN KOMPLETT
+;KILL:PIOAD
+FSA:	PUSH	BC
+	LD	B,8
+	OR	60H		;CY=0,2 STOP-BITS
+	RLA			;CY=STARTBIT
+FSA1:	OUT	(PIOAD),A
+	CALL	ZS
+	CALL	ZS
+	RRA
+	DJNZ	FSA1
+	POP	BC
+	RET
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;FERNSCHREIBZEICHENEINGABE(PIO)
+;IN:-
+;OUT:A...FS-ZEICHEN
+;KILL:AF
+FSE:	PUSH	BC
+	LD	B,07		;BITZAEHLER
+	CALL	ZS
+FSE1:	IN	A,(PIOAD)	;BIT EINLESEN
+	CALL	ZS
+	CALL	ZS
+	RLA
+	RR	C
+	DJNZ	FSE1
+	RR	C
+	LD	A,C
+	CPL
+	OR	0C0H
+	POP	BC
+	RET
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;SUBR. ZUR AUSGABE VON CR UND LF AUF DEM GERAET "LST:"
+;***IN: -
+;**OUT: -
+;*KILL: A,F,C
+LCRLF::	LD	C,0DH	;Wagenruecklauf
+	CALL	MLO
+	LD	C,0AH	;Zeilenvorschub
+	jp	mlo
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;SUBR® ZUÒ AUSGABÅ VOÎ CÒ UNÄ LÆ AUÆ BILDSCHIRM
+;***IN: -
+;**OUT: -
+;*KILL: A,F,C
+CRLF::	CALL	COMC
+	DB	0DH
+	CALL	COMC
+	DB	0AH
+	RET
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;SUBROUTINE TON
+;IN:-
+;OUT:TON AN PIO AD
+;KILL:PIOAD
+TON::	PUSH	AF
+	PUSH	BC
+	LD	C,0FFH		;PERIODENANZAHL
+TON1:	LD	B,30H		;PERIODENLAENGE
+TON2:	DJNZ	TON2		;1/2 PERIODE
+	IÎ	A,(PIOAD)
+	BIT	5,A
+	JR	Z,TON3
+	RES	5,A
+TON4:	OUT	(PIOAD),A
+	DEC	C
+	JR	NZ,TON1
+	POP	BC
+	POP	AF
+	RET
+TON3:	SET	5,A
+	JR	TON4
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;Routine fuer ASCII-Tastaturen
+;IN:	PIOBD 0..6 Daten,
+;	bit 7 = 1 = Zeichen gueltig
+;OUT:	Zeichen in A
+aci:	in	a,(piobd)
+	bit	7,a	;Test auf Zeichen
+	jr	z,aci
+	call	zs
+	in	a,(piobd)
+	and	7fh
+	push	af
+	call	ton
+aci1:	in	a,(piobd)	
+	bit	7,a	;warten bis Taste frei
+	jr	nz,aci1
+	pop	af
+	ret
+
+;Tastaturstatus ASCII-Tastatur
+;IN:	-
+;OUT:	A=0  kein Zeichen 
+;	A=FF Zeichen liegt an
+acsts:	in	a,(piobd)
+	and	80h	;bit 7 testen
+	ret	z	;kein Zeichen
+	ld	a,0ffh
+	ret
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;Zuweisung von Peripheriegeraeten
+;R=RDR:, P=PUN:, L=LST:
+asgn:	call	ti	;Eingabe des Kanals 
+	ld	hl,ltbl	;kanaele
+	ld	bc,3
+asg:	cpi
+	jr	z,as1	;gefunden
+	inc	hl
+	inc	hl
+	inc	hl
+	jp	po,error
+	jr	asg	;naechstes
+as1:	ld	b,(hl)	;maske ??????????
+	push	bc
+;Adresse der physischen Geraete nach de
+	inc	hl
+	ld	e,(hl)
+	inc	hl
+	ld	d,(hl)
+	ex	de,hl
+loop0:	call	ti	;warten auf "="
+	cp	'='
+	jr	nz,loop0
+loop1:	call	ti	;Eingabe des physischen Geraetes
+	cp	' '	;Leerzeichen unterdruecken
+	jr	z,loop1
+;Test, ob Zuweisung ausfuehrbar
+	ld	bc,4
+as2:	cpi
+	jr	z,as3
+	inc	hl
+	jp	po,error
+	jr	as2
+as3:	call	pchk	;warten auf Eingabe von CR
+	jr	nc,as3
+	ld	a,(iobyt)
+	pop	bc
+	and	b
+	or	(hl)
+	ld	(iobyt),a
+	ret
+;Tabelle der logischen Geraete
+ltbl:	db	'R',rmsk
+	dw	arz
+	db	'P',pmsk
+	dw	apz
+	db	'L',lmsk
+	dw	alz
+;Tabelle der physischen Geraete fuer 'RDR:'
+arz:	db	'T',0,'S',4,'P',8,'U',0ch
+;Tabelle der physischen Geraete fuer 'PUN:'
+apz:	db	'T',0,'S',10h,'P',20h,'U',30h
+;Tabelle der physischen Geraete fuer 'LST:'
+alz:	db	'T',0,'V',40h,'C',80h,'U',0c0h
+;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+;Kommando Terminal (simplex)
+;IN:	Tastatur oder SIO B
+;OUT:	Zeichen auf Bildschirm und SIO B
+LINK:	in 	a,(siobc);sio-status
+	rrca
+	jr	c,term2	;zeichen von leitung
+	call	csts	;tastaturstatus
+	jr	z,link	;wenn kein zeichen
+	call	mci	;tastaturzeichen
+	push	af
+	ld	c,a
+	call	asio	;ausgabe auf leitung
+	call	esio	;ruecklesen wegen simplex
+	pop	af
+term1:	cp	3	;abbruch ?
+	ret	z
+	call	mco	;ausgabe bildschirm
+	jr	link
+term2:	call	esio
+	ld	c,a
+	jr	term1
+
+

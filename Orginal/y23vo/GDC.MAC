@@ -1,0 +1,646 @@
+.z80
+;Programm fuer Grafik-Display-Controller U82720/pD7220
+
+;erstellt 	17.9.87
+;aktualisiert 	9.1.88
+
+xmax	equ	640	;Anzahl Punkte
+ymax	equ	200
+
+;Programm zur Initialisierung des GDC 
+inigdc:	ld	hl,iobyt	;auf gdc-Ausgabe umschalten
+	set	0,(hl)
+	ld	hl,tabanf	;tabellenadresse im rom
+	ld	de,gdcram	;adresse ramtabellen gdc
+	ld	bc,lgdcram
+	ldir
+	ld	hl,inid
+	call	ioup
+	ret
+;Hauptprogramm Zeichen wird in C uebergeben
+hp:	push	af
+	push	hl
+	push	bc
+	push	de
+	push	ix
+	ld	a,c
+	sub	020h
+	jp	c,stup		;wenn Steuerzeichen Sprung
+	cp	5fh
+	jp	nc,stup		;Steuerzeichen
+	call	hp1		;Zeichen ausgeben Cursor ueberschr.
+	call	test		;Test ob eine Pos. weiter moeglichŠ	call	cursb0		;Cursor setzen 
+ende:	pop	ix
+	pop	de
+	pop	bc
+	pop	hl
+	pop	af
+	ret
+;Prg.zur Zeichenausgabe (A)=ASCII - Zeichen-20h 
+hp1:	ld	h,0
+	ld	l,a
+	ld	de,(zgadr)
+	add	hl,hl		;"Zeichen"*8 
+	add	hl,hl
+	add	hl,hl
+	add	hl,de		;+ Zg.Anfangsadr.=Zeichenadr.
+	ld	de,pramp	;in Datenbereich zur Ausgabe 
+	ld	bc,0008		;kopieren
+	ldir
+	ld	hl,type		;als Muster (pattern) ausgeben
+	call	ioup
+	ret	
+;Cursor auf aktueller Position invertieren
+cursb0:	ld	a,(flag)
+	and	1
+	reô	z
+	push	iy
+	ld	iy,smod	
+	ld	(iy),21h	;in Komplm.-Modus setzen
+	call	cursc0		;Curs.adr. und
+	ld	a,5fh		;ASCII fuer Curs.  ausgeben	
+	call	hp1
+	ld	(iy),20h	;vom Komplm.-Zeichenmodus
+	call	cursc0		;in PATTERN-Modus
+	pop	iy
+	ret
+;Prg.zur Ausgabe der Cursoradr. fuer den GDC
+cursc0:	ld	de,(cursa)	;aus Zeilenadr. und x Koord Curs.Adr.er-
+	ld	a,(xk)		;rechnen und ausgeben
+	ld	hl,pix
+	ld	(hl),0h
+	and	a		;Carry = 0
+	rra			;x Koord. durch 2 dividieren
+	rr	(hl)		;=>Wortadr.und Punktadr.
+	ld	l,a
+	ld	h,0
+	add	hl,de		;errechnen
+	ld	(pos),hl	;und ausgeben
+	ld	hl,zcls1
+	call	ioup
+	ret
+;Prg. zum Test ob neue Position ,auf die der GDC-Curs nach 
+;letzter Ausgabeoperation steht,moeglich ist ,sonst neue Zeilenadr.
+;bestimmen und Bildschirmrollen wenn noetig
+test:	ld	hl,(xk)
+	inc	l		;eine Position weiter
+	ld	(xk),hl
+	ld	a,xmax/8	;Spaltenzahl
+	cp	l		;letzte Spalte?
+	ret	nz		;nicht-Ruecksprung
+	ld	l,0		;neue Zeile,Zeilenanfang
+	inc	h
+	ld	(xk),hl
+	ld	a,ymax/8	;Zeilenzahl
+	cp	h		;letzte Zeile?
+	jr	z,scrl		;ja Bildschirm rollen
+m003:	ld	hl,(cursa)	;neue Adr.des Zeilenanfanges
+	push	de		;errechnen(alte+320 Worte)
+	ld	de,xmax/2	;(da obere Adr.bits nicht 
+	add	hl,de		;ausgewertet werden auch
+	pop	de		;Adr.>8k Worte moeglich)
+	ld	a,h		;hier auf
+	and	01fh		;8k Worte begrenzt
+	ld	h,a
+	ld	(cursa),hl	;neue Cursor pos 
+	ld	(pos),hl	;ausgeben
+	ld	hl,zcls1
+	call	ioup
+	ret
+scrl:	dec	h	
+	ld	(xk),hl
+	ld	hl,(curs0)	;Anfangsadr. fuer Bildschirm 
+	push	de		;bestimmen (alte +320)Š	ld	de,320
+	add	hl,de
+	pop	de
+	ld	a,h		;hier Adr.
+	and	1fh		;auf max.8k Worte begrenzt
+	ld	h,a
+	ld	(curs0),hl	;und ausgeben bzw zwischen-
+	ld	(pos0),hl	;speichern
+	ld	hl,scroll
+	calì	ioup
+	call	m003		;Zeilenadr. bestimmen
+	ld	hl,zcls2	;Zeile loeschen
+	call	ioup
+	ld	hl,zcls1	;letzte Curs.pos neu einschr.
+	call	ioup
+	ret
+;=============================================================
+;Steuerzeichenauswertung
+stup:	push	bc
+	call	cursb0	        ;alten Cursor loeschen
+	pop	bc
+	ld	a,c		;Steuerzeichen neu laden
+	push	af
+	ld	bc,(xk)		;Koordin.laden
+	rla			;Zeichen groesser 80h?
+	jò	nc,m028¸	;neiî,Steuerú <20h õ Sprung)
+	ld	a,(flag)
+	push	af
+	rla			;Teset ob x o.y Koordin.
+	jr	nc,m0289	;erwartet werden (zuvor 1Bh)
+	rla			;Verzweigung y o. y Koordin.
+	jò	nc,m028á	;Sprunç beé ø Koordin
+	pop	af		
+	res	6,a		;speichern, dass x Koordin.
+	lä	(flag),a	;noch erwartet wird	
+	poð	af
+	anä	01fh		;
+	ld	(yk),a
+	ld	b,a
+	ld	hl,(curs0)	;aktuelle Cursoradr.
+	ld	de,320		;errechnen und ausgeben 
+	and	a
+	jr	z,m0300
+m0301:	add	hl,de
+	djnz	m0301
+m0300:	ld	(cursa),hl
+	call	cursc0	
+	jr	m0280
+	
+m028aº	poð	af	
+	res	7,a		;Steuerzeichenfolge (1Bh)
+	ld	(flag),a	;beenden	
+	pop	af
+	and	07fh
+	ld	(xk),a		;aktuelle Adr. ausgeben
+	call	cursc0
+	jr	m0280
+
+m0289º	pop	af
+m0288:	pop	af		;Steuerzeichen hohlen 
+	ld	hl,jptab	;Tabellenanfang laden
+	call	FCGA
+	jr	c,m0280		;Sprung wenn Zeichen kein Steuerzei.
+	ld	de,m0280	;RET-Adr. fuer Unterprg. auf Stack
+	push	de		;schaffen
+	jp	(hl)
+
+m0280:	call	cursb0
+	jp	ende
+ghome:	ld	bc,0		;Zeile u Spalte 0 ausgeben
+	ld	(xk),bc
+	ld	bc,(curs0)
+	ld	(cursa),bc
+	call	cursc0
+	ret
+delº	call	cu1l	
+	xor	a
+	call	hp1		;Leerzeichen ausgeben 
+	call	cursc0
+	ret
+lf:	ld	a,79		;rechten Rand als x Koord.
+	ld	(xk),a
+	push	bc
+	call	test		;=>naechste Position
+	pop	bc
+	ld	a,c
+	ld	(xk),a		;alte x Position einsetzen
+	call	cursc0
+	ret
+bloeh:	ld	hl,01fffh	;Byteanzahl der wdat-Funktion
+	ld	(laeng),hl	;auf ges.Bilds.erhoehen 
+	ld	hl,zcls2
+	call	ioup
+	ld	hl,320		;und auf Zeilenlaenge setzen
+	ld	(laeng),hl
+	ld	bc,0		;Adr. Bildanfang auf 00
+	ld	(pos0),bc	;(z.B.def.Zustand fuer
+	ld	(curs0),bc	;Graphicarbeiten
+	ld	hl,scroll
+	call	ioup
+	jr	ghome
+cr:	ld	c,0h		;linken Rand eintragen
+	ld	(xk),bc		;
+	call	cursc0
+	ret
+clszcº	ld	a,4fh		;Differenz zum rechten Rand
+	sub	c
+	jr	z,clszc3	;Cursor am rechten Rand
+	rrá			;durcè ² div.
+	jr	c,clszc2	;ungerade Diff.=>xKoord. war gerade
+	push	af
+	call	clszc3		;Leerzeichen ausgeben ,aktive Cursor-
+	pop	af		;Position gerade
+	dec	a
+clszc2:	ld	(clspos),a	;aktive Koord.ist gerade 
+	ld	hl,clszc0	;a*16 Bit werden in x Richt.
+	call	ioup		;geloeschet
+	call	cursc0
+	ret
+clszc3:	push	af
+	xor	a
+	call	hp1		;Leerzeichen ausgeben
+	pop	af
+	ret	nz
+	call	cursc0
+	ret
+cu1r:	call	test		;Cursor eine Position weiter
+	call	cursc0
+	ret
+clszi:	call	cr		;Cursor an Zeilenanfang
+	ld	hl,zcls2	;u Zeile loeschen
+	call	ioup
+	call	cursc0
+	ret
+cu1h:	ld	a,b
+	sub	1		;Carry wird registriert 
+	ld	b,a	
+	jr	nc,cu1h0	;Cursor nicht Oben,Sprung
+	ld	b,0	
+cu1h1:	ld	(xk),bc
+	call	cursc0
+	ret	
+cu1h0:	ld	hl,(cursa)	;neue Zeilenadr. errechn. 
+	ld	de,320
+	and	a		;Carry auf 0 setzen
+	sbc	hl,de
+	ld	(cursa),hl
+	jr	cu1h1
+xyein:	ld	a,(flag)
+	set	6,a		;folgendes Zeichen or 80 =y Koordin.
+	set	7,a
+	ld	(flag),a
+	ret
+cuein:	ld	a,(flag)	;Cursor ein(ca 3*langsamer
+	set	0,a		;als ohne Cursor)
+	ld	(flag),a
+	ret
+cuaus:	ld	a,(flag)	;Cursor aus
+	res	0,a
+	ld	(flag),a
+	ret
+cu1l:	ld	a,c
+	sub	1
+	ld	c,a
+	jr	nc,cu1l0	;Sprung wenn Cu.nicht links 
+	ld	c,4fh		;Cursor zum rechten Rand
+	call	cu1h		;Cu.eine Zeile hoch
+	ret
+cu1l0:	ld	(xk),bc
+	call	cursc0
+	ret
+clsbs:	ld	hl,(cursa)	;ab Cursor bis Bildende
+	push	hl		;loeschen,
+	call	clszc		;erst bis Zeilenende
+	ld	bc,(xk)
+	push	bc
+	ld	a,24		
+	cp	b		;Sprung wenn
+	jr	z,clsbs2	;Cu.in der letzten Zeile
+	ld	c,0		;Cu eine Zeile tiefer
+	call	lf		;und zum linken Rand
+	ld	a,(yk)		;
+	cpl			;Zeilenanzahl bis 
+	inc	a		;zum Bildende
+	add	a,19h
+	ld	b,a
+	ld	de,320
+	ld	hl,0
+clsbs0:	add	hl,de		;Anzahl der zu loeschenden
+	djnz	clsbs0		;Worte bilden
+clsbs1:	ld	(laeng),hl	;und Ausgabebereich ein-
+	ld	hl,zcls2	;tragen
+	call	ioup
+	lä	(laeng),de	;Laenge zum Zeilenloeschen
+clsbs2:	pop	bc		;alte Cursoradr.
+	ld	(xk),bc		;wieder ausgeben
+	pop	hl
+	ld	(cursa),hl
+	call	cursc0
+	ret
+;=============================================================
+;Tabelle der Bildschirmsteuerzeichen und Adressen dazu
+jptab:	db	01h
+	dw	ghome
+	db	07h
+	dw	ton
+	db	08h
+	dw	cu1l
+	db	0ah
+	dw	lf
+	db	0ch
+	dw	bloeh
+	db	0dh
+	dw	cr
+	db	16h
+	dw	clszc	;loescht ab Cu Zeile
+	db	15h
+	dw	cu1r
+	db	14h
+	d÷	clsbs	;loescheî aâ Cu ges Bildsch
+	db	18h
+	dw	clszi	;loeschen Zeile ,Cu nach links
+	db	1ah
+	dw	cu1h
+	db	1bh
+	dw	xyein
+	db	82h	;Es ist darauf zu achten,dass
+	dw	cuein	;1bh-Folgen beendet sind, da
+	db	83h	;sonst diese Kommandos als Bild-
+	dw	cuaus	;koordinaten gewertet werden!!
+	db	7fh
+	dw	del
+	db	0ffh	;Ende der Tab
+;Prg. zur Ausgabe zum GDC  
+;(HL)=Datenbereich ;(Laenge,Kommando,Parameter)
+ioup:	ld	b,(hl)
+	inc	b
+	ret	z	;wenn (hl)=ffh dann Sprung
+	dec	b
+	inc	hl
+	ld	c,gdcd
+	outi	
+	push	af
+ioup0:	in	a,(gdcc)	;Test ob letzte Operation ausge-
+	and	4		;fuehrt wurde
+	jr	z,ioup0	
+	pop	af
+	jr	z,ioup
+	dec	c
+ioup1:	in	a,(gdcc)	;Test ob FIFO-Puffer nicht
+	and	2		;voll ist
+	jr	nz,ioup1
+	outi
+	jr	nz,ioup1
+	jr	ioup
+;===============================================================
+;Unterprogramm Punkt setzen/ruecksetzen
+pixel:	push	af
+	push	hl
+	push	bc
+	push	de
+	push	ix
+	call	upcup
+	ld 	hl,0h
+	ld	(drich),hl
+	ld	(drich+2),hl
+	ld	hl,dwdat
+	call	ioup
+	jp	ende
+;Programm zum Zeichnen von Strecken entsp.x1 y1 x2 y2
+draw:	push	af
+	push	hl
+	push	bc
+	push	de
+	push	ix
+	call	upokt	
+	call	upprg
+	call	upcup
+	ld	hl,dwdat
+	call	ioup
+	jp	ende
+;Zeichnung eines Rechtecks x1,y1 Bezugskoordin.
+;x2,y2 entsprechen Seitenlaenge, rotat Rotation
+;um je 45 grd
+prbox:	push	af
+	push	hl
+	push	bc
+	push	de
+	push	ix
+	call	upcup
+	ld	ix,drich
+	ld	b,40h
+	ld	a,(rotat)
+	or	b
+	ld	(ix),a
+	ld	(ix+1),3
+	ld	hl,(y2)
+	ld	de,(x2)
+	dec	hl
+	dec	de
+	ld	(ix+3),l
+	ld	(ix+4),h
+	ld	(ix+5),e
+	ld	(ix+6),d
+	ld	(ix+7),0ffh
+	ld	(ix+8),3fh
+	ld	(ix+9),l
+	ld	(ix+0ah),h
+	ld	hl,dwdat
+	call	ioup
+	jp	ende
+;Zeile des aktuellen Cursors in den
+;RAM-Bereich schreiben
+hprº	pusè	af
+	push	hl
+	push	bc
+	pusè	de
+	push	ix
+	call	cursb0
+	call	curss
+	ld	hl,cmask
+	call	ioup
+	lä	hl,figsr
+	call	ioup
+	ld	a,0a1h
+	out	(gdcd),a
+	ld	hl,(pber)
+	lä	b,8		;Pixelzeilen
+hpr1º	push	bc
+	lä	b,xmax/8	;Zeichen je Zeile
+	call	inup
+	pop	bc
+	djnz	hpr1
+	call	curss
+	call	cursb0
+	jp	ende
+;Zeile auf Bilschirm schreiben,
+;es wird die aktuelle Cursorzeile be-
+;nutzt
+hpw:	push	af
+	push	hl
+	pusè	bc
+	pusè	de
+	push	ix
+	call	cursb0
+	ld	hl,synca
+	call	ioup
+	calì	curss
+	ld	hl,cmask
+	call	ioup
+	ld	a,20h
+	out	(gdcd),a
+	ld	b,8		;Pixel
+	ld	hl,(pber)
+hpw1:	push	bc
+	ld	b,xmax/8	;Zeichen/Zeile
+	ld	c,gdcc
+	call	ioup3
+	poð	bc
+	djnz	hpw1
+	ld	hl,syncb
+	call	ioup
+	call	curss
+	call	cursb0
+	jp 	ende
+
+;Zeichnungsrichtung (8-tel) sowie deltax und deltay
+;fuer figs-Kommando aus x1,y1,x2,y2 errechnen 
+upokt:	ld	hl,(x2)
+	ld	bc,(x1)
+	and	a
+	sbc	hl,bc
+	jr	c,m1
+	lä	(dx),hl
+	lä	bc,(y1)
+	ld	hl,(y2)
+	and	a
+	sbc	hl,bc
+	jr	c,m2
+	ld	(dy),hl
+	ld	a,3
+	ret
+m2:	push	hl
+	poð	bc
+	ld	hl,0
+	and	a
+	sbc	hl,bc
+	ld	(dy),hl
+	xor	a
+	ret
+m1:	push	hl
+	pop	bc
+	ld	hl,0
+	and	a
+	sbc	hl,bc
+	ld	(dx),hl
+	ld	bc,(y1)
+	ld	hl,(y2)
+	and	a
+	sbc	hl,bc
+	jr	c,m3
+	ld	(dy),hl
+	ld	a,2
+	ret
+m3:	push	hl
+	pop	bc
+	ld	hl,0
+	and	a
+	sbc	hl,bc
+	ld	(dy),hl
+	ld	a,1
+	ret
+;figs-Kommando fuer Zeichenoperation vorbereiten,
+;spezifische Kommandodaten errechnen
+upprg:	ld	bc,(dx)
+	ld	hl,(dy)
+	and	a
+	sbc	hl,bc
+	ld	hl,(dx)
+	ld	de,(dy)
+	jr	c,m4
+	ex	de,hl
+	add	a,4
+m4:	ld	(dx),de
+	ld	(dy),hl
+	ld	hl,okt1
+	add	a,l
+	jr	nc,m5
+	inc	h
+m5:	ld	l,a
+	ld	a,(hl)
+	or	8
+	ld	(drich),a
+	ld	hl,(dy)
+	ld	a,h
+	and	3fh
+	ld	h,a
+	ld	(drich+1),hl
+	ld	de,(dx) 
+	and	a
+	rl	e
+	rl	d
+	ex	de,hl
+	and	a	;theor. Carry nicht gesetzt
+	sbc	hl,de
+	ld	a,h
+	and	3fh
+	ld	h,a
+	ld	(drich+3),hl
+	ld	hl,(dx)
+	ld	de,(dy)
+	and	a
+	sbc	hl,de
+	and	a
+	rl	l
+	rl	h
+	ld	a,h
+	and	3fh
+	ld	h,a
+	ld	(drich+5),hl
+	ld	hl,(dx)
+	and	a
+	rl	l
+	rl	h
+	ld	(drich+7),hl
+	ret
+;aus x1,y1 Cursoradr. errechnen und in Ausgabe-
+;datenbereich eintragen
+upcup:	ld	hl,(y1)
+upcup1:	add	hl,hl
+	add	hl,hl
+	add	hl,hl
+	push	hl
+	add	hl,hl
+	add	hl,hl
+	pop	de
+	add	hl,de
+	ld	de,(x1)
+	xor	a
+	ld	b,4
+m6:	rr	d
+	rr	e
+	rr	a
+	djnz	m6
+	add	hl,de
+	ld	de,(curs0)
+	add	hl,de	;errechnete Adr.+Bildanf.
+	ld	(dpos),hl
+	ld	(dpix),a
+	ret
+ioup3:	in	a,(gdcc)
+	and	2
+	jr	nz,ioup3
+	outi
+	jr	nz,ioup3
+	ret
+inup:	ld	c,gdcd
+inup1:	in	a,(80h)
+	and	1
+	jr	z,inup1
+	ini
+	jr	nz,inup1
+	ret
+
+curssº	ld	hl,(cursa)
+	ld	(pos),hl
+	xor	a
+	ld	(pix),a
+	ld	hl,zcls1
+	call 	ioup
+	ret
+
+;Initialisierungsparameter fuer den GDC (Laenge,Kommando,Parameter...)
+;Daten koennen auch im ROM stehen
+inid:	defm	9,0,12h,26h	;Reset GDC und Bildschirm-
+	defm	48h,1dh,7h,37h	;parameter 640*200 Pixel
+	defm	0c8h,98h	;kein Refresh,Graphikbetrieb
+	defm	1,6fh		;Vertikalsync. durch GDC ein
+	defí	9,70h,0,°	;PRAÍ auæ 640*20° festlegen
+	defm	80h,0ch,0ffh,0ffh	
+	defm	0ffh,0ffh
+	defm	2,47h,28h	;Pitch (Worte pro Zeile)
+	defm	2,46h,00	;Zoom 00
+	defm	1,6bh,0ffh	;Bildschirmfreigabe
+;Zeichenparameter
+cmask:	db	3,4ah,0ffh,0ffh,0ffh	
+synca:	db	2,0eh,10h
+mpram:	db	2,73h,4fh
+figsw:	db	2,4ch,02h,0ffh
+figsr:	db	4,4ch,02h,040h,1,0ffh
+syncbº	db	2,0eh,12h
+gpram:	db	2,73h,0fh,1,0dh,0ffh
+okt1:	db	2,5,6,1,3,4,7,0
+

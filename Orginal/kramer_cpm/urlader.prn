@@ -1,0 +1,358 @@
+'Lader'	MACRO-80 3.44	09-Dec-81	PAGE	1
+
+
+                                .z80
+  0000'                         aseg
+                                	org	100h
+                                
+                                	TITLE	'Lader'
+                                
+                                
+                                
+                                ;Lader fuer erste 5 Sektoren und Sprung dorthin
+                                ;(c) Y23VO 1989
+                                ;public domain
+                                
+  8100                          ram	equ	8100h	;Arbeitsbereich Ladeprogramm
+  80E0                          stack	equ	ram-20h
+  80F0                          dskbuf	equ	ram-10h	;Speicherplatz Ladeadresse
+  0400                          hstsiz	equ	400h	;Sektorgroesse
+                                
+                                ;Floppy-Disk-Controller 8272/765
+  0040                          cfdc	equ	40h	;Steuerung
+  0041                          dfdc	equ	41h	;Daten
+  0010                          tc	equ	10h	;Ende-Impuls
+                                
+                                ;System: Bios ab Spur 0, Sektor 1
+                                ;	 Intellader,CCP und BDOS ab Spur 2, Sektor 1
+                                ;Umkopieren
+  0100    21 010E               	ld	hl,anf		;Quelladresse
+  0103    11 8100               	ld	de,ram		;Zieladresse
+  0106    01 0400               	ld	bc,400h		;PRogrammlaenge
+  0109    ED B0                 	ldir
+  010B    C3 8100               	jp	ram
+  010E                          anf	equ	$
+                                	.phase	ram	
+  8100    31 80E0               start:	ld	sp,stack
+  8103    CD 8149               	call	inifd
+  8106    06 05                 restr:	ld	b,5		;Anzahl Sektoren
+  8108    11 0400               	ld	de,hstsiz	;Sektorlaenge
+  810B    21 8500               	ld	hl,ram+hstsiz	;Zieladresse
+  810E    22 80F0               	ld	(dskbuf),hl
+  8111    C5                    lader:	push	bc
+  8112    D5                    	push	de
+  8113    E5                    	push	hl
+  8114    CD 8195               	call	reahst		;sektorlesen
+  8117    B7                    	or	a
+  8118    20 10                 	jr	nz,error	
+  811A    21 8130               	ld	hl,hstsec	;naechster
+  811D    34                    	inc	(hl)
+  811E    E1                    	pop	hl
+  811F    D1                    	pop	de
+  8120    C1                    	pop	bc
+  8121    19                    	add	hl,de		;naechste Ladeadresse
+  8122    22 80F0               	ld	(dskbuf),hl
+  8125    10 EA                 	djnz	lader
+  8127    C3 8500               	jp	ram+hstsiz
+                                
+  812A    76                    error:	halt
+  812B                          str:
+'Lader'	MACRO-80 3.44	09-Dec-81	PAGE	1-1
+
+
+  812B    C9                    cci:	ret
+                                
+                                ;Steuertabelle fuer Floppycontroller
+  812C    C6                    CTAB:	DB	0c6H		;MFM LESEN
+  812D    00                    UNIT:	DB	0		;LAUFWERK A VOREINGESTELLT
+  812E    00                    TRCK:	DB	0		;SPUR
+  812F    00                    HED:	DB	0		;DISK-SEITE
+  8130    01                    HSTSEC:	DB	1		;SECTOR
+  8131    03                    N:	DB	3		;N=3=1024 BYTES
+  8132    05                    EOT:	DB	5		;5 SECTOREN JE SPUR
+  8133    1B                    GPL:	DB	1BH		;LUECKE
+  8134    FF                    DTL:	DB	0FFH
+  8135    00                    RESLT:	DB	0		;ST0, RESULT TAB F.FDC
+  8136    00                    	DB	0		;ST1
+  8137    00                    	DB	0		;ST2
+  8138    00                    	DB	0		;CYLINDER
+  8139    00                    	DB	0		;HEAD
+  813A    00                    	DB	0		;RECORD
+  813B    00                    	DB	0		;N
+  813C    00                    RWCDE:	DB	0
+  813D    00                    SEKDSK:	DB	0
+  813E    00                    SEKTRK:	DB	0
+  813F    00                    HEAD:	DB	0
+  8140    00                    SEKHST:	DB	0	
+  8141    00                    HSTDSK:	DB	0
+  8142    00                    HSTTRK:	DB	0
+  8143    02                    WRTYPE:	DB	2		
+  8144    00                    WRFLG:	DB	0
+  8145    00                    inibit:	db	0
+  8146    01                    SEKSEC:	DB	1		;BDOS-SEKTOR
+  8147    0080                  DMAADR:	DEFW	80H		;BDOS-DMA
+  8149                          erflag	equ	$		;nicht benutzt
+  8149                          msg2	equ	$		;nicht benutzt
+                                
+                                ;es folgt FDC780.MAC
+                         C      include	FDC780.MAC
+                         C      ;====================================================================
+                         C      ;TREIBER MIT U8272
+                         C      ;-----------------------------------------------------------
+                         C      ;(c) Y23VO 1989
+                         C      ;public domain
+                         C      ;-----------------------------------------------------------
+  8149    CD 817F        C      INIFD:	CALL	TCPLS
+  814C    06 00          C      INI1:	LD	B,0		;INITIALISIERUNG P8272
+  814E    10 FE          C      	DJNZ	INI1+2
+  8150    DB 40          C      	IN	A,(CFDC)
+  8152    FE 80          C      	CP	80H
+  8154    28 04          C      	JR	Z,SPEZI
+  8156    DB 41          C      	IN	A,(DFDC)
+  8158    18 F2          C      	JR	INI1
+  815A    21 817C        C      SPEZI:	LD	HL,STAB-1	;PARAMETER LADEN
+  815D    01 0303        C      	LD	BC,0303H	;SPECIFY-COMM 3BYTES
+  8160    CD 8225        C      	CALL	WCOM1		;SCHREIBEN COMM
+  8163    01 0207        C      RECAL:	LD	BC,0207H	;SPUR 0 EINSTELLEN
+  8166    CD 81FC        C      	CALL	RDY		;DRIVE READY?
+                         C      ;-----------------------------------------------------------
+'Lader'	MACRO-80 3.44	09-Dec-81	PAGE	1-2
+
+
+  8169    01 0108        C      SENSE:	LD	BC,0108H	;PRUEFE INTERRUPT STATUS
+  816C    CD 8222        C      	CALL	WCOM
+  816F    CD 8241        C      	CALL	RBYTE		;RESULT REG 0:IC1,IC2,SE,EC,NR,HD,US1,US2
+  8172    47             C      	LD	B,A
+  8173    FE 80          C      	CP	80H
+  8175    C4 8241        C      	CALL	NZ,RBYTE	;PCN HOLEN
+  8178    CB 68          C      	BIT	5,B		;SEEK ENDE?
+  817A    28 ED          C      	JR	Z,SENSE
+  817C    C9             C      	RET
+  817D    DF             C      STAB:	DB	0dfH		;XXXX=SRT,XXXX=HUT
+  817E    33             C      	DB	33H		;XXXXXXX=HLT,X=ND
+                         C      ;df,33 mit kopfladen,e1,3 ohne 
+                         C      ;-----------------------------------------------------------
+  817F    D3 10          C      TCPLS:	OUT	(TC),A		;ENDEIMPULS EIN
+  8181    CD 823A        C      	CALL	DELAY
+  8184    DB 10          C      	IN	A,(TC)
+  8186    C9             C      	RET
+                         C      ;-----------------------------------------------------------
+                         C      ;SEKTOR SCHREIBEN/LESEN IN BETRIEBSART OHNE DMA-SCHALTKREIS
+                         C      ;SECTOR IN (HSTSEC)
+                         C      ;SPUR  IN (HSTTRK)
+                         C      ;AKT.LAUFWERK IN (HSTDSK)
+                         C      ;ZIEL-/QUELLADRESSE = HSTBUF
+                         C      ;KILL: A B DE HL
+  8187    CD 81E2        C      WRIHST:	call	sds
+  818A    CB 77          C      	bit	6,a		;Schreibschutz ?
+  818C    20 39          C      	jr	nz,rwerr
+  818E    11             C      wrhst1:	DB	11H		;CODE LD DE,...
+  818F    ED A3          C      	OUTI			;WRITE DATA
+  8191    3E C5          C      	LD	A,0c5H		;SCHREIBKOMMANDO
+  8193    18 05          C      	JR	RWIT
+                         C      ;-----------------------------------------------------------
+  8195    11             C      REAHST:	DB	11H		;CODE LD DE,...
+  8196    ED A2          C      	INI
+  8198    3E C6          C      	LD	A,0c6H		;LESEKOMMANDO
+  819A    32 812C        C      RWIT:	LD	(CTAB),A
+  819D    ED 53 81DA     C      	LD	(MODE),DE	;EINTRAGEN INI/OUTI-OP-CODE
+  81A1    CD 8276        C      	call	heads
+  81A4    CD 81EC        C      	CALL	SEEK
+  81A7    06 0A          C      	ld	b,10
+  81A9    C5             C      RWOP:	PUSH	BC
+  81AA    F3             C      	DI
+  81AB    06 09          C      	LD	B,9		;9COMMANDOBYTES
+  81AD    3A 812C        C      	LD	A,(CTAB)
+  81B0    4F             C      	LD	C,A
+  81B1    CD 81FC        C      	CALL	RDY		;AUSGABE KOMMANDO
+  81B4    2A 80F0        C      	LD	HL,(DSKBUF)	;Ladeadresse
+  81B7    0E 41          C      	LD	C,DFDC
+  81B9    CD 81CD        C      	CALL	RW
+  81BC    CD 817F        C      	CALL	TCPLS		;ENDE-IMPULS
+  81BF    CD 824A        C      	CALL	RRSLT
+  81C2    FB             C      	EI
+  81C3    C1             C      	POP	BC
+  81C4    C8             C      	RET	Z		;ST0=0=KEINE FEHLER
+  81C5    10 E2          C      	DJNZ	RWOP
+  81C7    3E 01          C      rwerr:	LD	A,1
+'Lader'	MACRO-80 3.44	09-Dec-81	PAGE	1-3
+
+
+  81C9    32 8149        C      	ld	(erflag),a
+  81CC    C9             C      	RET			;ERROR
+                         C      ;-----------------------------------------------------------
+                         C      ;SCHREIBEN ODER LESEN 1024 BYTES
+                         C      ;IN: HL QUELLE ODER ZIEL
+                         C      ; C: DATENPORT
+  81CD    06 04          C      RW:	LD	B,4
+  81CF    C5             C      RW2:	PUSH	BC
+  81D0    06 00          C      	LD	B,0		;256 BYTES
+  81D2    DB 40          C      RW1:	IN	A,(CFDC)
+  81D4    07             C      	RLCA			;RQM-TEST
+  81D5    30 FB          C      	JR	NC,RW1
+  81D7    07             C      	RLCA			;DIO
+  81D8    07             C      	RLCA			;NON-DMA
+  81D9    D0             C      	RET	NC		;FERTIG?
+  81DA    ED A2          C      MODE:	INI			;INI BEI READ DATA SONST OUTI
+  81DC    20 F4          C      	JR	NZ,RW1
+  81DE    C1             C      	POP	BC
+  81DF    10 EE          C      	DJNZ	RW2
+  81E1    C9             C      	RET
+                         C      ;-----------------------------------------------------------
+  81E2    01 0204        C      SDS:	LD	BC,0204H	;PRUEFE LAUFWERK STATUS
+  81E5    CD 8222        C      	CALL	WCOM
+  81E8    CD 8241        C      	CALL	RBYTE		;STATUS REG 3:FAULT,WP,RDY,T0,TS,HD,US1,U
+  81EB    C9             C      	RET
+                         C      ;-----------------------------------------------------------
+  81EC    01 030F        C      SEEK:	LD	BC,030FH	;COMM SPUR EINSTELLEN
+  81EF    CD 81FC        C      	CALL	RDY
+  81F2    CD 8169        C      	CALL	SENSE
+  81F5    DB 40          C      SKBSY:	IN	A,(CFDC)
+  81F7    E6 0F          C      	AND	0FH
+  81F9    20 FA          C      	JR	NZ,SKBSY
+  81FB    C9             C      	RET
+                         C      ;-----------------------------------------------------------
+  81FC    C5             C      RDY:	PUSH	BC		;LAUFWERK BETRIEBSFAEHIG ?
+  81FD    21 7FFF        C      	ld	hl,7fffh	;Wartezeit auf Bereitschaft
+  8200    E5             C      nrdy:	push	hl
+  8201    CD 81E2        C      	CALL	SDS		;nicht 
+  8204    E1             C      	pop	hl
+  8205    CB 6F          C      	BIT	5,A		;READY-BIT IN STATUSREG.3
+  8207    20 18          C      	JR	NZ,RDY1
+  8209    2B             C      	dec	hl
+  820A    CD 823A        C      	call	delay
+  820D    7D             C      	ld	a,l
+  820E    B4             C      	or	h
+  820F    20 EF          C      	jr	nz,nrdy
+  8211    21 8149        C      	LD	HL,MSG2		;FEHLERMELDUNG
+  8214    CD 812B        C      	CALL	STR
+  8217    CD 812B        C      	CALL	CCI
+  821A    FE 6A          C      	CP	'j'		
+  821C    20 E2          C      	JR	NZ,NRDY
+  821E    C3 8106        C      	jp	restr		;Abbruch
+  8221    C1             C      RDY1:	POP	BC
+                         C      ;-----------------------------------------------------------
+  8222    21 812C        C      WCOM:	LD	HL,CTAB		;COMM IN FDC SCHREIBEN
+  8225    F3             C      WCOM1:	DI			;IN: B ANZAHL D. BYTES,C COMM
+'Lader'	MACRO-80 3.44	09-Dec-81	PAGE	1-4
+
+
+  8226    CD 823A        C      	CALL	DELAY
+  8229    DB 40          C      	IN	A,(CFDC)
+  822B    E6 C0          C      	AND	0C0H
+  822D    FE 80          C      	CP	80H		;RQM,DIO=OUT
+  822F    20 F4          C      	JR	NZ,WCOM1
+  8231    79             C      	LD	A,C
+  8232    D3 41          C      	OUT	(DFDC),A
+  8234    23             C      	INC	HL
+  8235    4E             C      	LD	C,M
+  8236    10 ED          C      	DJNZ	WCOM1
+  8238    FB             C      	EI
+  8239    C9             C      	RET
+                         C      ;-----------------------------------------------------------
+  823A    C5             C      DELAY:	PUSH	BC		;VERZOEGERUNG F.STATUSFLAG 8272
+  823B    06 0F          C      	LD	B,0FH
+  823D    10 FE          C      DEL1:	DJNZ	DEL1
+  823F    C1             C      	POP	BC
+  8240    C9             C      	RET
+                         C      ;-----------------------------------------------------------
+  8241    CD 823A        C      RBYTE:	CALL	DELAY		;1 BYTE LESEN
+  8244    CD 8260        C      	CALL	IRDY
+  8247    DB 41          C      	IN	A,(DFDC)
+  8249    C9             C      	RET
+                         C      ;-----------------------------------------------------------
+  824A    06 06          C      RRSLT:	LD	B,6		;LESE 7 RESULT BYTES
+  824C    CD 8241        C      	CALL	RBYTE
+  824F    21 8135        C      	LD	HL,RESLT
+  8252    77             C      	LD	M,A
+  8253    E6 C0          C      	AND	0C0H		;ERROR?
+  8255    4F             C      	LD	C,A
+  8256    CD 8241        C      RESL1:	CALL	RBYTE
+  8259    23             C      	INC	HL
+  825A    77             C      	LD	M,A
+  825B    10 F9          C      	DJNZ	RESL1
+  825D    79             C      	LD	A,C		;FEHLERMELDUNG STATUS REG 0
+  825E    B7             C      	OR	A
+  825F    C9             C      	RET
+                         C      ;-----------------------------------------------------------
+  8260    DB 40          C      IRDY:	IN	A,(CFDC)	;BEREIT F.DATENEINGABE ?
+  8262    07             C      	RLCA
+  8263    30 FB          C      	JR	NC,IRDY
+  8265    E6 80          C      	AND	80H
+  8267    07             C      	RLCA
+  8268    D8             C      	RET	C
+                         C      ;-----------------------------------------------------------
+                         C      ;FEHLERBEHANDLUNG
+  8269    C3 8106        C      ERM:	jp	restr		;SPRUNG IN MONITOR
+                         C      ;-----------------------------------------------------------
+                         C      ;KOMMANDO READ ID
+  826C    01 024A        C      RDID:	LD	BC,024AH
+  826F    CD 81FC        C      	CALL	RDY
+  8272    CD 824A        C      	CALL	RRSLT
+  8275    C9             C      	RET
+                         C      ;-----------------------------------------------------------
+  8276    B7             C      HEADS:	or	a		;Carry-Flag loeschen
+  8277    3A 8142        C      	LD	A,(HSTTRK)
+'Lader'	MACRO-80 3.44	09-Dec-81	PAGE	1-5
+
+
+  827A    4F             C      	LD	C,A
+  827B    3A 8141        C      	LD	A,(HSTDSK)
+  827E    CB 19          C      	RR	C
+  8280    38 0E          C      	JR	C,UNTEN
+  8282    E6 F3          C      	AND	0F3H
+  8284    32 812D        C      	LD	(UNIT),A
+  8287    79             C      	LD	A,C
+  8288    32 812E        C      	LD	(TRCK),A
+  828B    AF             C      	XOR	A
+  828C    32 812F        C      	LD	(HED),A
+  828F    C9             C      	RET
+  8290    F6 04          C      UNTEN:	OR	4
+  8292    32 812D        C      	LD	(UNIT),A
+  8295    79             C      	LD	A,C
+  8296    32 812E        C      	LD	(TRCK),A
+  8299    3E 01          C      	LD	A,1
+  829B    32 812F        C      	LD	(HED),A
+  829E    C9             C      	ret
+                                
+                                	.dephase
+                                	end
+'Lader'	MACRO-80 3.44	09-Dec-81	PAGE	S
+
+
+Macros:
+
+Symbols:
+010E 	ANF             812B 	CCI             0040 	CFDC            
+812C 	CTAB            823D 	DEL1            823A 	DELAY           
+0041 	DFDC            8147 	DMAADR          80F0 	DSKBUF          
+8134 	DTL             8132 	EOT             8149 	ERFLAG          
+8269 	ERM             812A 	ERROR           8133 	GPL             
+813F 	HEAD            8276 	HEADS           812F 	HED             
+8141 	HSTDSK          8130 	HSTSEC          0400 	HSTSIZ          
+8142 	HSTTRK          814C 	INI1            8145 	INIBIT          
+8149 	INIFD           8260 	IRDY            8111 	LADER           
+81DA 	MODE            8149 	MSG2            8131 	N               
+8200 	NRDY            8100 	RAM             8241 	RBYTE           
+826C 	RDID            81FC 	RDY             8221 	RDY1            
+8195 	REAHST          8163 	RECAL           8256 	RESL1           
+8135 	RESLT           8106 	RESTR           824A 	RRSLT           
+81CD 	RW              81D2 	RW1             81CF 	RW2             
+813C 	RWCDE           81C7 	RWERR           819A 	RWIT            
+81A9 	RWOP            81E2 	SDS             81EC 	SEEK            
+813D 	SEKDSK          8140 	SEKHST          8146 	SEKSEC          
+813E 	SEKTRK          8169 	SENSE           81F5 	SKBSY           
+815A 	SPEZI           817D 	STAB            80E0 	STACK           
+8100 	START           812B 	STR             0010 	TC              
+817F 	TCPLS           812E 	TRCK            812D 	UNIT            
+8290 	UNTEN           8222 	WCOM            8225 	WCOM1           
+8144 	WRFLG           818E 	WRHST1          8187 	WRIHST          
+8143 	WRTYPE          
+
+
+
+No Fatal error(s)
+
+
+    8140 	SEKHST          8146 	SEKSEC          
+813E 	SEKTR

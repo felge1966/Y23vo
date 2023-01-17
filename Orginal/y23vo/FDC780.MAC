@@ -1,0 +1,207 @@
+;====================================================================
+;TREIBER MIT U8272
+;-----------------------------------------------------------
+;(c) Y23VO 1989
+;public domain
+;-----------------------------------------------------------
+INIFD:	CALL	TCPLS
+INI1:	LD	B,0		;INITIALISIERUNG P8272
+	DJNZ	INI1+2
+	IN	A,(CFDC)
+	CP	80H
+	JR	Z,SPEZI
+	IN	A,(DFDC)
+	JR	INI1
+SPEZI:	LD	HL,STAB-1	;PARAMETER LADEN
+	LD	BC,0303H	;SPECIFY-COMM 3BYTES
+	CALL	WCOM1		;SCHREIBEN COMM
+RECAL:	LD	BC,0207H	;SPUR 0 EINSTELLEN
+	CALL	RDY		;DRIVE READY?
+;-----------------------------------------------------------
+SENSE:	LD	BC,0108H	;PRUEFE INTERRUPT STATUS
+	CALL	WCOM
+	CALL	RBYTE		;RESULT REG 0:IC1,IC2,SE,EC,NR,HD,US1,US2
+	LD	B,A
+	CP	80H
+	CALL	NZ,RBYTE	;PCN HOLEN
+	BIT	5,B		;SEEK ENDE?
+	JR	Z,SENSE
+	RET
+STAB:	DB	0e1H		;XXXX=SRT,XXXX=HUT
+	DB	3H		;XXXXXXX=HLT,X=ND
+;df,3 mit kopfladen,e1,3 ohne 
+;-----------------------------------------------------------
+TCPLS:	OUT	(TC),A		;ENDEIMPULS EIN
+	CALL	DELAY
+	IN	A,(TC)
+	RET
+;-----------------------------------------------------------
+;SEKTOR SCHREIBEN/LESEN IN BETRIEBSART OHNE DMA-SCHALTKREIS
+;SECTOR IN (HSTSEC)
+;SPUR  IN (HSTTRK)
+;AKT.LAUFWERK IN (HSTDSK)
+;ZIEL-/QUELLADRESSE = HSTBUF
+;KILL: A B DE HL
+WRIHST:	call	sds
+	bit	6,a		;Schreibschutz ?
+	jr	nz,rwerr
+wrhst1:	DB	11H		;CODE LD DE,...
+	OUTI			;WRITE DATA
+	LD	A,0c5H		;SCHREIBKOMMANDO
+	JR	RWIT
+;-----------------------------------------------------------
+REAHST:	DB	11H		;CODE LD DE,...
+	INI
+	LD	A,0c6H		;LESEKOMMANDO
+RWIT:	LD	(CTAB),A
+	LD	(MODE),DE	;EINTRAGEN INI/OUTI-OP-CODE
+	call	heads
+	CALL	SEEK
+	ld	b,10
+RWOP:	PUSH	BC
+	DI
+	LD	B,9		;9COMMANDOBYTES
+	LD	A,(CTAB)
+	LD	C,A
+	CALL	RDY		;AUSGABE KOMMANDO
+	LD	HL,(DSKBUF)	;Ladeadresse
+	LD	C,DFDC
+	CALL	RW
+	CALL	TCPLS		;ENDE-IMPULS
+	CALL	RRSLT
+	EI
+	POP	BC
+	RET	Z		;ST0=0=KEINE FEHLER
+	DJNZ	RWOP
+rwerr:	LD	A,1
+	ld	(erflag),a
+	RET			;ERROR
+;-----------------------------------------------------------
+;SCHREIBEN ODER LESEN 1024 BYTES
+;IN: HL QUELLE ODER ZIEL
+; C: DATENPORT
+RW:	LD	B,4
+RW2:	PUSH	BC
+	LD	B,0		;256 BYTES
+RW1:	IN	A,(CFDC)
+	RLCA			;RQM-TEST
+	JR	NC,RW1
+	RLCA			;DIO
+	RLCA			;NON-DMA
+	RET	NC		;FERTIG?
+MODE:	INI			;INI BEI READ DATA SONST OUTI
+	JR	NZ,RW1
+	POP	BC
+	DJNZ	RW2
+	RET
+;-----------------------------------------------------------
+SDS:	LD	BC,0204H	;PRUEFE LAUFWERK STATUS
+	CALL	WCOM
+	CALL	RBYTE		;STATUS REG 3:FAULT,WP,RDY,T0,TS,HD,US1,U
+	RET
+;-----------------------------------------------------------
+SEEK:	LD	BC,030FH	;COMM SPUR EINSTELLEN
+	CALL	RDY
+	CALL	SENSE
+SKBSY:	IN	A,(CFDC)
+	AND	0FH
+	JR	NZ,SKBSY
+	RET
+;-----------------------------------------------------------
+RDY:	PUSH	BC		;LAUFWERK BETRIEBSFAEHIG ?
+	ld	hl,7fffh	;Wartezeit auf Bereitschaft
+nrdy:	push	hl
+	CALL	SDS		;nicht 
+	pop	hl
+	BIT	5,A		;READY-BIT IN STATUSREG.3
+	JR	NZ,RDY1
+	dec	hl
+	call	delay
+	ld	a,l
+	or	h
+	jr	nz,nrdy
+	LD	HL,MSG2		;FEHLERMELDUNG
+	CALL	STR
+	CALL	CCI
+	CP	'j'		
+	JR	NZ,NRDY
+	jp	restr		;Abbruch
+RDY1:	POP	BC
+;-----------------------------------------------------------
+WCOM:	LD	HL,CTAB		;COMM IN FDC SCHREIBEN
+WCOM1:	DI			;IN: B ANZAHL D. BYTES,C COMM
+	CALL	DELAY
+	IN	A,(CFDC)
+	AND	0C0H
+	CP	80H		;RQM,DIO=OUT
+	JR	NZ,WCOM1
+	LD	A,C
+	OUT	(DFDC),A
+	INC	HL
+	LD	C,M
+	DJNZ	WCOM1
+	EI
+	RET
+;-----------------------------------------------------------
+DELAY:	PUSH	BC		;VERZOEGERUNG F.STATUSFLAG 8272
+	LD	B,0FH
+DEL1:	DJNZ	DEL1
+	POP	BC
+	RET
+;-----------------------------------------------------------
+RBYTE:	CALL	DELAY		;1 BYTE LESEN
+	CALL	IRDY
+	IN	A,(DFDC)
+	RET
+;-----------------------------------------------------------
+RRSLT:	LD	B,6		;LESE 7 RESULT BYTES
+	CALL	RBYTE
+	LD	HL,RESLT
+	LD	M,A
+	AND	0C0H		;ERROR?
+	LD	C,A
+RESL1:	CALL	RBYTE
+	INC	HL
+	LD	M,A
+	DJNZ	RESL1
+	LD	A,C		;FEHLERMELDUNG STATUS REG 0
+	OR	A
+	RET
+;-----------------------------------------------------------
+IRDY:	IN	A,(CFDC)	;BEREIT F.DATENEINGABE ?
+	RLCA
+	JR	NC,IRDY
+	AND	80H
+	RLCA
+	RET	C
+;-----------------------------------------------------------
+;FEHLERBEHANDLUNG
+ERM:	jp	restr		;SPRUNG IN MONITOR
+;-----------------------------------------------------------
+;KOMMANDO READ ID
+RDID:	LD	BC,024AH
+	CALL	RDY
+	CALL	RRSLT
+	RET
+;-----------------------------------------------------------
+HEADS:	or	a		;Carry-Flag loeschen
+	LD	A,(HSTTRK)
+	LD	C,A
+	LD	A,(HSTDSK)
+	RR	C
+	JR	C,UNTEN
+	AND	0F3H
+	LD	(UNIT),A
+	LD	A,C
+	LD	(TRCK),A
+	XOR	A
+	LD	(HED),A
+	RET
+UNTEN:	OR	4
+	LD	(UNIT),A
+	LD	A,C
+	LD	(TRCK),A
+	LD	A,1
+	LD	(HED),A
+	ret
+

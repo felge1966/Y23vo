@@ -1,0 +1,907 @@
+S.64-69
+
+2.3.   Monitorprogramm
+
+Nach der Vorstellung der Befehle des Mikro-
+prozessors soll nun die Programmierung in
+Maschinensprache folgen.                 
+
+Bei der Schaltungs- oder Programment- 
+wicklung muß der Bediener mit dem Mikro- 
+computer über die Peripherie (Tastatur, 
+Bildschirm usw.) in Verbindung treten kön- 
+nen, muß Programme eingeben, im Speicher 
+kontrollieren, starten und verändern. Dazu 
+ist ein sogenanntes Monitorprogramm erfor- 
+derlich, welches meist fest im ROM des Mi-
+krocomputers untergebracht ist und beim 
+Einschalten als erstes arbeitet. Dieses Moni-
+torprogramm, oft auch als «der Monitor» be- 
+zeichnet, besteht im wesentlichen aus zwei 
+Teilen:                                    
+
+- Programme für den jeweils vorhandenen
+  Computer bezüglich Speichergröße und
+  -ausführung sowie Peripherie (z. B. An-
+  zahl der Tasten oder Bildschirmzeilen).
+
+- Programme, die sich auf den eingesetzten
+  Prozessor beziehen und von der Konfigu-
+  ration unabhängig sind.
+
+Für beides hat sich inzwischen eine Art
+unverbindlicher Standard herausgebildet,
+der in der Literatur auch ausführlich be-
+schrieben ist und vor allem eine optimale
+Ausnutzung der Speicherkapazität des Mo-
+nitorprogramms erlaubt.
+
+2.3.1. Struktur    
+
+Bild 2.7 zeigt die Struktur des Monitorpro-
+gramms. Nach dem Einschalten bzw. nach
+dem RESET-Signal erfolgt zunächst die Ini-
+tialisierung. Die entsprechend der jeweiligen
+Hardware-Konfiguration vorhandenen pro-
+grammierbaren Peripherieschaltkreise PIO,
+CTC, SIO usw. programmiert man je nach
+
+
+Bild 2.7 Struktur des Monitors
+
+ihrer Verwendung, z. B. ein PIO für eine Ta-
+statur bei Port A auf Ausgabe und bei Port B
+auf Eingabe. Der Speicher für den Bild-
+schirm sowie die unter 2.5. näher erläuterte
+RAM-Tabelle des Monitorprogramms, die
+nach dem Einschalten einen zufälligen In-
+halt aufweisen, müssen einen definierten
+Anfangszustand erhalten. Der Bildschirm
+wird «gelöscht», indem der Prozessor den
+Bildwiederholspeicher mit Leerzeichen be-
+schreibt. Nach der Initialisierung gelangt das
+Programm in die Aufrufschleife und erwartet.
+die Eingabe eines Monitorkommandos. Die
+Kommandos werden als Unterprogramme
+abgearbeitet, anschließend erfolgt die Rück-
+kehr in die Aufrufschleife, und es kann eine
+neue Kommandoeingabe erfolgen.
+
+Die Programmteile für die Kommandos
+rufen weitere Unterprogramme auf, z. B. für
+eine Konvertierung in eine andere Form der
+Darstellung oder für die Ausgabe eines Zei-
+chens auf dem Bildschirm.
+
+2.3.2. IN/OUT-Routinen
+
+Das zuletzt genannte Unterprogramm wird
+außer vom Monitor auch von anderen Pro-
+grammen benötigt. Da alle Programme
+irgendwelche Daten über Eingabekanäle er-
+halten und nach der Bearbeitung wieder aus-
+geben, sind die Unterprogramme für Peri-
+pheriegeräte wie Tastatur, Bildschirm und
+externe Speicher (Kassettenrecorder, Loch-
+band usw.) bei jedem Mikrocomputer von
+allgemeinem Interesse,                   
+
+Im vorliegenden Monitor erfolgt die Ver-
+arbeitung in Form von Einzelzeichen, üblich
+ist auch die Verarbeitung von Datenblök- 
+ken.
+
+2.3.3. Einsprungtabelle
+
+Es besteht natürlich die Möglichkeit, aus an-
+deren Programmen die IN/OUT-Routinen
+direkt aufzurufen (CALL-Befehl). Bei einer
+Änderung des Monitorprogramms müßten
+jedoch auch Adressen in allen anderen Pro-
+grammen (z.B. BASIC-Interpreter, Editor,
+Assembler) geändert werden. Deshalb fügt
+
+
+Tabelle 2.18. Einsprungtabelle
+
+Adresse	Befehl		Bemerkung
+0E0H	MCI: JMP CI	Einzelzeicheneingabe Tastatur, Zeichen in Register A
+0E3H	MRI: JMP RI	Einzelzeicheneingabe INPUT-Kanal, Zeichen in Register A
+0E6H	MCO: JMPCO	Einzelzeichenausgabe Bildschirm, Zeichen in Register C
+0E9H	MWO: JMPWO	Einzelzeichenausgabe OUTPUT-Kanal, Zeichen in Register C
+0ECH	MLO: JMP LO	Einzelzeichenausgabe LIST-Kanal, Zeichen in Register C
+0EFH	MCSTS: JMP CSTS	Tastaturstatus 0 = kein Zeichen
+					-1 = Zeichen
+0F2H 	MIOC: JMP IOCHK	IN/OUT-Zuweisung abfragen, Byte in Register A
+0F5H	MIOS: JMP IOSET	IN/OUT-Gerät zuweisen, Byte in Register A
+
+man eine Tabelle mit Sprungbefehlen zu
+den IN/OUT-Routinen an einer Stelle ein,
+wo Änderungen nicht zu erwarten sind, z. B.
+hinter den Restart-Adressen am Anfang des
+Monitors. Im vorliegenden Monitor ist die
+Tabelle 2.18. vorhanden.
+
+Anstelle der wirklichen IN/OUT-Routine
+kann nun eine Adresse dieser Sprungtabelle,
+z. B. Adresse 00E0H für eine Zeichenein-
+gabe von der Tastatur, aufgerufen werden.
+Änderungen der Routine CI selbst wirken
+sich so auf übergeordnete Programme nicht
+aus.
+
+2.3.4. IN/OUT-Zuweisung
+
+Die Ausgabe und Eingabe von Zeichen er-
+folgt meist über verschiedene Peripheriege-
+räte. So kann ein Programm durch den IN-
+PUT-Kanal mit der Routine MRI sowohl
+über die Tastatur, über ein Kassettenma-
+gnetbandgerät oder auch von einem anderen
+externen Speicher in den Mikrocomputer ge-
+langen. Gleiches gilt für die Ausgabe: Mit
+der Routine MLO kann z. B. auf den Bild-
+schirm, auf einen externen Speicher, auf ver-
+schiedene Drucker oder andere Geräte aus-
+gegeben werden.
+
+Die Auswahl des physisch vorhandenen
+Geräts «Tastatur» zur logischen Funktion
+«INPUT-Kanal» (Zeicheneingabe) speichert
+der Mikrocomputer in einem Byte. Beim
+Aufruf der Routine MRI wird dieses IN/
+OUT-Byte bei jedem Zeichen abgefragt und
+ausgewertet. Die Ausgabekanäle OUTPUT
+und LIST arbeiten in gleicher Weise. Die
+Änderung des IN/OUT-Bytes und der damit
+verbundene Wechsel der physischen Geräte
+erfolgt mit Monitorkommandos.
+
+2.3.5. Debugger
+
+Der auf den Mikroprozessor und nicht auf
+das Gerätekonzept zugeschnittene Teil des
+Monitors erlaubt vor allem die Arbeit mit
+dem Speicher, z. B. lesen, schreiben, ändern,
+Programme starten. Da diese, Aktivitäten zu-
+meist beim Test und bei der Fehlersuche an
+Programmen gebraucht werden, hat sich hier-
+für die Bezeichnung DEBUG-Programm
+oder DEBUGGER eingebürgert. Die Ta-
+belle 2.19. gibt eine Übersicht der Monitor-
+kommandos, ihren Anwendungszweck und
+die Form, in der die Kommandos eingege-
+ben werden müssen. Einige bestehen nur aus
+einem Sprung in ein anderes Programm, das
+dann nur die IN/OUT-Routinen benutzt
+(z. B. BASIC). Das erste Zeichen, ein Buch-
+stabe, ist die eigentliche Auswahl des Kom-
+mandos. Meist sind dann noch weitere «Pa-
+rameter», wie Speicheradressen oder Daten-
+bytes, erforderlich.
+
+Die Eingabe von Adressen und Daten er-
+folgt im Hexadezimalcode, wobei sowohl
+große als auch kleine Zeichen zulässig sind.
+Ein Beispiel soll die Bedienung des Moni-
+tors näher erläutern: Die Eingabe D0,F (CR)
+ergibt die Bildschirmausschrift des Inhalts
+der Speicherplätze 1 bis 15.
+
+Das Komma dient als Trennzeichen, es
+schließt die Eingabe der ersten Adressen ab.
+Als weiteres mögliches Trennzeichen dient
+auch das Leerzeichen (Space-Taste).
+
+Tabelle 2.19. Monitorkommandos
+
+
+Kom- 	Funktion 		Syntax, Parameter
+mando
+A	Assembler-Aufruf	A
+B	BASIC-Aufruf		B
+C	COPY WO: = RI		C
+D	DUMP			DAADR, EADR
+E	End-File		EAADR
+F	Fill			FAADR,EADR,
+				Byte
+G	GO			GAADR, EADR1,
+				EADR2 oder
+				GAADR oder G
+H	HEX-Arithmetik		HADR,ADR
+I	INPUT-Kanal zu-		IT oder IL oder IU
+	weisen
+J	JUMP RAM-Ta-		J
+	belle
+K	KNOW RAM-Test		KAADR,EADR
+L	LIST-Zuweisung		LT oder LL oder LU
+M	MOVE			MAADR,EADR,
+				ZADR
+O	OUTPUT-Kanal		OT oder OL oder OU
+	zuweisen	
+P	PRINT Disassem-		PAADR,EADR
+	bler	
+R	READ ext. Spei-		RADR
+	cher
+S	SUBSTITUTE		SADR,
+T	TEXT Editor		T
+V	VERIFY			VAADR, EADR,
+				ZADR
+W	WRITE			WAADR,EADR
+X	Register anzeigen	X oder Xr
+Z	Zweitregistersatz	Z oder Zr
+
+Erläuterungen:
+
+ADR	Adresse     	AADR	Anfangsadresse
+EADR 	Endeadresse 	ZADR 	Zieladresse
+r      	Register A, B, ...
+
+Bei Eingabe von mehr als vier hexadezi-
+malen Zeichen gelten nur die letzten vier.
+Man kann somit Eingabefehler durch Über-
+schreiben berichtigen. Dieses Prinzip gilt bei
+allen Parametereingaben. Es sind nur die
+letzten HEXA-Zeichen gültig. Der Abschluß
+der Kommandos erfolgt mit der Taste Wa-
+genrücklauf (CR).
+
+Erst mit dem Druck auf diese Taste wird
+das Kommando ausgerührt. Bei Eingabe
+
+nicht mit einem Kommando belegter Buch-
+staben oder anderer fehlerhafter Eingaben
+antwortet der Mikrocomputer als Fehlermel-
+dung mit einem Fragezeichen und gelangt
+anschließend wieder in die Aufrufschleife.
+
+2.3.6. RAM-Tabelle
+
+Der Monitor benötigt für seine Aufgaben
+auch einige RAM-Speicherplätze. Beim
+Testlauf eines Programms unter Verwendung
+von Haltepunkten müssen die Adressen der
+Haltepunkte sowie deren Speicherinhalt und
+der Inhalt der Register des Mikroprozessors
+im RAM gespeichert werden. Durch Anzeige
+dieser Speicherplätze mit den Monitorkom-
+mandos X und Z kann man die richtige Ar-
+beitsweise des zu testenden Programms kon-
+trollieren.
+
+Weitere Speicherplätze der RAM-Tabelle
+sind die Adressen für den jeweils aktuellen
+Ausgabeplatz auf den Bildschirm sowie für
+Peripheriegeräte des Nutzers, die den IN/
+OUT-Routinen zugewiesen werden können.
+Die aktuelle Zuweisung der Peripheriegeräte
+selbst steht ebenfalls in dieser Tabelle. Auch
+Steuerzeichen bzw. Betriebsweisen von Peri-
+pheriegeräten, Zeitkonstanten usw., die ver-
+änderlich sind, bringt man dort unter. Beim
+Start des Monitors wird die RAM-Tabelle in
+einen definierten Zustand versetzt, indem
+sie aus dem ROM übertragen wird. So ist der
+Platz des Registers A mit AA, B mit BB usw.
+belegt, so daß die im zu testenden Programm
+festgelegten Veränderungen (z.B. LD A,B)
+beim Haltepunkt erkennbar sind.
+
+2.4.   Programmbeispiele
+in Maschinensprache
+
+2.4.1. Bedienung des Monitors
+
+Bevor konkrete Beispiele folgen, soll zu-
+nächst die Bedienung des Monitors näher er-
+läutert werden. Als besonders gut verständli-
+che Zielstellung mögen wieder die Erstel-
+lung und der Testlauf eines Programms für
+eine Zeitverzögerung dienen. Entsprechend
+dem Programmablaufplan von Bild 1.1 wol-
+len wir zunächst die innere Schleife auf-
+bauen. Wir laden das Register B mit der ma-
+ximal möglichen Zahl und vermindern den
+Inalt um den Wert 1, bis das Register B leer
+ist (Meldung durch Z-Flag). In der Mnemo-
+nik geschrieben, ergibt sich:
+
+	LD      B,0FFH
+M1:     DEC  	B
+	JPNZ    Ml
+
+Dabei stellt die Marke M1 die symboli-
+sche Form der Adresse des Decrementbe-
+fehls dar. Da wir Startadresse und Länge der
+Befehle bisher nicht wissen, können wir die
+Sprungadresse noch nicht anders angeben.
+Das vollständige Unterprogramm sieht dann
+wie folgt aus:
+
+	LD      A,0FFH
+M2:     LD      B,0FFH
+M1:     DEC  	B
+	JPNZ    Ml
+	DEC     A
+	JPNZ    M2
+	RET
+
+Wir legen die Startadresse an den Beginn
+des RAM-Bereiches im Grundgerät, entneh-
+men die hexadezimale Codierung den Tabel-
+len und stellen alles noch einmal übersicht-
+lich dar:
+
+Adressen Daten  Mnemonik
+
+0C00	3E	LDA,0FFH
+0C01    FF
+0C02    06      LDB,0FFH
+0C03    FF
+0C04    05      DEC B
+0C05    C2      JPNZ 0C04
+0C06    04
+0C07    0C
+0C08    3D      DEC A
+0C09    C2      JPNZ 0C02
+0COA    02
+0COB    0C
+0COC    C9      RET
+
+Die Eingabe des Programms in den Com-
+puter erfolgt mit dem Kommando S (Substi-
+tution). Nach der Eingabe der Zeichenfolge
+S0COO und Leertaste gibt der Computer den
+augenblicklichen Speicherinhalt und danach
+einen Bindestrich aus. Nach der Eingabe
+von 3E und Leertaste überschreibt er damit
+den alten Speicherinhalt der Adresse 0C00H
+undd zeigt den Inhalt der nächsten auf dem
+Bildschirm an. Nach Eintippen des ganzen
+Programms wird mit CR abgeschlossen. Mit
+dem P-Kommando kontrollieren wir es noch
+einmal auf Fehler. Der Disassembler wan-
+delt den Speicherinhalt wieder in die Mne-
+monik um. Die Eingabe lautet P0C00, 0C0C
+(CR). Wenn alles richtig eingetippt wurde,
+kann mit dem GO-Kommando der Testlauf
+beginnen. Am Ende des Programms befindet
+sich ein RET-Befehl. Es steht jedoch keine
+Rückkehradresse im Keller. Deshalb setzen
+wir an die Stelle des RET einen Haltepunkt
+im Testlauf: G0C00, 0C0C (CR). Nach der
+Verzögerungszeit unserer Zeitschleife mel-
+det der Computer die Adresse des Halte-
+punkts. Mit dem Kommando X (CR) sehen
+wir uns die Register an und stellen fest, daß
+die Register A und B nicht mehr den bei der
+Initialisierung eingetragenen Wert besitzen,
+sondern auf 00 stehen. Somit ist die ord-
+nungsgemäße Funktion des Programms er-
+wiesen. Es ist jedoch noch verbesserungswür-
+dig, denn die «Speicherplatzverschwendung»
+bei den Sprungbefehlen stört. Mit relativen
+Sprüngen, bei denen nur der Abstand des
+Ziels vom Absprungort als Argument und
+keine vollständige Adresse erforderlich ist,
+kann man jeweils 1 Byte einsparen. Außer-
+dem läuft das Programm dann adressenun-
+abhängig. Jetzt enthält es beim 1. Sprungbe-
+fehl die konkrete Adresse 0C04. Würde das
+Programm auf der Adresse 0D00 im Spei-
+cher stehen, erfolgte der Sprung trotzdem
+auf 0C04, wo aber dann nichts Sinnvolles
+steht. Der relative Sprung 20FD bedeutet
+nur «3 Speicherplätze zurückspringen, wenn
+das Z-Flag nicht gesetzt ist», und das Pro-
+gramm läuft damit auf beliebigen Adressen.
+
+Für die innere Schleife bietet sich der Be-
+fehl DJNZ an, der den Inhalt von Register B
+um 1 vermindert («dekrementiert») und
+einen Sprung um die Distanz e-2 von der
+Adresse des Befehls ausführt. Der Operand
+des Befehls ist also keine konkrete Adresse,
+sondern wird als Zahl bewertet. Um sowohl
+rückwärts als auch vorwärts im Programm
+springen zu können, dient das Bit 7 dieses
+Bytes als Vorzeichen. Nicht gesetzt, bedeu-
+tet positive Zahl und damit Sprung vorwärts.
+Daraus ergibt sich eine maximale Sprungdi-
+stanz von. +127 bis -128 Speicherplätzen.
+
+Im Beispiel soll der Sprung zum DJNZ-Be-
+fehl erfolgen, also um -2. Damit ergibt sich
+der hexadezimale Wert FE als Operand. Das
+Argument des 2. relativen Sprunges berech-
+nen wir mit Hilfe der hexadezimalen
+Arithmetik des Monitors. Entsprechend dem
+allgemeinen Ausdruck
+
+H Ziel, Quelle +2
+
+erhalten wir im Beispiel den Wert F9H. Die
+Summe der Adressen, die das H-Kommando
+liefert, benötigen wir bei Vorwärtssprüngen.
+Es ergibt sich nun:
+
+Adresse Daten	Mnemonik
+0C00	3E      LD A,0FFH  
+0C01	FF
+0C02	06      LD B,0FFH
+0C03	FF
+0C04	10      DJNZ 0C04
+0C05	FE
+0C06	3D      DEC A 
+0C07	20      JRNZ 0C02
+0C08	F9
+0C09	C9      RET
+
+Mit der Anweisung M0C00, C09, D00 ver-
+schiebt man das Programm auf die Adressen
+D00 bis D0A und kann es, wie bereits be-
+schrieben, mit dem GO-Kommando prüfen.
+Mit der Eingabe OT weist man als Ausgabe-
+kanal den Bildschirm zu und kann sich nach
+Eingabe der Folge WD00,D09 (CR) ansehen,
+wie der Computer dieses Programm auf
+einen externen Speicher (z.B. Kassettenre-
+corder) ausgibt. Diese Form ist für langsame
+externe Speicher international üblich und
+soll deshalb ausführlicher erläutert werden.
+Die Zeile
+:0A0D00003EFF06FF10FE3D20F9C97A
+läßt nur schwer unser Programm erkennen.
+Der Doppelpunkt ist das Kennzeichen für
+den Beginn eines Datenblocks. Falls man
+beim Einlesen mitten in einen Block schal-
+tet oder wenn ein anderer Fehler auftritt,
+kann der nächste Datenblock daran erkannt
+werden. Sonst treten ja nur hexadezimale
+Zahlen auf. Die nächsten beiden Ziffern ge-
+ben die Blocklänge an. Bei Ausgabe eines
+größeren Speicherbereichs (siehe Anhang)
+haben die Blöcke eine «Nutzlänge» von 10H
+(16dezimal) Bytes.Üblich sind auch Block-
+längen von 80H, jedoch lassen sie sich
+schlechter auf Bildschirm oder Drucker dar-
+
+stellen. Die folgenden 4 hexadezimalen Zif-
+fern bezeichnen die Anfangsadresse des Da-
+tenblocks, im Beispiel 0D00. Es folgen
+2 Bytes, die das vorliegende Monitorpro-
+gramm nicht auswertet. Bei größeren Pro-
+grammsystemen dienen sie mitunter zur Be-
+zeichnung von Plätzen im Datenblock, auf
+denen Adressen stehen.
+
+Nach den Datenbytes unseres Programms,
+folgen am Schluß 2 hexadezimale Ziffern
+zur Kontrolle. Sie errechnen sich durch Ad-
+dition aller Daten des Blocks ohne Übertrag.
+Beim Einlesen berechnet der Computer
+diese Prüfsumme erneut. Nur wenn sie mit
+der gelesenen Summe übereinstimmt, er-
+kennt er den Datenblock als fehlerfrei an
+und überträgt ihn aus dem Zwischenspeicher
+des Einleseprogramms auf die zugehörige
+Adresse. Ist als Eingabekanal kein externes
+Gerät zugewiesen, so können in dieser Form
+mit dem R-Kommando des Monitors auch
+Programme (z. B. aus dem Anhang des Bu-
+ches) über die Tastatur eingegeben werden.
+Gegenüber dem S-Kommando besteht eine
+höhere Sicherheit gegen Tippfehler. Das R-
+Kommando erwartet als Abschluß einen Da-
+tenblock, der die Startadresse des Pro-
+gramms angibt. In unserem Beispiel wird er
+im Anschluß an das W-Kommando mit
+E0D00(CR) erzeugt. Das Einleseprogramm
+erlaubt es auch, Datenblöcke mit einem
+Adressenversatz einzulesen. Das Programm
+läuft zwar in der Regel nur auf den Adres-
+sen, für die es geschrieben ist, jedoch kann
+man die Verschiebung für die Programmie-
+rung von EPROMs nutzen. Soll ein EPROM
+später auf Adresse 8000H laufen, wie z. B.
+der BASIC-Interpreter, so kann dieses Pro-
+gramm zunächst mit R9000(CR) in einen
+RAM-Bereich ab Adresse 1000H eingegeben
+werden, von wo man es auf das EPROM pro-
+grammiert. Nach dem gerade beschriebenen
+Muster kann man mit dem Grundgerät Pro-
+gramme erstellen und betreiben. Trotz der
+Ausführlichkeit der letzten Darstellung wur-
+den längst nicht alle Möglichkeiten der Ar-
+beit mit dem Monitor und dem Grundgerät
+gezeigt. Der Autor empfiehlt jedem Ama-
+teur, zunächst alle Monitorkommandos und
+danach alle Befehle des Mikroprozessors in
+Maschinenspräche «durchzuspielen».
+
+S. 72-76
+
+2.5.   Programmierung
+mit Assembler
+
+Die in Abschnitt 2.4. ausführlich beschrie-
+bene Programmierung in Maschinensprache
+ist im Vergleich zu BASIC recht mühsam
+und fehlerträchtig. Die schematische Über-
+
+setzung der Mnemonik in den Maschinen-
+code, insbesondere die Berechnung von Ar-
+gumenten der relativen Sprungbefehle, kann
+jedoch auch der Computer mit einem spe-
+ziellen Programm, dem Assembler, ausfüh-
+ren. Der Assembler erwartet die Eingabe
+eines Programms als sogenannten Quelltext
+in der Mnemonik, wobei Sprungziele und
+Operanden symbolisch mit Marken oder Na-
+men bezeichnet werden können. Er liefert
+daraus den Maschinencode für den Compu-
+ter und für den Programmierer eine Liste, in
+der Quelle und Maschinencode übersicht-
+lich zusammen enthalten sind.
+
+Da der Assembler das Quellprogramm
+schematisch übersetzt, muß man bei der
+Schreibweise der Mnemonik sehr korrekt
+vorgehen. Bedingt durch die stürmische Ent-
+wicklung der Mikrocomputertechnik und an-
+dere historische Voraussetzungen, gibt es
+keine einheitliche Festlegung für die Mne-
+monik der Befehle.
+
+Heute sind in der DDR drei unterschiedli-
+che Typen für den Prozessor UB 880 D üb-
+lich, die sich jedoch nur bei einigen. Befeh-
+len unterscheiden. International am weite-
+sten verbreitet ist die Schreibweise, die in
+den Tabellen für die Programmierung in Ma-
+schinensprache enthalten ist. In der Litera-
+tur findet man jedoch auch häufig eine Mne-
+monik, die vom Prozessor 8080 übernom-
+men wurde. Steht in einem Quellprogramm
+anstelle von LD A,B der entsprechende Be-
+fehl MOV A,B, so «versteht» der Assembler
+nur eine Schreibweise, die andere bewertet
+er als Fehler. Der im Anhang aufgeführte
+Assembler arbeitet mit der ROBOTRON-
+Mnemonik. Die korrekte Schreibweise der
+Befehle kann man in den Programmlisten im
+Anhang nachlesen.                       
+
+2.5.1. Editor
+
+Die Erstellung des Quellprogramms erfolgt
+ebenfalls mit einem Hilfsprogramm. Mit
+dem Editor können Texte über die Tastatur
+oder von einem externen Gerät in den Spei-
+cher des Computers eingegeben und komfor-
+tabel bearbeitet werden. Man kann Zeichen
+und sogar ganze Zeilen einfügen oder strei-
+
+chen, und der übrige Text verschiebt sich
+entsprechend im Speicher. In Verbindung
+mit einem Drucker macht der Editor den
+Computer zur komfortablen Schreibma-
+schine. Der im Abschnitt 5.2.6. aufgeführte
+Editor entstand nicht nur, um damit Pro-
+gramme zu erstellen, sondern diente auch
+zum Schreiben dieses Buches. Der relativ ge-
+ringe Umfang des Programms bedingt natür-
+lich auch Grenzen der Leistungsfähigkeit
+und konnte nur durch direkten Zugriff auf
+Unterprogramme aus dem Monitor realisiert
+werden. Trotzdem ist der Effekt erstaunlich.
+Einige Einzelheiten dienen auch der Zusam-
+menarbeit mit anderen vorhandenen Pro-
+grammen. Die meisten Kommandos zur Be-
+dienung des Editors (Tabelle 2.20) entspre-
+chen den vergleichbaren des Monitors; nur
+sind die Argumente hexadezimale Zeilen-
+nummem und lediglich bei der Textpuffer-
+zuweisung Adressen im Speicher. Erfolgt
+keine ausdrückliche Pufferzuweisung, so legt
+der Editor den Text im Adreßbereich 4000H
+bis 7FFFH ab. Mit dem Kommando Q kann
+man den Editor verlassen und mit dem Mo-
+nitor oder über diesen mit dem Assembler
+weiterarbeiten. Stellt sich beim Testlauf des
+Programms ein Fehler heraus, geht man in
+den Editor zurück und bearbeitet den Quell-
+text erneut. Beim Aufruf des Editors erfolgt
+deshalb zunächst eine Abfrage, ob ein neuer
+Text bearbeitet werden soll oder ob sich be-
+reits etwas im Textpuffer befindet. Der
+Buchstabe Y bewirkt die Neuzuweisung des
+Textpuffers, alle anderen Zeichen stellen
+den Zeilenzähler nur auf Null und erlauben
+weiterhin den Zugriff auf den Text im Puf-
+fer.
+
+Das Kommando E ist das Kernstück des
+Editors, es erlaubt Eingabe und Bearbeitung
+von Text über die Tastatur. Um den Compu-
+ter auch für Schreibarbeiten nutzen zu kön-
+nen, erfolgt dabei eine Umschaltung des Zei- 
+chenvorrates. Die großen Buchstaben er-
+scheinen nur noch mit der Taste Shift. Die
+letzte Bildschirmzeile dient der Bearbeitung.
+Alle Zeichen, die sich in dieser Zeile links
+vom Cursor befinden, gelangen nach Betäti-
+gung der Tasten CR, LF oder Control Z in
+den Speicher des Textpuffers.
+
+Tabelle 2.20. Editor-Kommandos
+
+Kommando	Funktion	Syntax, Parameter
+
+A(sign)		Textspeicher-	A nnnn (CR)
+		zuweisung	nnnn (CR)
+D(isplay) 	Darstellen einer	Dn (CR)
+		Anzahl von n	oder
+		Zeilen mit Wei-	D(Leerz.)...(CR)
+		terstellen des	
+		Zeilenzählers	
+E(dit)		Texteingabe-	En (CR)
+		Modus	
+G(o)		Weiterstellen	Gn (CR)
+		des Zeilenzäh-	
+		lers vorwärts	
+		um n Zeilen	
+I(nput)		Zuweisung Ein-	IT, IL oder IU
+		gabekanal	
+L(ist)		Zuweisung	LT, LL oder LU
+		Druckerkanal	
+0(utput)	Zuweisung Aus-	OT, OL oder OU
+		gabekanal	
+P(rint)		Ausgabe aller	P
+		Zeilen auf List-	
+		kanal	
+Q(uit)		Rücksprung in	Q
+		den Monitor	
+R(ead)		Lesen des Ein-	R
+		gabekanals bis	
+		zum ETX-Zei-	
+		chen	
+T(op)		Rückstellen des	T
+		Zeilenzählers	
+		an den Anfang	
+U(p)		Rückstellen des	Un (CR)
+		Zeilenzählers	
+		um n Zeilen	
+W(rite)		Ausgabe einer	Wn(CR)oder
+		Anzahl oder	W (CR)
+		aller Zeilen	
+
+Erläuterungen:
+
+n:    Hexa-Zahl, max. vierstellig
+(CR): Wagenrücklauf-Taste
+
+Tabelle 2.22.
+Editor-Fehlermeldungen
+
+El Kommandofehler
+E2 Textpuffer voll
+E3 Parameterfehler
+
+
+Tabelle 2.21. Editor-Steuerzeichen
+
+Taste		Funktion
+
+BS     		Cursor nach links, Korrektur durch
+		Überschreiben möglich
+DEL     	Inhalt der Anzeigezeile löschen
+LP      	Zeile in Textpuffer übernehmen,
+		nächste Zeile aus dem Puffer anzei-
+		gen
+CR      	Zeile in Puffer übernehmen, E-
+		Kommando verlassen           
+Control D    	vorletzte Zeile in Arbeitszeile dop-
+		peln
+Control Z    	Zeile in Puffer übernehmen, neue
+		Zeile beginnen
+Control X    	Zeichen über dem Cursor löschen,
+		Rest nach links verschieben
+Control S    	Zeichen über dem Cursor einfügen,
+		Rest nach rechts verschieben
+
+
+Tabelle 2.21. zeigt die Steuerzeichen des
+Editors, Bild 2.8 die Arbeitsweise als Pro-
+grammablaufplan. Tabelle 2.22. erläutert die
+Fehlermeldungen.
+
+2.5.2. Assemblerbeschreibung
+
+Gegenüber der manuellen Übersetzung
+eines Programms mit Tabellen der hexadezi-
+malen Kodierung von Befehlen hat ein As-
+semblerprogramm zwei wesentliche Vorteile:
+
+Die Übersetzung längerer Programme ver-
+läuft um mehrere Größenordnungen schnel-
+ler und ist syntaktisch fehlerfrei. Das bedeu-
+tet aber nicht die Beseitigung logischer
+Fehler. Ist z. B. bei einem Sprung das Ziel
+im Quellprogramm falsch bezeichnet oder
+ein Flag falsch ausgewertet, dann erfolgt die
+
+Bild 2.8
+Arbeitsweise des Editors
+
+
+Übersetzung zwar syntaktisch richtig als
+Sprung, aber logisch falsch beim Operanden.
+Das Programm kann nicht richtig arbeiten.
+Trotzdem lohnt sich der Aufwand für die
+Nutzung eines Assemblers. Sehr wertvoll ist
+auch die übersichtliche Darstellung der Pro-
+gramme, wie das Beispiel des Monitorpro-
+gramms im Anhang zeigt. Der Ausdruck ist
+in mehrere, unterschiedlich breite Spalten
+formatiert. Links befindet sich die Adresse,
+für die das Maschinenprogramm übersetzt
+wurde. Neben der üblichen hexadezimalen
+Angabe bieten einige Assembler sie noch in
+dezimaler Schreibweise. Damit kann der
+Programmierer besser Berechnungen ausfüh-
+ren oder für den Aufruf durch den BASIC-
+Interpreter ablesen, denn in dieser Program-
+miersprache muß man Adressen meist
+dezimal angeben.
+
+Die nächste Spalte des Assembleraus-
+drucks enthält das Maschinenprogramm
+(Objektcode) in hexadezimaler Kodierung,
+wobei nicht mehr als ein Befehl pro Zeile
+steht. Entsprechend den unterschiedlichen
+Befehlslängen kann diese Spalte bis zu 4
+zweistellige hexadezimale Zahlen enthalten.
+
+Die immer besetzte Spalte mit der dezi-
+malen Zeilennummer trennt den Maschi-
+nencode vom Quellprogramm. Nicht immer
+muß das Quellprogramm Befehle enthalten,
+auch Erläuterungen, die den Sinn von Pro-
+grammteilen oder für den Eintritt in ein Pro-
+gramm erforderliche Parameter für eine spä-
+tere Bearbeitung festhalten, sind äußerst
+nützlich. Diese Kommentare können entwe-
+der hinter einem Befehl stehen oder schon
+unmittelbar in der Spalte nach der Zeilen-
+nummer beginnen. Sie sind durch ein voran-
+gestelltes Semikolon gekennzeichnet. Un-
+mittelbar auf die Zeilennummer folgt das
+Markenfeld. Wie bereits erwähnt, symboli-
+siert eine Marke den Wert einer Adresse.
+Meist kennzeichnet sie ein Sprungziel,
+manchmal auch den Beginn oder das Ende
+von Tabellen. Eine Marke besteht aus maxi-
+mal 5 Zeichen, von denen das erste ein
+Buchstabe sein muß, und wird von einem
+nachfolgenden Doppelpunkt gekennzeich-
+net. Den konkreten Wert, den eine Marke
+symbolisiert, berechnet der Assembler erst
+bei der Übersetzung. Hier zeigt sich der Sinn
+
+Tabelle 2.23. Pseudobefehle des Assemblers
+
+Pseudo- Bedeutung
+befehl
+
+EQU	Wertzuweisung einmalig
+DEF    	Wertzuweisung mehrmalig
+DB      Wertzuweisung für Bytes
+DA      Wertzuweisung für Adressen
+BER     Reservierung eines Speicherbereiche!
+ORG    	Wertzuweisung für die Adresse des fol-
+	genden Programms
+*       aktueller Adressenwert
+PN      Programmname, Anfang eines Pro-
+	gramms
+END    	Ende eines Programms
+
+symbolischer Adressen und Operanden.
+
+Hätte man das Sprungziel gleich als Adresse
+angegeben, müßte bei Änderung möglicher-
+weise an vielen Stellen ein neuer Wert ste-
+hen. So kann man etwas dazuschreiben oder
+wegstreichen, und der Assembler setzt an al-
+len Stellen des Programms die neuen
+Sprungadressen ein. Nach dem Markenfeld
+folgt im Assemblerlisting die Mnemonik
+eines Befehls. Neben den auf den Prozessor
+bezogenen gibt es auch sogenannte Pseudo-
+befehle, die nur die Arbeitsweise des Assem-
+blers steuern und natürlich nicht in den Ma-
+schinencode zu übersetzen sind. Ta-
+belle 2.23. zeigt die Pseudobefehle des
+Assemblers, im Monitorlisting kann man bei
+Unklarheiten den Gebrauch nachlesen.
+
+Die auf den Befehl häufig folgenden Ope-
+randen sind trotz der symbolischen Bezeich-
+nung oft konkrete Adressen oder andere
+Zahlen. Sie können sowohl in hexadezimal
+ler Kodierung als auch dezimal dargestellt
+werden. Im Gegensatz zu den Marken und
+anderen symbolischen Werten muß ihr er-
+stes Zeichen eine Ziffer sein. Bei hexadezi-
+malen Zahlen, die mit einem Buchstaben
+beginnen, stellt man die Ziffer 0 davor.
+
+2.5.3. Bedienung des Assemblers
+
+Das vom Assembler zu bearbeitende Quell-
+programm kann sowohl im RAM stehen als
+auch von einem externen Gerät über den In-
+putkanal in den Computer gelangen. Ist kein
+externes Gerät zugewiesen (IT), kann das
+Programm nur mit Hilfe des Editors in den
+RAM gelangt sein, und der Assembler erwar-
+tet es auf den damit festgelegten Textpuffer-
+Adressen. Da der Assembler etwa 8k RAM
+benötigt, können dann nur kurze Pro-
+gramme bei der in Bild 3.1 gezeigten Auftei-
+lung des Speichers bearbeitet werden (maxi-
+mal ca. l k Objektcode). Die Übersetzung
+längerer Programme ist zwar möglich, jedoch
+müssen dann 2 externe Geräte am Computer
+arbeiten: Der Inputkanal muß das Quellpro-
+gramm liefern, Out- und Listkanal müssen
+den Objektcode und die Liste aufnehmen
+und speichern bzw. drucken. Ist als Listgerät
+der Bildschirm zugewiesen (LT), erscheint
+die Liste mit je 16 Zeilen. Nach Eingabe
+eines Leerzeichens folgen die nächsten 16.
+Der Maschinencode gelangt nach der Über-
+setzung auf die im Quellprogramm durch
+ORG-Befehl festgelegte Adresse, wenn kein
+externes Gerät dem Outputkanal zugewiesen
+ist. Dabei muß man darauf achten, daß nicht
+der Textpuffer oder der Arbeitsspeicher des
+Assemblers (1000H bis 2FFFH) überschrie-
+ben werden. Um sicherzugehen und auch für
+diese Adreßbereiche Programme erstellen zu
+
+Tabelle 2.24. Assembler-Fehlermeldungen
+
+20 Fehlerhalter Programnmame
+21 Markenfehler (zu lang, Syntax)
+22 Marke doppelt
+24 Fehlerhalte Mnemonik
+25 Operandenfehler
+27 Zeichenkette zu lang
+28 Symboltabelle voll
+29 Relativsprung zu weit
+
+können, sollte die Ausgabe des Objektcodes
+bei längeren Programmen immer auf Kasset-
+ten erfolgen.
+
+Die Übersetzung des Quellprogramms er-
+folgt in mindestens 2 Schritten. Zunächst
+muß der Assembler alle Befehle auf ihre
+Länge prüfen und damit für symbolische
+Adressen konkrete Werte berechnen. Erst in
+einem zweiten Durchlauf können diese
+Werte dann als Operanden bei den Befehlen
+eingesetzt werden. Nach dem Aufruf des As-
+semblers muß deshalb zunächst Pass 1 ab-
+laufen. Erst danach kann mit Pass O das Ob-
+jektprogramm oder mit Pass P die Liste
+entstehen. Bei Eingabe von Kassette oder
+einem anderen externen Gerät muß man das
+Quellprogramm also mindestens zweimal
+«abspielen». Selbstverständlich entstehen
+bei der Programmierung mit Assembler trotz
+aller Sorgfalt oft Fehler.
+
+Tabelle 2.24. erläutert die Bedeutung der
+Fehlermeldungen des Assemblers.

@@ -1,0 +1,48 @@
+.z80
+aseg
+org	100h
+include	EQU.MAC 
+.phase	monitor
+if	monitor
+;hochkopieren
+	ld	hl,100h		;Programmanfang
+	ld	de,monitor	;Ziel im Ram
+	ld	bc,1fffh	;8 K Byte
+	ldir
+	jp	begin
+anf	equ	$
+endif
+include IO.MAC
+include	CI80.MAC
+include	TTAB80.MAC
+include	BCCO.MAC
+include LDSV.MAC
+ds	monitor+800h-36h-$,0ffh
+tos	equ	$
+	.dephase
+include	STAB.MAC
+	.phase	monitor+800h
+	SUBTTL	'DEBUGGER'
+page
+include DE.MAC
+ds	monitor+0c00h-$,0ffh
+	SUBTTL	'REASSEMBLER'
+page
+include RE.MAC
+ds 	monitor+1000h-$,0ffh
+	SUBTTL	CBIOS
+page
+include	URLADER.MAC
+include	FDC780.MAC
+ds	monitor+1600h-$,0ffh
+	SUBTTL	'GRAFIK'
+page
+include GDC.MAC
+include GDCZG2.MAC
+tabanf	equ	$
+.dephase
+.phase	gdcram
+include	GDCRAM.MAC
+.dephase
+end
+
