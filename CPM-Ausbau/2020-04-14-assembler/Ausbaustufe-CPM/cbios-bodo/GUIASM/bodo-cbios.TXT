@@ -1,0 +1,942 @@
+  1         1/                             	;PN	CB             
+  2         2/                             	                   
+  3         3/  0000 :                     :           CPU	z80  
+  4         4/                                                 
+  5         5/                             	;TITL	"CBIOS Y23VO"
+  6         6/                             ;Bodo 2019-09-18	   
+  7         7/                             ;Anpassung an aufgebauten FDC-Controller
+  8         8/                             ;Kommentare/Änderungen ****
+  9         9/                             	                   
+ 10        10/  0000 :                 =01H:    DF160: EQU	1  
+ 11        11/                             ;DF800:	EQU	1       
+ 12        12/                             ;DEFINITION VON KONSTANTEN
+ 13        13/                                                 
+ 14        14/  0000 :                =07CH:     CFDC: EQU	07CH  ;		STEUERUNG FDC
+ 15        15/  0000 :                =07DH:     DFDC: EQU	07DH  ;		DATEN FDC
+ 16        16/  0000 :                =070H:     ZFDC: EQU	070H  ;		 Zusatzregister mit 74LS175
+ 17        17/                             ;TC: 	EQU	78H		;TERMINAL COUNT (ENDE-IMPULS)****** auskommentiert
+ 18        18/  0000 :                =0FCH:    PIOAD: EQU	0FCH  
+ 19        19/  0000 :                 =02H:    NDISK: EQU	2  ;		ANZAHL LAUFWERKE,1 IM RAM SIMULIERT
+ 20        20/  0000 :                 =0DH:       CR: EQU	0DH  
+ 21        21/  0000 :                 =0AH:       LF: EQU	0AH  
+ 22        22/  0000 :              =0EA00H:      ROM: EQU	0EA00H  ;		***** neu 
+ 23        23/  0000 :              =0DC00H:     BDOS: EQU	0DC00H  ;		ROM-0E00H	;***** neu 
+ 24        24/  0000 :              =0D400H:      CCP: EQU	0D400H  ;		ROM-1600H	;***** neu
+ 25        25/  0000 :              =07000H:     RDSK: EQU	07000H  ;		IM RAM SIMULIERTE FLOPPY
+ 26        26/  0000 :              =0F003H:    MCSTS: EQU	0F003H  ;		Sprungtabelle für Monitorroutinen
+ 27        27/                                                 
+ 28        28/  0000 :              =0F009H:      CI0: EQU	0F009H  ;		***** neu statt 0F13C
+ 29        29/  0000 :              =0F00CH:      MCO: EQU	0F00CH  
+ 30        30/  0000 :              =0F00FH:      MWO: EQU	0F00FH  
+ 31        31/  0000 :              =0F012H:      MRI: EQU	0F012H  
+ 32        32/                                                 
+ 33        33/                                                 
+ 34        34/  0000 :              =0F01EH:      STR: EQU	0F01EH  
+ 35        35/                                                 
+ 36        36/  0000 :              =0F024H:       ZS: EQU	0F024H  
+ 37        37/  0000 :              =0F027H:     HILO: EQU	0F027H  
+ 38        38/  0000 :              =0F400H:    RESTR: EQU	0F400H  ;		RESTART MONITOR
+ 39        39/                                                 
+ 40        40/  0000 :                     :           ORG	ROM  
+ 41        41/                                                 
+ 42        42/  EA00 :             C3 A0 EA:           JP	BOOT   
+ 43        43/  EA03 :             C3 EC EA:    WBOTE: JP	WBOOT  
+ 44        44/  EA06 :             C3 03 F0:           JP	MCSTS  ;		im Monitor
+ 45        45/  EA09 :             C3 09 F0:           JP	CI0  ;		im Monitor  
+ 46        46/  EA0C :             C3 0C F0:           JP	MCO    ;		im Monitor
+ 47        47/  EA0F :             C3 BE ED:           JP	DRUCK  
+ 48        48/  EA12 :             C3 0F F0:           JP	MWO    ;		im Monitor
+ 49        49/  EA15 :             C3 12 F0:           JP	MRI    ;		im Monitor
+ 50        50/  EA18 :             C3 36 EA:           JP	HOME   
+ 51        51/  EA1B :             C3 3B EA:           JP	SDISK  
+ 52        52/  EA1E :             C3 6E EA:           JP	STRCK  
+ 53        53/  EA21 :             C3 69 EA:           JP	SSEC   
+ 54        54/  EA24 :             C3 73 EA:           JP	SDMA   
+ 55        55/  EA27 :             C3 62 EB:           JP	READ   
+ 56        56/  EA2A :             C3 58 EB:           JP	WRITE  
+ 57        57/  EA2D :             C3 56 EA:           JP	LSTS   ;		LISTER STATUS
+ 58        58/  EA30 :             C3 57 EA:           JP	STRAN  ;		SECTOR TRANSFORMATION
+ 59        59/                             ; Ende CBIOS Sprungtabelle
+ 60        60/  EA33 :             C3 01 EC:           JP	TCPLS  ;		 Für Format Programme an Sprungtabelle eingetragen
+ 61        61/                             ;-----------------------------------------------------------
+ 62        62/                             ;KOPF AUF SPUR NULL STELLEN
+ 63        63/  EA36 :             01 00 00:     HOME: LD	BC,0  
+ 64        64/  EA39 :                18 33:           JR	STRCK  
+ 65        65/                             ;LAUFWERK AUSWAEHLEN
+ 66        66/                             ;IN:C LAUFWERK (A ODER B)
+ 67        67/                             ;OUT:HL DPH-VEKTOR  
+ 68        68/  EA3B :             21 00 00:    SDISK: LD	HL,0  ;		FEHLER
+ 69        69/  EA3E :                   C5:           PUSH	BC  
+ 70        70/  EA3F :                06 00:           LD	B,0  
+ 71        71/  EA41 :                   79:           LD	A,C  
+ 72        72/  EA42 :                FE 01:           CP	NDISK-1  
+ 73        73/  EA44 :              =0EA43H:    DISKS: EQU	$-1  
+ 74        74/  EA44 :             D2 00 F4:           JP	NC,RESTR  ;		FEHLER
+ 75        75/  EA47 :                   69:           LD	L,C  
+ 76        76/  EA48 :                   60:           LD	H,B  
+ 77        77/  EA49 :                   29:           ADD	HL,HL  
+ 78        78/  EA4A :                   29:           ADD	HL,HL  
+ 79        79/  EA4B :                   29:           ADD	HL,HL  
+ 80        80/  EA4C :                   29:           ADD	HL,HL  ;		*16
+ 81        81/  EA4D :             11 80 ED:           LD	DE,DPBAS  ;		DPH-VECTOR 1.LW
+ 82        82/  EA50 :                   19:           ADD	HL,DE  
+ 83        83/  EA51 :             32 04 00:           LD	(4),A  ;		 Laufwerksnummer auf Adresse 4
+ 84        84/  EA54 :                   C1:           POP	BC  
+ 85        85/  EA55 :                   C9:           RET	  
+ 86        86/  EA56 :                   C9:     LSTS: RET	  ;		LISTER STATUS
+ 87        87/  EA57 :              =0EA57H:    STRAN: EQU	$  ;		SECTOR TRANSFOR.
+ 88        88/                             ;IN: BC LOG. SECTOR 
+ 89        89/                             ;    DE TABELLE     
+ 90        90/  EA57 :                06 00:           LD	B,0  
+ 91        91/  EA59 :                   7A:           LD	A,D  ;		DE=0->KEINE TRANSF.
+ 92        92/  EA5A :                   B7:           OR	A  
+ 93        93/  EA5B :                20 04:           JR	NZ,STRN1  
+ 94        94/  EA5D :                   60:           LD	H,B  
+ 95        95/  EA5E :                   69:           LD	L,C  
+ 96        96/  EA5F :                   23:           INC	HL  
+ 97        97/  EA60 :                   C9:           RET	  
+ 98        98/  EA61 :                   EB:    STRN1: EX	DE,HL  
+ 99        99/  EA62 :                   09:           ADD	HL,BC  
+100       100/  EA63 :                   7E:           LD	A,(HL)  ;		NEUE NR.
+101       101/  EA64 :             32 12 F8:           LD	(SEC1),A  
+102       102/  EA67 :                   6F:           LD	L,A  
+103       103/  EA68 :                   C9:           RET	  
+104       104/                             ;SECTOR EINSTELLEN  
+105       105/                             ;IN: C SECTOR       
+106       106/                             ;OUT: (SEC1) =C     
+107       107/  EA69 :              =0EA69H:     SSEC: EQU	$  
+108       108/  EA69 :             21 12 F8:           LD	HL,SEC1  
+109       109/  EA6C :                   71:           LD	(HL),C  
+110       110/  EA6D :                   C9:           RET	  
+111       111/                             ;SPUR ANWAEHLEN     
+112       112/                             ;IN: C SPUR         
+113       113/                             ;OUT (TRACK)=C      
+114       114/  EA6E :              =0EA6EH:    STRCK: EQU	$  
+115       115/  EA6E :             21 02 F8:           LD	HL,TRACK  
+116       116/  EA71 :                   71:           LD	(HL),C  
+117       117/  EA72 :                   C9:           RET	  
+118       118/                             ;DMA SETZEN         
+119       119/                             ;IN: BC DMA         
+120       120/  EA73 :          ED 43 13 F8:     SDMA: LD	(DMA),BC  
+121       121/  EA77 :                   C9:           RET	  
+122       122/                             ;-----------------------------------------------------------
+123       123/                             ;CCP UND BDOS VON DEN ERSTEN SPUREN DER DISKETTE LADEN
+124       124/  EA78 :                   0A:     MSGS: DB	0AH  
+125       125/  EA79 :                   0D:           DB	0DH  
+126       126/  EA7A :  59 32 33 56 4F 20 35 36 4B 20 43 50 2F 4D 20 32 2E 32:           DB	"Y23VO 56K CP/M 2.2"  
+127       127/  EA8C :                   0D:           DB	0DH  
+128       128/  EA8D :                   0A:           DB	0AH  
+129       129/  EA8E :  52 41 4D 44 49 53 4B 20 3F 20 28 59 2F 4E 29:           DB	"RAMDISK ? (Y/N)"  
+130       130/  EA9D :                   0D:           DB	0DH  
+131       131/  EA9E :                   0A:           DB	0AH  
+132       132/  EA9F :                   00:           DB	0  
+133       133/  EAA0 :              =0EAA0H:     BOOT: EQU	$  
+134       134/  EAA0 :                3E C3:           LD	A,0C3H  ;		**** OPCODE1 JP
+135       135/  EAA2 :             32 00 00:           LD	(0),A  ;		 Befehl JP WBOOT auf Adresse 0 eintragen
+136       136/  EAA5 :             21 03 EA:           LD	HL,WBOTE  
+137       137/  EAA8 :             22 01 00:           LD	(1),HL  
+138       138/  EAAB :             32 05 00:           LD	(5),A  ;		 Befehl JP BDOSA auf Adresse 6
+139       139/  EAAE :             21 06 DC:           LD	HL,BDOS+6  
+140       140/  EAB1 :             22 06 00:           LD	(6),HL  
+141       141/  EAB4 :             32 38 00:           LD	(38H),A  ;		HALTEPUNKT VORBEREITEN
+142       142/  EAB7 :             21 00 F4:           LD	HL,RESTR  
+143       143/  EABA :             22 39 00:           LD	(39H),HL  
+144       144/                             ;------------------------------------
+145       145/  EABD :             21 01 F8:           LD	HL,CTAB+1  ;		CTAB füllen
+146       146/  EAC0 :                36 00:           LD	(HL),0  
+147       147/  EAC2 :                   23:           INC	HL  
+148       148/  EAC3 :                36 00:           LD	(HL),0  
+149       149/  EAC5 :                   23:           INC	HL  
+150       150/  EAC6 :                36 00:           LD	(HL),0  
+151       151/  EAC8 :                   23:           INC	HL  
+152       152/  EAC9 :                36 01:           LD	(HL),1  
+153       153/  EACB :                   23:           INC	HL  
+154       154/  EACC :                36 01:           LD	(HL),1  
+155       155/  EACE :                   23:           INC	HL  
+156       156/  EACF :                36 10:           LD	(HL),10H  
+157       157/  EAD1 :                   23:           INC	HL  
+158       158/  EAD2 :                36 35:           LD	(HL),035H  
+159       159/  EAD4 :                   23:           INC	HL  
+160       160/  EAD5 :                36 FF:           LD	(HL),0FFH  
+161       161/                             ;-----------------------------------
+162       162/  EAD7 :             21 78 EA:           LD	HL,MSGS  
+163       163/  EADA :             CD 1E F0:           CALL	STR  
+164       164/  EADD :             CD 09 F0:           CALL	CI0  
+165       165/  EAE0 :                FE 79:           CP	'y'  ;		wieder zurückgedreht'n'		;'Y' 	Mal umgedreht, weil die Meldung Irreführend ist
+166       166/  EAE2 :             CC 35 EB:           CALL	Z,IRDSK  ;		NZ,IRDSK	;Z,IRDSK		;RAMDISK ERLAUBEN
+167       167/  EAE5 :                   AF:           XOR	A  ;		A=0
+168       168/  EAE6 :             32 03 00:           LD	(3),A  ;		IOBYTE
+169       169/  EAE9 :             32 04 00:           LD	(4),A  ;		 Laufwerk Nummer 0 Floppy
+170       170/  EAEC :              =0EAECH:    WBOOT: EQU	$  ;		LESEN DER SYSTEMSEKTOREN
+171       171/  EAEC :             31 80 00:           LD	SP,80H  
+172       172/  EAEF :             CD 40 EC:           CALL	INIFD  ;		INITIALISIERUNG FLOPPY-CONTROLLER
+173       173/  EAF2 :                0E 00:           LD	C,0  ;		LAUFWERK A
+174       174/  EAF4 :             CD 3B EA:           CALL	SDISK  ;		Auswählen HL zeigt auf DPH
+175       175/  EAF7 :                06 2C:           LD	B,2CH  ;		SECTORZAEHLER
+176       176/  EAF9 :                0E 00:           LD	C,0  ;		SPUR-NR.
+177       177/  EAFB :             CD 6E EA:           CALL	STRCK  ;		anwählen bzw. in CTAB+2 eintragen
+178       178/                             ;	CALL	HP2          
+179       179/  EAFE :                16 01:           LD	D,1  ;		SECTOR
+180       180/  EB00 :             21 00 D4:           LD	HL,CCP  ;		LADEZIEL
+181       181/  EB03 :                   C5:    LOAD1: PUSH	BC  ;		NAECHSTEN SECTOR
+182       182/  EB04 :                   D5:           PUSH	DE  
+183       183/  EB05 :                   E5:           PUSH	HL  
+184       184/  EB06 :                   4A:           LD	C,D  
+185       185/  EB07 :             CD 69 EA:           CALL	SSEC  ;		NEUEN SECT.ANWAEHLEN in SEC1 =CTAB+15 eintragen
+186       186/  EB0A :                   C1:           POP	BC  ;		BC=LADEADRESSE
+187       187/  EB0B :                   C5:           PUSH	BC  ;		LADEADR RETTEN
+188       188/  EB0C :             CD 73 EA:           CALL	SDMA  
+189       189/  EB0F :             CD 6C EB:           CALL	RFLOP  ;		SYSTEM RAUFSCHREIBEN: WFLOP EINSETZEN
+190       190/  EB12 :                FE 00:           CP	0  ;		FEHLER?
+191       191/  EB14 :             C4 00 F4:           CALL	NZ,RESTR  ;		JA
+192       192/  EB17 :                   E1:           POP	HL  
+193       193/  EB18 :             11 80 00:           LD	DE,128  
+194       194/  EB1B :                   19:           ADD	HL,DE  ;		LADEADR.ERHOEHEN
+195       195/  EB1C :                   D1:           POP	DE  
+196       196/  EB1D :                   C1:           POP	BC  
+197       197/  EB1E :                   05:           DEC	B  ;		SEKTORZAHL - 1
+198       198/  EB1F :                28 2A:           JR	Z,GOCPM  
+199       199/  EB21 :                   14:           INC	D  ;		NAECHSTEN SECT.
+200       200/  EB22 :                   7A:           LD	A,D  
+201       201/  EB23 :                FE 21:           CP	21H  ;		LETZTER?
+202       202/  EB25 :                38 DC:           JR	C,LOAD1  
+203       203/  EB27 :                16 01:           LD	D,1  ;		1.SECT.NAECHST.SPUR
+204       204/  EB29 :                   0C:           INC	C  
+205       205/  EB2A :                   C5:           PUSH	BC  
+206       206/  EB2B :                   D5:           PUSH	DE  
+207       207/  EB2C :                   E5:           PUSH	HL  
+208       208/  EB2D :             CD 6E EA:           CALL	STRCK  
+209       209/  EB30 :                   E1:           POP	HL  
+210       210/  EB31 :                   D1:           POP	DE  
+211       211/  EB32 :                   C1:           POP	BC  
+212       212/  EB33 :                18 CE:           JR	LOAD1  
+213       213/                             ;-----------------------------------------------------------
+214       214/  EB35 :                0E E5:    IRDSK: LD	C,0E5H  ;		 ***********NEU Bereich der RAM-Disk mit E5 füllen
+215       215/  EB37 :             21 00 70:           LD	HL,07000H  ;		Anfang  Fülle den Bereich 7000H bis BFFF 20k mit 0E5H
+216       216/  EB3A :             11 00 50:           LD	DE,05000H  ;		Länge
+217       217/  EB3D :                   71:     IRD1: LD	(HL),C  
+218       218/  EB3E :                   23:           INC	HL  
+219       219/  EB3F :                   1B:           DEC	DE  
+220       220/  EB40 :                   7A:           LD	A,D  
+221       221/  EB41 :                   B3:           OR	E  
+222       222/  EB42 :                20 F9:           JR	NZ,IRD1  
+223       223/  EB44 :                3E 02:           LD	A,2  
+224       224/  EB46 :             32 43 EA:           LD	(DISKS),A  ;		*****Da wird der compare Befehl gepatcht
+225       225/  EB49 :                   C9:           RET	  
+226       226/                             ;****************************************************************************
+227       227/                             ;HP3:	PUSH	AF		;für Debugging 
+228       228/                             ;	LD	A,'3'          
+229       229/                             ;	LD	(0FCF0H),A     
+230       230/                             ;	JR	HP             
+231       231/                             ;HP2:	PUSH	AF       
+232       232/                             ;	LD	A,'2'          
+233       233/                             ;	LD	(0FCFFH),A     
+234       234/                             ;HP:	POP	AF         
+235       235/                             ;	RET               
+236       236/                                                 
+237       237/                             ;IRDSK:  LD	HL,ROM		;*****0E200H	;RAMDISK INITIALISIEREN ROM ohne Marke
+238       238/                             ;	LD	DE,RDSK		;RAM-DISK
+239       239/                             ;	LD	BC,51		; *****HEX 33H Es wird die Sprungtabelle vom Anfang des CBIOS kopiert
+240       240/                             ;	LDIR              
+241       241/                             ;	LD	HL,7003H	;SPRUNG ZUM CCP ; ***** Da steht JP WBOOT
+242       242/                             ;	LD	(1),HL         
+243       243/                             ;	LD	A,2            
+244       244/                             ;	LD	(DISKS),A	;*****Da wird der compare Befehl gepatcht
+245       245/                             ;	LD	HL,6206H	;BDOS-SPRUNG
+246       246/                             ;	LD	(6),HL		; Der Sprung nach 6206 wird nach 6 geschrieben und dann auf 6206 der Sprung zum BDOS??
+247       247/                             ;	LD	A,0C3H         
+248       248/                             ;	LD	(HL),A         
+249       249/                             ;	LD	HL,BDOS+6      
+250       250/                             ;	LD	(6207H),HL     
+251       251/  EB4A :                   C9:           RET	  
+252       252/                             ;-----------------------------------------------------------
+253       253/  EB4B :             01 80 00:    GOCPM: LD	BC,80H  
+254       254/  EB4E :             CD 73 EA:           CALL	SDMA  
+255       255/  EB51 :             3A 04 00:           LD	A,(4)  ;		AKTUELLES LAUFWERK HOLEN
+256       256/  EB54 :                   4F:           LD	C,A  
+257       257/  EB55 :             C3 00 D4:           JP	CCP  
+258       258/                             ;-----------------------------------------------------------
+259       259/  EB58 :             3A 04 00:    WRITE: LD	A,(4)  
+260       260/  EB5B :                   B7:           OR	A  ;		 LW 0 Floppy
+261       261/  EB5C :                28 68:           JR	Z,WFLOP  
+262       262/  EB5E :             CD 40 ED:           CALL	WRDSK  ;		LW 1 RAM-DISK
+263       263/  EB61 :                   C9:           RET	  
+264       264/  EB62 :             3A 04 00:     READ: LD	A,(4)  
+265       265/  EB65 :                   B7:           OR	A  
+266       266/  EB66 :                28 04:           JR	Z,RFLOP  
+267       267/  EB68 :             CD 50 ED:           CALL	RRDSK  ;		RAM-DISK
+268       268/  EB6B :                   C9:           RET	  
+269       269/                             ;-----------------------------------------------------------
+270       270/                             ;FLOPPY LESEN MIT SEKTORAUFLOESUNG
+271       271/                             ;IN: SEC1,TRACK,DMA V. BDOS
+272       272/                             ;OUT: DMA/BDOS=1 /2ZDMA/FLOPPY
+273       273/  EB6C :                   E5:    RFLOP: PUSH	HL  
+274       274/  EB6D :                   D5:           PUSH	DE  
+275       275/  EB6E :                   C5:           PUSH	BC  
+276       276/                             ;VERGLEICH OB AUS PUFFER GELESEN WERDEN KANN
+277       277/  EB6F :                3E 46:           LD	A,46H  ;		LETZTE OPERATION LESEN ?
+278       278/  EB71 :             21 00 F8:           LD	HL,CTAB  
+279       279/  EB74 :                   BE:           CP	(HL)  
+280       280/  EB75 :                20 33:           JR	NZ,RFLP  
+281       281/  EB77 :                   23:           INC	HL  
+282       282/  EB78 :             11 09 F8:           LD	DE,RESLT  ;		GLEICHES LAUFWERK ?
+283       283/  EB7B :                   1A:           LD	A,(DE)  
+284       284/  EB7C :                E6 03:           AND	3  
+285       285/  EB7E :                   BE:           CP	(HL)  
+286       286/  EB7F :                20 29:           JR	NZ,RFLP  
+287       287/  EB81 :                   23:           INC	HL  ;		GLEICHE SPUR ?
+288       288/  EB82 :                   13:           INC	DE  
+289       289/  EB83 :                   13:           INC	DE  
+290       290/  EB84 :                   13:           INC	DE  
+291       291/  EB85 :                   1A:           LD	A,(DE)  
+292       292/  EB86 :                   BE:           CP	(HL)  
+293       293/  EB87 :                20 21:           JR	NZ,RFLP  
+294       294/  EB89 :                   23:           INC	HL  ;		KOPF ?
+295       295/  EB8A :                   13:           INC	DE  
+296       296/  EB8B :                   1A:           LD	A,(DE)  
+297       297/  EB8C :                   BE:           CP	(HL)  
+298       298/  EB8D :                20 1B:           JR	NZ,RFLP  
+299       299/  EB8F :                   23:           INC	HL  
+300       300/  EB90 :             3A 12 F8:           LD	A,(SEC1)  ;		HOSTSECTOR=BDOS/2
+301       301/  EB93 :                   1F:           RRA	  
+302       302/  EB94 :                38 14:           JR	C,RFLP  ;		UNGERADE
+303       303/  EB96 :                   BE:           CP	(HL)  
+304       304/  EB97 :                20 11:           JR	NZ,RFLP  
+305       305/                             ;GLEICH, ALSO PUFFER LESEN, NICHT LAUFWERK
+306       306/  EB99 :             21 74 F9:           LD	HL,FDMA+80H  ;		QUELLE
+307       307/  EB9C :          ED 5B 13 F8:           LD	DE,(DMA)  ;		ZIEL
+308       308/  EBA0 :             01 80 00:           LD	BC,80H  ;		ANZAHL BYTES
+309       309/  EBA3 :                ED B0:           LDIR	  ;		UEBERTRAGEN
+310       310/  EBA5 :                   C1:           POP	BC  
+311       311/  EBA6 :                   D1:           POP	DE  
+312       312/  EBA7 :                   E1:           POP	HL  
+313       313/  EBA8 :                   AF:           XOR	A  
+314       314/  EBA9 :                   C9:           RET	  
+315       315/  EBAA :             CD E8 EB:     RFLP: CALL	TRANS  ;		SEKTOR LESEN + UMRECHNEN
+316       316/  EBAD :                   F5:           PUSH	AF  ;		FEHLER R8272
+317       317/  EBAE :             21 F4 F8:           LD	HL,FDMA  
+318       318/  EBB1 :                CB 48:           BIT	1,B  
+319       319/  EBB3 :                20 03:           JR	NZ,B2  
+320       320/  EBB5 :             21 74 F9:           LD	HL, FDMA+80H  ;		QUELLE
+321       321/  EBB8 :          ED 5B 13 F8:       B2: LD	DE,(DMA)  ;		ZIEL
+322       322/  EBBC :             01 80 00:           LD	BC,80H  
+323       323/  EBBF :                ED B0:           LDIR	  
+324       324/  EBC1 :                   F1:           POP	AF  
+325       325/  EBC2 :                   C1:           POP	BC  
+326       326/  EBC3 :                   D1:           POP	DE  
+327       327/  EBC4 :                   E1:           POP	HL  
+328       328/  EBC5 :                   C9:           RET	  
+329       329/                             ;-----------------------------------------------------------
+330       330/                             ;FLOPPY SCHREIBEN MIT SEKTOR EINFUEGEN
+331       331/  EBC6 :                   E5:    WFLOP: PUSH	HL  
+332       332/  EBC7 :                   D5:           PUSH	DE  
+333       333/  EBC8 :                   C5:           PUSH	BC  
+334       334/  EBC9 :             CD E8 EB:           CALL	TRANS  
+335       335/  EBCC :                   B7:           OR	A  ;		LESEFEHLER ?
+336       336/  EBCD :                20 15:           JR	NZ,B4  
+337       337/  EBCF :             11 F4 F8:           LD	DE,FDMA  
+338       338/  EBD2 :                CB 48:           BIT	1,B  
+339       339/  EBD4 :                20 03:           JR	NZ,B3  
+340       340/  EBD6 :             11 74 F9:           LD	DE,FDMA+80H  
+341       341/  EBD9 :             2A 13 F8:       B3: LD	HL,(DMA)  
+342       342/  EBDC :             01 80 00:           LD	BC,80H  
+343       343/  EBDF :                ED B0:           LDIR	  
+344       344/  EBE1 :             CD 82 EC:           CALL	W8272  
+345       345/  EBE4 :                   C1:       B4: POP	BC  
+346       346/  EBE5 :                   D1:           POP	DE  
+347       347/  EBE6 :                   E1:           POP	HL  
+348       348/  EBE7 :                   C9:           RET	  
+349       349/                             ;-----------------------------------------------------------
+350       350/                             ;SEKTORTUMRECHNUNG  
+351       351/                             ;IN: BDOS-SEKTOR-NR IN SEC1
+352       352/                             ;OUT:FLOPPY-SEKTOR-NR IN SECTR
+353       353/                             ;    B=0 WENN VORDERER TEIL SONST HINTEREN AUSWERTEN
+354       354/                             ;    GELESENER FLOPPY-SECTOR IN BIOS-PUFFER FDMA
+355       355/  EBE8 :              =0EBE8H:    TRANS: EQU	$  
+356       356/  EBE8 :                06 00:           LD	B,0  
+357       357/  EBEA :             3A 12 F8:           LD	A,(SEC1)  ;		BDOS-SEKTOR
+358       358/  EBED :                   B7:           OR	A  ;		 *****Carry flag löschen?
+359       359/  EBEE :                   1F:           RRA	  ;		UNGERADE?, /2
+360       360/  EBEF :                30 07:           JR	NC,B1  ;		NEIN ·
+361       361/  EBF1 :                C6 01:           ADD	A,1  
+362       362/  EBF3 :             DC 00 F4:           CALL	C,RESTR  ;		FEHLER
+363       363/  EBF6 :                06 FF:           LD	B,0FFH  ;		KENNZEICHEN
+364       364/  EBF8 :                   C5:       B1: PUSH	BC  
+365       365/  EBF9 :             32 04 F8:           LD	(SECTR),A  
+366       366/  EBFC :             CD 89 EC:           CALL	R8272  
+367       367/  EBFF :                   C1:           POP	BC  ;		FLAG F.UNGERADE
+368       368/  EC00 :                   C9:           RET	  
+369       369/                             ;-----------------------------------------------------------
+370       370/                             ;TREIBER MIT U8272  
+371       371/                             ;-----------------------------------------------------------
+372       372/  EC01 :                   F5:    TCPLS: PUSH	AF  ;		TC LOW Puls erzeugen  ********** TC ist High aktiv !
+373       373/  EC02 :             3A F3 F8:           LD	A,(ZFDC1)  
+374       374/  EC05 :                EE 10:           XOR	010H  ;		####AND	0EFH		;TC LO    **************** XOR und OR vertauscht, ich hätte auch TC von IC7/14 an IC7/15 löten können /Q4 statt Q4
+375       375/  EC07 :                D3 70:           OUT	(ZFDC),A  
+376       376/  EC09 :                F6 10:           OR	010H  ;		TC HIGH	****************
+377       377/  EC0B :             CD 10 ED:           CALL	DELAY  ;		***** Verzögerung, 
+378       378/  EC0E :                D3 70:           OUT	(ZFDC),A  
+379       379/  EC10 :                EE 10:           XOR	010H  ;		TC LO          ****************
+380       380/  EC12 :                D3 70:           OUT	(ZFDC),A  
+381       381/  EC14 :             32 F3 F8:           LD	(ZFDC1),A  
+382       382/  EC17 :                   F1:           POP	AF  
+383       383/                             ;####	RET           
+384       384/  EC18 :                   F5:    MOTON: PUSH	AF  
+385       385/  EC19 :             3A F3 F8:           LD	A,(ZFDC1)  
+386       386/  EC1C :                CB 47:           BIT	0,A  ;		 Motor an?
+387       387/  EC1E :                20 1E:           JR	NZ,MOTON1  ;		ja
+388       388/                             ;	CALL	HP3          
+389       389/  EC20 :                F6 01:           OR	1  
+390       390/  EC22 :                D3 70:           OUT	(ZFDC),A  ;		 Motor anschalten
+391       391/  EC24 :                   C5:           PUSH	BC  ;		 warten
+392       392/  EC25 :                06 FF:           LD	B,0FFH  
+393       393/  EC27 :             CD 0B ED:      LDE: CALL	LONGDE  
+394       394/  EC2A :                10 FB:           DJNZ	LDE  
+395       395/  EC2C :                   C1:           POP	BC  
+396       396/  EC2D :                18 0C:           JR	MOAUSG  
+397       397/  EC2F :                   F5:   MOTOFF: PUSH	AF  
+398       398/  EC30 :             3A F3 F8:           LD	A,(ZFDC1)  
+399       399/                             ;	RES	0,A	neu,nur TC pulsen
+400       400/  EC33 :                F6 10:           OR	010H  
+401       401/  EC35 :                D3 70:           OUT	(ZFDC),A  
+402       402/  EC37 :                EE 10:           XOR	010H  
+403       403/  EC39 :                D3 70:           OUT	(ZFDC),A  
+404       404/  EC3B :             32 F3 F8:   MOAUSG: LD	(ZFDC1),A  
+405       405/  EC3E :                   F1:   MOTON1: POP	AF  
+406       406/  EC3F :                   C9:           RET	  
+407       407/  EC40 :                3E 20:    INIFD: LD	A,020H  ;		 0010 0000 FDC	Reset
+408       408/  EC42 :                D3 70:           OUT	(ZFDC),A  
+409       409/  EC44 :                3E 11:           LD	A,011H  ;		 0001 0011 RESET aus, Terminal Count aktivieren, Motor an
+410       410/  EC46 :                D3 70:           OUT	(ZFDC),A  
+411       411/  EC48 :                3E 01:           LD	A,01H  ;		***************************  TC High aktiv, nur /MOTOEA
+412       412/  EC4A :             32 F3 F8:           LD	(ZFDC1),A  ;		 aktuelle Ausgabe speichern
+413       413/  EC4D :                D3 70:           OUT	(ZFDC),A  
+414       414/                             		;INIFD1:	CALL	MOTON		; 
+415       415/                             		;	CALL	CI0        
+416       416/  EC4F :                06 00:   INIFD1: LD	B,0H  ;		INITIALISIERUNG P8272
+417       417/                             		;INIFD2:	;CALL	0F2C4H		; TON
+418       418/  EC51 :                10 FE:   INIFD2: DJNZ	INIFD2  
+419       419/  EC53 :                DB 7C:           IN	A,(CFDC)  
+420       420/  EC55 :                FE 80:           CP	80H  
+421       421/  EC57 :                28 04:           JR	Z,SPEZI  
+422       422/  EC59 :                DB 7D:           IN	A,(DFDC)  
+423       423/  EC5B :                18 F2:           JR	INIFD1  
+424       424/  EC5D :             21 7F EC:    SPEZI: LD	HL,STAB-1  ;		PARAMETER LADEN
+425       425/  EC60 :             01 03 03:           LD	BC,0303H  ;		SPECIFY-Kommando 03 in C, B Länge 3  3BYTES
+426       426/  EC63 :             CD F8 EC:           CALL	WCOM1  ;		SCHREIBEN COMM
+427       427/  EC66 :             01 07 02:    RECAL: LD	BC,0207H  ;		SPUR 0 EINSTELLEN
+428       428/  EC69 :             CD E8 EC:           CALL	RDY  ;		DRIVE READY?
+429       429/                             ;-----------------------------------------------------------
+430       430/  EC6C :             01 08 01:    SENSE: LD	BC,0108H  ;		PRUEFE INTERRUPT STATUS
+431       431/  EC6F :             CD F2 EC:           CALL	WCOM  
+432       432/  EC72 :             CD 17 ED:           CALL	RBYTE  ;		RESULT REG 0:IC1,IC2,SE,EC,NR,HD,US1,US2
+433       433/  EC75 :                   47:           LD	B,A  
+434       434/  EC76 :                FE 80:           CP	80H  
+435       435/  EC78 :             C4 17 ED:           CALL	NZ,RBYTE  ;		PCN HOLEN
+436       436/  EC7B :                CB 68:           BIT	5,B  ;		SEEK ENDE?
+437       437/  EC7D :                28 ED:           JR	Z,SENSE  
+438       438/  EC7F :                   C9:           RET	  
+439       439/  EC80 :                   EF:     STAB: DB	0EFH	  ;		1FH		;XXXX=Schrittzeit SRT,XXXX=Kopfabfallzeit HUT 
+440       440/  EC81 :                   FF:           DB	0FFH	  ;		33H		;XXXXXXX= Kopfladezeit HLT, X= NoDMA ND
+441       441/                             ;-----------------------------------------------------------
+442       442/                             ;SEKTOR SCHREIBEN/LESEN IN BETRIEBSART OHNE DMA-SCHALTKREIS
+443       443/                             ;SECTOR IN (SECTR)  
+444       444/                             ;SPUR  IN (TRACK)   
+445       445/                             ;AKT.LAUFWERK IN (UNIT)
+446       446/                             ;ZIEL-/QUELLADRESSE = FDMA
+447       447/                             ;KILL: A B DE HL    
+448       448/  EC82 :                   11:    W8272: DB	11H		  ;		CODE LD DE,... LD DE,CODE von OUTI
+449       449/  EC83 :                ED A3:           OUTI	  ;		WRITE DATA
+450       450/  EC85 :                3E 45:           LD	A,045H  ;		SCHREIBKOMMANDO
+451       451/  EC87 :                18 05:           JR	RWIT  
+452       452/                             ;-----------------------------------------------------------
+453       453/  EC89 :                   11:    R8272: DB	11H		  ;		CODE LD DE,...
+454       454/  EC8A :                ED A2:           INI	  
+455       455/  EC8C :                3E 46:           LD	A,046H  ;		LESEKOMMANDO
+456       456/  EC8E :             32 00 F8:     RWIT: LD	(CTAB),A  ;		 Kommando in CTAB eintragen
+457       457/  EC91 :          ED 53 C9 EC:           LD	(MODE),DE  ;		EINTRAGEN INI/OUTI-OP-CODE
+458       458/  EC95 :             CD D8 EC:           CALL	SEEK  
+459       459/  EC98 :                06 0A:    RWLOP: LD	B,10  
+460       460/  EC9A :                   C5:     RWOP: PUSH	BC  
+461       461/  EC9B :                   F3:           DI	  
+462       462/  EC9C :                06 09:           LD	B,9  ;		9COMMANDOBYTES
+463       463/  EC9E :             3A 00 F8:           LD	A,(CTAB)  
+464       464/  ECA1 :                   4F:           LD	C,A  
+465       465/  ECA2 :             CD E8 EC:           CALL	RDY  ;		AUSGABE KOMMANDO
+466       466/  ECA5 :             21 F4 F8:           LD	HL,FDMA  
+467       467/  ECA8 :                0E 7D:           LD	C,DFDC  
+468       468/  ECAA :             CD BF EC:           CALL	RW  
+469       469/                             ;	OUT	(TC),A		;ENDE-IMPULS ***** auskommentiert
+470       470/  ECAD :             CD 01 EC:           CALL	TCPLS  ;		 *****neu TC-Puls erzeugen
+471       471/  ECB0 :             CD 20 ED:           CALL	RRSLT  
+472       472/  ECB3 :                   C1:           POP	BC  
+473       473/                             ;	RET	Z		;ST0=0=KEINE FEHLER
+474       474/  ECB4 :                28 05:           JR	Z,NOERR  ;		 Neu wegen MOTOFF
+475       475/  ECB6 :                10 E2:           DJNZ	RWOP  
+476       476/  ECB8 :                3E 01:      ERR: LD	A,1  
+477       477/  ECBA :                   C9:           RET	  ;		ERROR
+478       478/  ECBB :             CD 2F EC:    NOERR: CALL	MOTOFF  
+479       479/  ECBE :                   C9:           RET	  
+480       480/                             ;-----------------------------------------------------------
+481       481/                             ;SCHREIBEN ODER LESEN 256 BYTES
+482       482/                             ;IN: HL QUELLE ODER ZIEL
+483       483/                             ; C: DATENPORT      
+484       484/  ECBF :              =0ECBFH:       RW: EQU	$  
+485       485/  ECBF :                06 00:           LD	B,0  ;		256 BYTES
+486       486/  ECC1 :                DB 7C:      RW1: IN	A,(CFDC)  
+487       487/  ECC3 :                   07:           RLCA	  ;		RQM-TEST
+488       488/  ECC4 :                30 FB:           JR	NC,RW1  
+489       489/  ECC6 :                   07:           RLCA	  ;		DIO
+490       490/  ECC7 :                   07:           RLCA	  ;		NON-DMA
+491       491/  ECC8 :                   D0:           RET	NC  ;		FERTIG?
+492       492/  ECC9 :                ED A2:     MODE: INI	  ;		INI BEI READ DATA SONST OUTI
+493       493/  ECCB :                20 F4:           JR	NZ,RW1  
+494       494/  ECCD :                   C9:           RET	  
+495       495/                             ;-----------------------------------------------------------
+496       496/  ECCE :             01 04 02:      SDS: LD	BC,0204H  ;		PRUEFE LAUFWERK STATUS
+497       497/  ECD1 :             CD F2 EC:           CALL	WCOM  
+498       498/  ECD4 :             CD 17 ED:           CALL	RBYTE  ;		STATUS REG 3:FAULT,WP,RDY,T0,TS,HD,US1,U
+499       499/  ECD7 :                   C9:           RET	  
+500       500/                             ;-----------------------------------------------------------
+501       501/  ECD8 :             01 0F 03:     SEEK: LD	BC,030FH  ;		COMM SPUR EINSTELLEN
+502       502/  ECDB :             CD E8 EC:           CALL	RDY  
+503       503/  ECDE :             CD 6C EC:           CALL	SENSE  
+504       504/  ECE1 :                DB 7C:    SKBSY: IN	A,(CFDC)  
+505       505/  ECE3 :                E6 0F:           AND	0FH  
+506       506/  ECE5 :                20 FA:           JR	NZ,SKBSY  
+507       507/  ECE7 :                   C9:           RET	  
+508       508/                             ;-----------------------------------------------------------
+509       509/                             ;	RDY:	CALL	MOTON   
+510       510/  ECE8 :                   C5:      RDY: PUSH	BC  ;		LAUFWERK BETRIEBSFAEHIG ?
+511       511/  ECE9 :             CD CE EC:           CALL	SDS  
+512       512/  ECEC :                   C1:           POP	BC  
+513       513/  ECED :                CB 6F:           BIT	5,A  ;		READY-BIT IN STATUSREG.3
+514       514/  ECEF :             CC 00 F4:           CALL	Z,RESTR  ;		FEHLER
+515       515/                             ;-----------------------------------------------------------
+516       516/  ECF2 :             21 00 F8:     WCOM: LD	HL,CTAB  ;		COMM IN FDC SCHREIBEN
+517       517/                             ;IN: B ANZAHL D. BYTES,C Kommando
+518       518/  ECF5 :             CD 18 EC:           CALL	MOTON  
+519       519/  ECF8 :             CD 10 ED:    WCOM1: CALL	DELAY  
+520       520/  ECFB :                DB 7C:           IN	A,(CFDC)  
+521       521/  ECFD :                E6 C0:           AND	0C0H  
+522       522/  ECFF :                FE 80:           CP	80H  ;		RQM,DIO=OUT
+523       523/  ED01 :                20 F5:           JR	NZ,WCOM1  
+524       524/  ED03 :                   79:           LD	A,C  
+525       525/  ED04 :                D3 7D:           OUT	(DFDC),A  
+526       526/  ED06 :                   23:           INC	HL  
+527       527/  ED07 :                   4E:           LD	C,(HL)  
+528       528/  ED08 :                10 EE:           DJNZ	WCOM1  
+529       529/  ED0A :                   C9:           RET	  
+530       530/                             ;-----------------------------------------------------------
+531       531/  ED0B :                   C5:   LONGDE: PUSH	BC  
+532       532/  ED0C :                06 FF:           LD	B,0FFH  
+533       533/  ED0E :                18 03:           JR	DEL1  
+534       534/  ED10 :                   C5:    DELAY: PUSH	BC  ;		VERZOEGERUNG F.STATUSFLAG 8272
+535       535/  ED11 :                06 0F:           LD	B,0FH  
+536       536/  ED13 :                10 FE:     DEL1: DJNZ	DEL1  
+537       537/  ED15 :                   C1:           POP	BC  
+538       538/  ED16 :                   C9:           RET	  
+539       539/                             ;-----------------------------------------------------------
+540       540/  ED17 :             CD 10 ED:    RBYTE: CALL	DELAY  ;		1 BYTE LESEN
+541       541/  ED1A :             CD 36 ED:           CALL	IRDY  
+542       542/  ED1D :                DB 7D:           IN	A,(DFDC)  
+543       543/  ED1F :                   C9:           RET	  
+544       544/                             ;-----------------------------------------------------------
+545       545/  ED20 :                06 06:    RRSLT: LD	B,6  ;		LESE 7 RESULT BYTES
+546       546/  ED22 :             CD 17 ED:           CALL	RBYTE  
+547       547/  ED25 :             21 09 F8:           LD	HL,RESLT  
+548       548/  ED28 :                   77:           LD	(HL),A  
+549       549/  ED29 :                E6 C0:           AND	0C0H  ;		ERROR?
+550       550/  ED2B :                   4F:           LD	C,A  
+551       551/  ED2C :             CD 17 ED:    RESL1: CALL	RBYTE  
+552       552/  ED2F :                   23:           INC	HL  
+553       553/  ED30 :                   77:           LD	(HL),A  
+554       554/  ED31 :                10 F9:           DJNZ	RESL1  
+555       555/  ED33 :                   79:           LD	A,C  ;		FEHLERMELDUNG STATUS REG 0
+556       556/  ED34 :                   B7:           OR	A  
+557       557/  ED35 :                   C9:           RET	  
+558       558/                             ;-----------------------------------------------------------
+559       559/  ED36 :                DB 7C:     IRDY: IN	A,(CFDC)  ;		BEREIT F.DATENEINGABE ?
+560       560/  ED38 :                   07:           RLCA	  
+561       561/  ED39 :                30 FB:           JR	NC,IRDY  
+562       562/  ED3B :                E6 80:           AND	80H  
+563       563/  ED3D :                   07:           RLCA	  
+564       564/  ED3E :                   D8:           RET	C  
+565       565/                             ;-----------------------------------------------------------
+566       566/                             ;FEHLERBEHANDLUNG   
+567       567/  ED3F :                   FF:      ERM: DB	0FFH		  ;		SPRUNG IN MONITOR
+568       568/                             ;-----------------------------------------------------------
+569       569/                             ;RAM-DISK           
+570       570/                             ;SCHREIBEN          
+571       571/  ED40 :             CD 5E ED:    WRDSK: CALL	RADR  ;		SEKTORADR BERECHNEN
+572       572/  ED43 :                38 16:           JR	C,BDERR  ;		BEREICH UEBERSCHRITTEN
+573       573/  ED45 :                   EB:           EX	DE,HL  ;		ZIEL-/QUELLADR. RAM-DISK
+574       574/  ED46 :             2A 13 F8:           LD	HL,(DMA)  ;		ZIEL-/QUELLADR. BDOS
+575       575/  ED49 :             01 80 00:    RDSK1: LD	BC,80H  ;		=1 SEKTOR
+576       576/  ED4C :                ED B0:           LDIR	  
+577       577/  ED4E :                   AF:           XOR	A  
+578       578/  ED4F :                   C9:           RET	  
+579       579/                             ;LESEN              
+580       580/  ED50 :             CD 5E ED:    RRDSK: CALL	RADR  
+581       581/  ED53 :                38 06:           JR	C,BDERR  ;		FEHLER
+582       582/  ED55 :          ED 5B 13 F8:           LD	DE,(DMA)  
+583       583/  ED59 :                18 EE:           JR	RDSK1  
+584       584/  ED5B :                3E 01:    BDERR: LD	A,1  ;		BDOS-ERROR
+585       585/  ED5D :                   C9:           RET	  
+586       586/                             ;SEKTORADR. IM RAM BERECHNEN
+587       587/                             ;DE AKT. SPUR       
+588       588/                             ;C AKT. SEKTOR      
+589       589/                             ;B MAX. SEKTORANZAHL/DISK
+590       590/  ED5E :                16 00:     RADR: LD	D,0  
+591       591/  ED60 :             3A 02 F8:           LD	A,(TRACK)  
+592       592/  ED63 :                   5F:           LD	E,A  
+593       593/  ED64 :             3A 12 F8:           LD	A,(SEC1)  
+594       594/  ED67 :                   4F:           LD	C,A  
+595       595/  ED68 :             21 00 00:           LD	HL,0  
+596       596/  ED6B :                06 1A:           LD	B,26  
+597       597/  ED6D :                   19:    RADR1: ADD	HL,DE  ;		UMWANDLUNG SPUREN IN SEKTOREN
+598       598/  ED6E :                10 FD:           DJNZ	RADR1  
+599       599/  ED70 :                   09:           ADD	HL,BC  ;		AKT.SEKT.DAZU
+600       600/  ED71 :                   29:           ADD	HL,HL  ;		WANDLUNG SEKTOR IN BYTES
+601       601/  ED72 :                   29:           ADD	HL,HL  
+602       602/  ED73 :                   29:           ADD	HL,HL  
+603       603/  ED74 :                   29:           ADD	HL,HL  
+604       604/  ED75 :                   29:           ADD	HL,HL  
+605       605/  ED76 :                   29:           ADD	HL,HL  
+606       606/  ED77 :                   29:           ADD	HL,HL  
+607       607/  ED78 :             01 00 70:           LD	BC,RDSK  ;		RAM-DISK-ANFANG
+608       608/  ED7B :                   09:           ADD	HL,BC  
+609       609/  ED7C :                3E BF:           LD	A,0BFH  ;		HIGH-ADR RAM-DISK
+610       610/  ED7E :                   BC:           CP	H  
+611       611/  ED7F :                   C9:           RET	  
+612       612/                             ;-----------------------------------------------------------
+613       613/  ED80 :              =0ED80H:    DPBAS: EQU	$  
+614       614/  ED80 :                00 00:     DPHA: DW	0  
+615       615/  ED82 :                00 00:           DW	0  
+616       616/  ED84 :                00 00:           DW	0  
+617       617/  ED86 :                00 00:           DW	0  
+618       618/  ED88 :                15 F8:           DW	DIRBF  
+619       619/  ED8A :                AF ED:           DW	DPBF  
+620       620/  ED8C :                B4 F8:           DW	CHK0  
+621       621/  ED8E :                95 F8:           DW	ALL0  
+622       622/  ED90 :                00 00:     DPHR: DW	0  
+623       623/  ED92 :                00 00:           DW	0  
+624       624/  ED94 :                00 00:           DW	0  
+625       625/  ED96 :                00 00:           DW	0  
+626       626/  ED98 :                15 F8:           DW	DIRBF  
+627       627/  ED9A :                A0 ED:           DW	DPBR  ;		GERABTEBESCHREIBUNG
+628       628/  ED9C :                E3 F8:           DW	CHK1  ;		DIRECTORY-KONTROLLE
+629       629/  ED9E :                C4 F8:           DW	ALL1  ;		BELEGUNG DISKETTE
+630       630/                             ;DISK-PARAMETER-BLOCK RAM-DISK
+631       631/  EDA0 :                1A 00:     DPBR: DW	26  ;		SECTOREN
+632       632/  EDA2 :                   03:           DB	3		  ;		BLOCKGROESSE 1K
+633       633/  EDA3 :                   07:           DB	7		  ;		(SECTOREN/BLOCK)-1
+634       634/  EDA4 :                   00:           DB	00		  ;		NICHT BENUTZT
+635       635/  EDA5 :                14 00:           DW	20  ;		(BLOECKE/DISK)-1
+636       636/  EDA7 :                1F 00:           DW	31  ;		32 DIRECTORY-ENTR.
+637       637/  EDA9 :                   80:           DB	080H		  ;		al0  1 BELEGTER BLOCK DURCH DIR.
+638       638/  EDAA :                   00:           DB	0		  ;		al1
+639       639/  EDAB :                08 00:           DW	8  ;		16		;DIR/4		****** hier müßte eigentlich 8 stehen
+640       640/  EDAD :                00 00:           DW	0  ;		0SPUREN DURCH SYSTEM BELEGT
+641       641/                             ;DISK-PARAMETER-BLOCK FLOPPY 5,25 ZOLL
+642       642/  EDAF :                20 00:     DPBF: DW	20H  ;		20H LOGISCHE=10H=16 PHYSISCHE SEKTOREN/SPUR
+643       643/  EDB1 :                   04:           DB	4		  ;		2K-BLOECKE
+644       644/  EDB2 :                   0F:           DB	15		  ;		16 Sektoren pro Block
+645       645/  EDB3 :                   01:           DB	1		  
+646       646/  EDB4 :                49 00:           DW	73  ;		74 Blöcke
+647       647/  EDB6 :                3F 00:           DW	63  ;		64 Directory Einträge
+648       648/  EDB8 :                   80:           DB	80H		  
+649       649/  EDB9 :                   00:           DB	0  
+650       650/  EDBA :                10 00:           DW	16  
+651       651/  EDBC :                03 00:           DW	3  ;		SYSTEMSPUREN
+652       652/                             ;-----------------------------------------------------------
+653       653/  EDBE :              =0EDBEH:    DRUCK: EQU	$  ;		FOLGT
+654       654/                                                 
+655       655/  EDBE :                     :           INCLUDE	BODO-DRUCK.ASM  
+656  (1)    1/  EDBE :                     :           ORG	DRUCK  
+657  (1)    2/                                                 
+658  (1)    3/                                                 
+659  (1)    4/                             	;TITL	"DRUCK"      
+660  (1)    5/                                                 
+661  (1)    6/                                                 
+662  (1)    7/                             ;DEFINITION VON KONSTANTEN ·
+663  (1)    8/                                                 
+664  (1)    9/                             ;PIOAD:	EQU	0FCH    
+665  (1)   10/                             ;CR:	EQU	0DH        
+666  (1)   11/                             ;LF:	EQU	0AH        
+667  (1)   12/                             ;ZS:	EQU	0F089H     
+668  (1)   13/                             ;-----------------------------------------------------------
+669  (1)   14/                             ;DRUCK MIT FERNSCHREIBER F12XX
+670  (1)   15/                             ;-----------------------------------------------------------
+671  (1)   16/                             ;DRUCKPROGRAMM FUER GROSSE UND KLEINE BUCHSTABEN
+672  (1)   17/                             ;IN  :C ZEICHEN IN ASCII
+673  (1)   18/                             ;OUT :A   ZEICHEN IN CCITT
+674  (1)   19/                             ;KILL:A,F           
+675  (1)   20/  EDBE :                   C5:           PUSH	BC  
+676  (1)   21/  EDBF :                   D5:           PUSH	DE  
+677  (1)   22/  EDC0 :                   E5:           PUSH	HL  
+678  (1)   23/  EDC1 :                3E 0A:           LD	A,LF  
+679  (1)   24/  EDC3 :                   B9:           CP	C  
+680  (1)   25/  EDC4 :             CC 1A EE:           CALL	Z,ZEPR  
+681  (1)   26/  EDC7 :             CD DF ED:           CALL	KODE  ;		ZEICHEN IN A CCITT, C ASCII
+682  (1)   27/  EDCA :             CD 39 EE:           CALL	ART  
+683  (1)   28/  EDCD :             21 11 F8:           LD	HL,MERK  
+684  (1)   29/  EDD0 :                   BE:           CP	(HL)  
+685  (1)   30/  EDD1 :                28 04:           JR	Z,ZAUS  ;		KEIN STEUERZ.AUSGEBEN
+686  (1)   31/  EDD3 :                   77:           LD	(HL),A  ;		NEUE ART LADEN
+687  (1)   32/  EDD4 :             CD 55 EE:           CALL	FSA  
+688  (1)   33/  EDD7 :                   79:     ZAUS: LD	A,C  
+689  (1)   34/  EDD8 :             CD 55 EE:           CALL	FSA  
+690  (1)   35/  EDDB :                   E1:           POP	HL  
+691  (1)   36/  EDDC :                   D1:           POP	DE  
+692  (1)   37/  EDDD :                   C1:           POP	BC  
+693  (1)   38/  EDDE :                   C9:           RET	  
+694  (1)   39/                             ;KODEWANDLUNG ASCII/CCITT
+695  (1)   40/                             ;IN C ZEICHEN       
+696  (1)   41/                             ;OUT A CCITT C ASCII
+697  (1)   42/                             ;T7S STEUER ASCII   
+698  (1)   43/                             ;T5S                
+699  (1)   44/                             ;T7K KLEINE ASCII   
+700  (1)   45/                             ;T51                
+701  (1)   46/                             ;T7G GROSSE ASCII   
+702  (1)   47/                             ;T53                
+703  (1)   48/                             ;T7Z ZEICHEN ASCII  
+704  (1)   49/                             ;T52                
+705  (1)   50/  EDDF :              =0EDDFH:     KODE: EQU	$  
+706  (1)   51/  EDDF :                   C5:           PUSH	BC  
+707  (1)   52/  EDE0 :                   79:           LD	A,C  
+708  (1)   53/  EDE1 :             21 68 EE:           LD	HL,T7S  
+709  (1)   54/  EDE4 :             01 03 00:           LD	BC,LT7S  
+710  (1)   55/  EDE7 :                   C5:           PUSH	BC  
+711  (1)   56/  EDE8 :                   D1:           POP	DE  
+712  (1)   57/  EDE9 :                ED B1:           CPIR	  
+713  (1)   58/  EDEB :                28 28:           JR	Z,GF  
+714  (1)   59/  EDED :             21 6E EE:           LD	HL,T7K  
+715  (1)   60/  EDF0 :             01 1A 00:           LD	BC,LT7K  
+716  (1)   61/  EDF3 :                   C5:           PUSH	BC  
+717  (1)   62/  EDF4 :                   D1:           POP	DE  
+718  (1)   63/  EDF5 :                ED B1:           CPIR	  
+719  (1)   64/  EDF7 :                28 1C:           JR	Z,GF  
+720  (1)   65/  EDF9 :             21 A2 EE:           LD	HL,T7G  
+721  (1)   66/  EDFC :             01 1A 00:           LD	BC,LT7G  
+722  (1)   67/  EDFF :                   C5:           PUSH	BC  
+723  (1)   68/  EE00 :                   D1:           POP	DE  
+724  (1)   69/  EE01 :                ED B1:           CPIR	  
+725  (1)   70/  EE03 :                28 10:           JR	Z,GF  
+726  (1)   71/  EE05 :             21 D6 EE:           LD	HL,T7Z  
+727  (1)   72/  EE08 :             01 17 00:           LD	BC,LT7Z  
+728  (1)   73/  EE0B :                   C5:           PUSH	BC  
+729  (1)   74/  EE0C :                   D1:           POP	DE  
+730  (1)   75/  EE0D :                ED B1:           CPIR	  
+731  (1)   76/  EE0F :                28 04:           JR	Z,GF  
+732  (1)   77/  EE11 :                3E 04:           LD	A,4  
+733  (1)   78/  EE13 :                   C1:           POP	BC  
+734  (1)   79/  EE14 :                   C9:           RET	  
+735  (1)   80/  EE15 :                   19:       GF: ADD	HL,DE  
+736  (1)   81/  EE16 :                   2B:           DEC	HL  
+737  (1)   82/  EE17 :                   7E:           LD	A,(HL)  
+738  (1)   83/  EE18 :                   C1:           POP	BC  
+739  (1)   84/  EE19 :                   C9:           RET	  
+740  (1)   85/  EE1A :             21 10 F8:     ZEPR: LD	HL,DZEIL  ;		ZEILENZAHL /SEITE PRUEFEN
+741  (1)   86/  EE1D :                   C5:           PUSH	BC  
+742  (1)   87/  EE1E :                06 40:           LD	B,40H  
+743  (1)   88/  EE20 :             CD 24 F0:       Z2: CALL	ZS  
+744  (1)   89/  EE23 :                10 FB:           DJNZ	Z2  
+745  (1)   90/  EE25 :                   C1:           POP	BC  
+746  (1)   91/  EE26 :                   35:           DEC	(HL)  
+747  (1)   92/  EE27 :                   C0:           RET	NZ  
+748  (1)   93/  EE28 :                   F5:    LCRLF: PUSH	AF  ;		AUSGABE 4 LEERZEILEN
+749  (1)   94/  EE29 :                   C5:           PUSH	BC  
+750  (1)   95/  EE2A :                3E 1E:           LD	A,30  
+751  (1)   96/  EE2C :                   77:           LD	(HL),A  
+752  (1)   97/  EE2D :                06 04:           LD	B,4  
+753  (1)   98/  EE2F :                3E 02:       L1: LD	A,2  ;		LF IN CCITT
+754  (1)   99/  EE31 :             CD 55 EE:           CALL	FSA  
+755  (1)  100/  EE34 :                10 F9:           DJNZ	L1  
+756  (1)  101/  EE36 :                   C1:           POP	BC  
+757  (1)  102/  EE37 :                   F1:           POP	AF  
+758  (1)  103/  EE38 :                   C9:           RET	  
+759  (1)  104/                             ;SUBROUTINE ART ERMITTELN
+760  (1)  105/                             ;IN: C ASCII        
+761  (1)  106/                             ;(HL) LETZTE ART    
+762  (1)  107/                             ;A CCITT            
+763  (1)  108/                             ;OUT: A STEUERZEICHEN
+764  (1)  109/                             ;C CCITT            
+765  (1)  110/                             ;<40H=ZIFFER=D0=1,>60H=KLEINE BUCHST.0A=0,SONST D1=1
+766  (1)  111/  EE39 :                   F5:      ART: PUSH	AF  
+767  (1)  112/  EE3A :                   C5:           PUSH	BC  
+768  (1)  113/  EE3B :                   79:           LD	A,C  
+769  (1)  114/  EE3C :                FE 60:           CP	60H  
+770  (1)  115/  EE3E :                30 0A:           JR	NC,KB  
+771  (1)  116/  EE40 :                FE 40:           CP	40H  
+772  (1)  117/  EE42 :                30 0C:           JR	NC,GB  
+773  (1)  118/  EE44 :                   C1:           POP	BC  
+774  (1)  119/  EE45 :                   F1:           POP	AF  
+775  (1)  120/  EE46 :                   4F:           LD	C,A  
+776  (1)  121/  EE47 :                3E 1B:           LD	A,1BH  ;		ZI/ZEI
+777  (1)  122/  EE49 :                   C9:           RET	  
+778  (1)  123/  EE4A :                   C1:       KB: POP	BC  
+779  (1)  124/  EE4B :                   F1:           POP	AF  
+780  (1)  125/  EE4C :                   4F:           LD	C,A  
+781  (1)  126/  EE4D :                3E 1F:           LD	A,1FH  ;		KLEINE
+782  (1)  127/  EE4F :                   C9:           RET	  
+783  (1)  128/  EE50 :                   C1:       GB: POP	BC  
+784  (1)  129/  EE51 :                   F1:           POP	AF  
+785  (1)  130/  EE52 :                   4F:           LD	C,A  
+786  (1)  131/  EE53 :                   AF:           XOR	A  
+787  (1)  132/  EE54 :                   C9:           RET	  
+788  (1)  133/                             ;FERNSCHREIBAUSGABE UEBER PIO
+789  (1)  134/  EE55 :                   C5:      FSA: PUSH	BC  
+790  (1)  135/  EE56 :                06 08:           LD	B,8  
+791  (1)  136/  EE58 :                F6 60:           OR	60H  
+792  (1)  137/  EE5A :                   17:           RLA	  
+793  (1)  138/  EE5B :                D3 FC:     FSA1: OUT	(PIOAD),A  
+794  (1)  139/  EE5D :             CD 24 F0:           CALL	ZS  
+795  (1)  140/  EE60 :             CD 24 F0:           CALL	ZS  
+796  (1)  141/  EE63 :                   1F:           RRA	  
+797  (1)  142/  EE64 :                10 F5:           DJNZ	FSA1  
+798  (1)  143/  EE66 :                   C1:           POP	BC  
+799  (1)  144/  EE67 :                   C9:           RET	  
+800  (1)  145/                             ;TABELLEN           
+801  (1)  146/  EE68 :                   0A:      T7S: DB	LF  
+802  (1)  147/  EE69 :                   0D:           DB	CR  
+803  (1)  148/  EE6A :                   20:           DB	20H  
+804  (1)  149/  EE6B :                 =03H:     LT7S: EQU	$-T7S  
+805  (1)  150/  EE6B :                   02:      T5S: DB	2  
+806  (1)  151/  EE6C :                   08:           DB	8  
+807  (1)  152/  EE6D :                   04:           DB	4  
+808  (1)  153/  EE6E :                   61:      T7K: DB	61H  
+809  (1)  154/  EE6F :                   62:           DB	62H  
+810  (1)  155/  EE70 :                   63:           DB	63H  
+811  (1)  156/  EE71 :                   64:           DB	64H  
+812  (1)  157/  EE72 :                   65:           DB	65H  
+813  (1)  158/  EE73 :                   66:           DB	66H  
+814  (1)  159/  EE74 :                   67:           DB	67H  
+815  (1)  160/  EE75 :                   68:           DB	68H  
+816  (1)  161/  EE76 :                   69:           DB	69H  
+817  (1)  162/  EE77 :                   6A:           DB	6AH  
+818  (1)  163/  EE78 :                   6B:           DB	6BH  
+819  (1)  164/  EE79 :                   6C:           DB	6CH  
+820  (1)  165/  EE7A :                   6D:           DB	6DH  
+821  (1)  166/  EE7B :                   6E:           DB	6EH  
+822  (1)  167/  EE7C :                   6F:           DB	6FH  
+823  (1)  168/  EE7D :                   70:           DB	70H  
+824  (1)  169/  EE7E :                   71:           DB	71H  
+825  (1)  170/  EE7F :                   72:           DB	72H  
+826  (1)  171/  EE80 :                   73:           DB	73H  
+827  (1)  172/  EE81 :                   74:           DB	74H  
+828  (1)  173/  EE82 :                   75:           DB	75H  
+829  (1)  174/  EE83 :                   76:           DB	76H  
+830  (1)  175/  EE84 :                   77:           DB	77H  
+831  (1)  176/  EE85 :                   78:           DB	78H  
+832  (1)  177/  EE86 :                   79:           DB	79H  
+833  (1)  178/  EE87 :                   7A:           DB	7AH  
+834  (1)  179/  EE88 :                =01AH:     LT7K: EQU	$-T7K  
+835  (1)  180/  EE88 :                   03:      T51: DB	3  
+836  (1)  181/  EE89 :                   19:           DB	19H  
+837  (1)  182/  EE8A :                   0E:           DB	0EH  
+838  (1)  183/  EE8B :                   09:           DB	9  
+839  (1)  184/  EE8C :                   01:           DB	1  
+840  (1)  185/  EE8D :                   0D:           DB	0DH  
+841  (1)  186/  EE8E :                   1A:           DB	1AH  
+842  (1)  187/  EE8F :                   14:           DB	14H  
+843  (1)  188/  EE90 :                   06:           DB	6  
+844  (1)  189/  EE91 :                   0B:           DB	0BH  
+845  (1)  190/  EE92 :                   0F:           DB	0FH  
+846  (1)  191/  EE93 :                   12:           DB	12H  
+847  (1)  192/  EE94 :                   1C:           DB	1CH  
+848  (1)  193/  EE95 :                   0C:           DB	0CH  
+849  (1)  194/  EE96 :                   18:           DB	18H  
+850  (1)  195/  EE97 :                   16:           DB	16H  
+851  (1)  196/  EE98 :                   17:           DB	17H  
+852  (1)  197/  EE99 :                   0A:           DB	0AH  
+853  (1)  198/  EE9A :                   05:           DB	5  
+854  (1)  199/  EE9B :                   10:           DB	10H  
+855  (1)  200/  EE9C :                   07:           DB	07H  
+856  (1)  201/  EE9D :                   1E:           DB	1EH  
+857  (1)  202/  EE9E :                   13:           DB	13H  
+858  (1)  203/  EE9F :                   1D:           DB	1DH  
+859  (1)  204/  EEA0 :                   15:           DB	15H  
+860  (1)  205/  EEA1 :                   11:           DB	11H  
+861  (1)  206/  EEA2 :  41 42 43 44 45 46 47 48 49 4A 4B 4C 4D 4E 4F 50 51 52 53 54 55 56 57 58 59 5A:      T7G: DB	"ABCDEFGHIJKLMNOPQRSTUVWXYZ"  
+862  (1)  207/  EEBC :                =01AH:     LT7G: EQU	$-T7G  
+863  (1)  208/  EEBC :                   03:      T53: DB	3  
+864  (1)  209/  EEBD :                   19:           DB	19H  
+865  (1)  210/  EEBE :                   0E:           DB	0EH  
+866  (1)  211/  EEBF :                   09:           DB	09H  
+867  (1)  212/  EEC0 :                   01:           DB	01H  
+868  (1)  213/  EEC1 :                   0D:           DB	0DH  
+869  (1)  214/  EEC2 :                   1A:           DB	1AH  
+870  (1)  215/  EEC3 :                   14:           DB	14H  
+871  (1)  216/  EEC4 :                   06:           DB	06  
+872  (1)  217/  EEC5 :                   0B:           DB	0BH  
+873  (1)  218/  EEC6 :                   0F:           DB	0FH  
+874  (1)  219/  EEC7 :                   12:           DB	12H  
+875  (1)  220/  EEC8 :                   1C:           DB	1CH  
+876  (1)  221/  EEC9 :                   0C:           DB	0CH  
+877  (1)  222/  EECA :                   18:           DB	18H  
+878  (1)  223/  EECB :                   16:           DB	16H  
+879  (1)  224/  EECC :                   17:           DB	17H  
+880  (1)  225/  EECD :                   0A:           DB	0AH  
+881  (1)  226/  EECE :                   05:           DB	5  
+882  (1)  227/  EECF :                   10:           DB	10H  
+883  (1)  228/  EED0 :                   07:           DB	7  
+884  (1)  229/  EED1 :                   1E:           DB	1EH  
+885  (1)  230/  EED2 :                   13:           DB	13H  
+886  (1)  231/  EED3 :                   1D:           DB	1DH  
+887  (1)  232/  EED4 :                   15:           DB	15H  
+888  (1)  233/  EED5 :                   11:           DB	11H  
+889  (1)  234/  EED6 :  20 21 22 28 29 2B 2C 2D 2E 2F 30 31 32 33 34 35 36 37 38 39 3A 3D 3F:      T7Z: DB	" !",'"',"()+,-./0123456789:=?"  
+890  (1)  235/  EEED :                =017H:     LT7Z: EQU	$-T7Z  
+891  (1)  236/  EEED :                   04:      T52: DB	4  
+892  (1)  237/  EEEE :                   1D:           DB	1DH  
+893  (1)  238/  EEEF :                   05:           DB	05H  
+894  (1)  239/  EEF0 :                   0F:           DB	0FH  
+895  (1)  240/  EEF1 :                   12:           DB	12H  
+896  (1)  241/  EEF2 :                   11:           DB	11H  
+897  (1)  242/  EEF3 :                   0C:           DB	0CH  
+898  (1)  243/  EEF4 :                   03:           DB	03H  
+899  (1)  244/  EEF5 :                   1C:           DB	1CH  
+900  (1)  245/  EEF6 :                   1D:           DB	1DH  
+901  (1)  246/  EEF7 :                   16:           DB	16H  
+902  (1)  247/  EEF8 :                   17:           DB	17H  
+903  (1)  248/  EEF9 :                   13:           DB	13H  
+904  (1)  249/  EEFA :                   01:           DB	01H  
+905  (1)  250/  EEFB :                   0A:           DB	0AH  
+906  (1)  251/  EEFC :                   10:           DB	10H  
+907  (1)  252/  EEFD :                   15:           DB	15H  
+908  (1)  253/  EEFE :                   07:           DB	07  
+909  (1)  254/  EEFF :                   06:           DB	6  
+910  (1)  255/  EF00 :                   18:           DB	18H  
+911  (1)  256/  EF01 :                   0E:           DB	0EH  
+912  (1)  257/  EF02 :                   1E:           DB	1EH  
+913  (1)  258/  EF03 :                   19:           DB	19H  
+914       656/                                                 
+915       657/                             ;-----------------------------------------------------------
+916       658/                                                 
+917       659/                             ;RAM-ADRESSEN       
+918       660/                                                 
+919       661/  EF04 :                     :           ORG	0F800H  
+920       662/  F800 :                   00:     CTAB: DS	1  ;		 DB	46H	;MFM LESEN	*****KommandoTabelle 8272
+921       663/  F801 :                   00:     UNIT: DS	1  ;		 DB	0	;LAUFWERK A VOREINGESTELLT
+922       664/  F802 :                   00:    TRACK: DS	1  ;		 DB	0
+923       665/  F803 :                   00:     HEAD: DS	1  ;		 DB	0
+924       666/  F804 :                   00:    SECTR: DS	1  ;		 DB	1
+925       667/  F805 :                   00:        N: DS	1  ;		 DB	1	;N=1=256BYTES
+926       668/  F806 :                   00:      EOT: DS	1  ;		 DB	16	;16 SECTOREN JE SPUR
+927       669/  F807 :                   00:      GPL: DS	1  ;		 DB	1BH	;LUECKE
+928       670/  F808 :                   00:      DTL: DS	1  ;		 DB	0FFH
+929       671/  F809 :  00 00 00 00 00 00 00:    RESLT: DS	7  ;		RESULT TAB F.FDC
+930       672/  F810 :                   00:    DZEIL: DS	1  ;		 DB	30	;DRUCKER 30 ZEILEN/SEITE
+931       673/  F811 :                   00:     MERK: DS	1  ;		 DB	0	;UMSCHALTZ. FERNSCHR.
+932       674/  F812 :                   00:     SEC1: DS	1  ;		 DB	1	;BDOS-SEKTOR
+933       675/  F813 :                00 00:      DMA: DS	2  ;		 DW	80H	;BDOS-DMA
+934       676/  F815 :  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00:    DIRBF: DS	128  ;		INHALTSVERZ. DISKETTE
+935       677/  F895 :  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00:     ALL0: DS	31  
+936       678/  F8B4 :  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00:     CHK0: DS	16  
+937       679/  F8C4 :  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00:     ALL1: DS	31  
+938       680/  F8E3 :  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00:     CHK1: DS	16  
+939       681/  F8F3 :                   00:    ZFDC1: DS	1  ;		****** Zwischenspeicher für Ausgabe 74LS175
+940       682/  F8F4 :  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 00 00 00 03 00 00 CC ED 70 02 54 40 31 02 00 00 00 00 0F 00 00 00 00 00 00 00 A9 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 FF FF FF FF 00 00 00 00 00 00:     FDMA: DS	256  ;		FLOPPY-ZWISCHENSPEICHER IM BIOS
+941       683/                                                 
+942       684/  F9F4 :                     :           END	  

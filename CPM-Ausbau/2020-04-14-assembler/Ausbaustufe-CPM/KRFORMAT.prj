@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+<comment>Programming Options</comment>
+<entry key="jkcemu.programming.labels_to_reassembler">false</entry>
+<entry key="jkcemu.programming.asm.labels.case_sensitive">false</entry>
+<entry key="jkcemu.programming.suppress_label_recreate_in_debugger">false</entry>
+<entry key="jkcemu.programming.code.to_file">true</entry>
+<entry key="jkcemu.programming.asm.allow_undocumented_instructions">false</entry>
+<entry key="jkcemu.programming.code.to_second_system">false</entry>
+<entry key="jkcemu.programming.code.file.name">T:\Eigene Projekte\2019-06-26-Kramer-MC\AssemblerJKCemu\Ausbaustufe-CPM\cbios-bodo\KRFORMAT.bin</entry>
+<entry key="jkcemu.programming.asm.labels.print">false</entry>
+<entry key="jkcemu.programming.labels_to_debugger">false</entry>
+<entry key="jkcemu.programming.asm.syntax">zilog</entry>
+<entry key="jkcemu.programming.format.source">false</entry>
+<entry key="jkcemu.programming.warn_non_ascii_chars">true</entry>
+<entry key="jkcemu.programming.source.file.name">KRFORMAT.asm</entry>
+<entry key="jkcemu.properties.type">project</entry>
+<entry key="jkcemu.programming.code.to_emulator">false</entry>
+</properties>
