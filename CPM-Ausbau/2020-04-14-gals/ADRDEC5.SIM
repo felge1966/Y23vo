@@ -1,0 +1,64 @@
+Simulate EZ-ABEL 4.30  Date: Mon Oct  7 08:11:38 19;9
+Fuse file: 'adrdec5.jed'  Vector file: 'adrdec5.tmv'  Part: 'P16V8AS'
+EZ-ABEL 4.32 Data I/O Corp. JEDEC file for: P16V8AS V9.0
+Created on: Thu Oct  3 18:11:57 19;9
+
+Adressdecoder fuer Kramer-MC
+
+
+                     R        
+                   M A       s
+       a a a a a a R M   r b r
+       1 1 1 1 1 1 E D   o w a
+       5 4 3 2 1 0 Q I   m s m
+                              
+V0001  0 0 0 0 0 0 1 1   H H H
+V0002  0 0 0 0 0 0 0 1   H H L
+Vector 2
+rom 16, 'H' found  'L' expected
+sram 19, 'L' found  'H' expected
+
+V0003  0 0 0 0 0 1 1 1   H H H
+V0004  0 0 0 0 0 1 0 1   H H L
+Vector 4
+rom 16, 'H' found  'L' expected
+sram 19, 'L' found  'H' expected
+
+V0005  0 0 0 0 1 1 1 1   H H H
+V0006  0 0 0 0 1 1 0 1   H H L
+V0007  0 0 0 0 1 1 0 0   H H L
+Vector 7
+sram 19, 'L' found  'H' expected
+
+V0008  0 0 0 1 1 1 1 1   H H H
+V0009  0 0 0 1 1 1 0 1   H H L
+V0010  1 0 0 0 0 0 1 1   H H H
+V0011  1 0 0 0 0 0 0 1   H H L
+Vector 11
+rom 16, 'H' found  'L' expected
+sram 19, 'L' found  'H' expected
+
+V0012  1 0 0 1 0 0 1 1   H H H
+V0013  1 0 0 1 0 0 0 1   H H L
+Vector 13
+rom 16, 'H' found  'L' expected
+sram 19, 'L' found  'H' expected
+
+V0014  1 1 1 1 0 0 1 1   H H H
+V0015  1 1 1 1 0 0 0 1   H H L
+Vector 15
+rom 16, 'H' found  'L' expected
+sram 19, 'L' found  'H' expected
+
+V0016  1 1 1 1 0 0 0 0   H H L
+Vector 16
+sram 19, 'L' found  'H' expected
+
+V0017  1 1 1 1 1 1 1 1   H H H
+V0018  1 1 1 1 1 1 0 1   H L H
+V0019  1 1 1 1 1 1 0 0   H L H
+Vector 19
+bws 15, 'L' found  'H' expected
+
+
+11 out of 19 vectors passed.

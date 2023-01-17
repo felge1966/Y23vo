@@ -1,0 +1,6 @@
+#$ SOURCEFILE adrd2k.abl
+#$ LISTFILE adrd2k.lst
+#$ MODULE adrd2k
+#$ DEVICE 'P16V8'
+#$ PLAFILE adrd2k.tt1
+#$ JEDECFILE adrd2k

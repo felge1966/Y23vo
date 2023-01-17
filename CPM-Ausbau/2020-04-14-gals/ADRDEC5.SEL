@@ -1,0 +1,198 @@
+ ACT1             #(manual fitting only) 63  chip types available
+ E0310            # 6   chip types available
+ E0320            # 55  chip types available
+ E0600            # 77  chip types available
+ E0600C           # 56  chip types available
+ E0630            #(manual fitting only) 20  chip types available
+ E0630C           #(manual fitting only) 14  chip types available
+ E0900            # 49  chip types available
+ E0900C           # 42  chip types available
+ E12P6            # 3   chip types available
+ E14P4            # 3   chip types available
+ E16P8            #(manual fitting only) 5   chip types available
+ E16P8F           # 4   chip types available
+ E16RP4           #(manual fitting only) 3   chip types available
+ E16RP4F          # 4   chip types available
+ E1800            #(manual fitting only) 68  chip types available
+ E204             #(manual fitting only) 3   chip types available
+ E224             # 5   chip types available
+ E224C            # 5   chip types available
+ E242             #(manual fitting only) 3   chip types available
+ E242C            #(manual fitting only) 2   chip types available
+ EC12C4A          # 1   chip types available
+ EC16C4A          # 3   chip types available
+ EC16LC4N         # 1   chip types available
+ EC16LD4N         # 1   chip types available
+ EC16P4A          # 7   chip types available
+ EC16P8C          # 6   chip types available
+ EC16P8N          # 15  chip types available
+ EC16PE8          # 1   chip types available
+ EC16RC4N         # 1   chip types available
+ EC16RD4N         # 1   chip types available
+ EC20EG8A         # 7   chip types available
+ EC20EV8A         # 9   chip types available
+ EC20EV8C         # 7   chip types available
+ EC20G8M          #(manual fitting only) 4   chip types available
+ EC20P8M          #(manual fitting only) 5   chip types available
+ F100             # 5   chip types available
+ F153             # 19  chip types available
+ F155             # 3   chip types available
+ F157             # 3   chip types available
+ F159             # 3   chip types available
+ F161             # 1   chip types available
+ F173             # 15  chip types available
+ F173C            # 9   chip types available
+ F179             # 2   chip types available
+ F179C            # 2   chip types available
+ F253             # 4   chip types available
+ F2605            # 1   chip types available
+ F2678            # 1   chip types available
+ F273             # 6   chip types available
+ F30K12           #(manual fitting only) 1   chip types available
+ F30S16           #(manual fitting only) 3   chip types available
+ F42VA12          #(manual fitting only) 3   chip types available
+ F42VA12C         #(manual fitting only) 2   chip types available
+ F473             # 5   chip types available
+ F506             # 5   chip types available
+ F507             #(manual fitting only) 7   chip types available
+ F6001            #(manual fitting only) 13  chip types available
+ F6001C           #(manual fitting only) 9   chip types available
+ F6002            #(manual fitting only) 3   chip types available
+ F6002C           #(manual fitting only) 3   chip types available
+ F82S100          # 1   chip types available
+ F82S153          # 1   chip types available
+ F82S173          # 1   chip types available
+ F839             # 7   chip types available
+ F9800            # 5   chip types available
+ F9804C1          #(manual fitting only) 3   chip types available
+ F9804C2          #(manual fitting only) already counted
+ F9804C4          #(manual fitting only) already counted
+ F9808            # 3   chip types available
+ LCA2000          #(manual fitting only) 36  chip types available
+ LCA3000          #(manual fitting only) 306 chip types available
+ MACH110          #(manual fitting only) 5   chip types available
+ MACH110A         #(manual fitting only) already counted
+ MACH120          #(manual fitting only) 3   chip types available
+ MACH120A         #(manual fitting only) already counted
+ MACH130          #(manual fitting only) 4   chip types available
+ MACH130A         #(manual fitting only) already counted
+ MACH210          #(manual fitting only) 5   chip types available
+ MACH210A         #(manual fitting only) already counted
+ MACH220          #(manual fitting only) 4   chip types available
+ MACH220A         #(manual fitting only) already counted
+ MACH230          #(manual fitting only) 4   chip types available
+ MACH230A         #(manual fitting only) already counted
+ P16H8            # 1   chip types available
+ P16HD8           # 1   chip types available
+ P16L8            # 162 chip types available
+ P16L8C           # 2   chip types available
+ P16LD8           # 1   chip types available
+ P16P8            # 5   chip types available
+ P16R4            # 158 chip types available
+ P16R4C           # 2   chip types available
+ P16RP4           # 1   chip types available
+ P16SV8           # 1   chip types available
+ P16V8            # 177 chip types available
+ P16V8HD          #(manual fitting only) 3   chip types available
+ P16VP8           # 2   chip types available
+ P16Z8            # 5   chip types available
+ P18CV8           # 30  chip types available
+ P18G8            # 29  chip types available
+ P18P8            # 13  chip types available
+ P18U8            # 1   chip types available
+ P18V10G          # 12  chip types available
+ P18V8            # 1   chip types available
+ P18V8Z           # 7   chip types available
+ P19L8L           # 4   chip types available
+ P19L8R           # 4   chip types available
+ P19R4L           # 4   chip types available
+ P19R4R           # 4   chip types available
+ P19R6L           # 4   chip types available
+ P19R6R           # 4   chip types available
+ P19R8L           # 4   chip types available
+ P19R8R           # 4   chip types available
+ P20ARP4          # 1   chip types available
+ P20ARP6          # 1   chip types available
+ P20CG10          # 12  chip types available
+ P20G10           # 25  chip types available
+ P20G10C          # 29  chip types available
+ P20H8            # 1   chip types available
+ P20L8            # 45  chip types available
+ P20L8C           # 37  chip types available
+ P20L8FNC         # 2   chip types available
+ P20P8            # 5   chip types available
+ P20R4            # 48  chip types available
+ P20R4C           # 34  chip types available
+ P20R4FNC         # 2   chip types available
+ P20RP4           # 5   chip types available
+ P20RS4           #(manual fitting only) 1   chip types available
+ P20S10           #(manual fitting only) 1   chip types available
+ P20SV8           # 1   chip types available
+ P20V8            # 77  chip types available
+ P20V8LCC         # 93  chip types available
+ P20VP8           # 2   chip types available
+ P22AP10          # 7   chip types available
+ P22CV10C         # 6   chip types available
+ P22CV10Z         # 18  chip types available
+ P22IP6           #(manual fitting only) 4   chip types available
+ P22RX8A          # 4   chip types available
+ P22V10           # 297 chip types available
+ P22V10C          # 215 chip types available
+ P22V10G          # 5   chip types available
+ P22V10I          # 6   chip types available
+ P22V10IC         # 4   chip types available
+ P22VF10          # 1   chip types available
+ P22VP10          # 7   chip types available
+ P22VP10C         # 5   chip types available
+ P23S8            # 13  chip types available
+ P23SV8           # 1   chip types available
+ P24L10           # 3   chip types available
+ P24V10           # 5   chip types available
+ P2500            #(manual fitting only) 37  chip types available
+ P2500C           #(manual fitting only) 61  chip types available
+ P26CV12          # 11  chip types available
+ P26V12           # 5   chip types available
+ P29M16           #(manual fitting only) 3   chip types available
+ P29M16C          #(manual fitting only) 3   chip types available
+ P29MA16          #(manual fitting only) 3   chip types available
+ P29MA16C         #(manual fitting only) 3   chip types available
+ P32VX10          # 3   chip types available
+ P32VX10A         # 1   chip types available
+ P32VX10C         # 3   chip types available
+ P332             #(manual fitting only) 31  chip types available
+ P333             #(manual fitting only) 11  chip types available
+ P335             #(manual fitting only) 40  chip types available
+ P448             #(manual fitting only) 5   chip types available
+ P448C            #(manual fitting only) 2   chip types available
+ P464             #(manual fitting only) 5   chip types available
+ P464C            #(manual fitting only) 2   chip types available
+ P48N22           #(manual fitting only) 2   chip types available
+ P5000            #(manual fitting only) 37  chip types available
+ P5016A           #(manual fitting only) 18  chip types available
+ P5016S           #(manual fitting only) already counted
+ P5024A           #(manual fitting only) 1   chip types available
+ P5024S           #(manual fitting only) already counted
+ P5032A           #(manual fitting only) 41  chip types available
+ P5032AC          #(manual fitting only) 15  chip types available
+ P5032S           #(manual fitting only) already counted
+ P5032SC          #(manual fitting only) already counted
+ P5100            #(manual fitting only) 37  chip types available
+ P750             #(manual fitting only) 134 chip types available
+ P750C            #(manual fitting only) 104 chip types available
+ PLSI1016         #(manual fitting only) 5   chip types available
+ PLSI1024         #(manual fitting only) 5   chip types available
+ PLSI1032         #(manual fitting only) 5   chip types available
+ PLSI1048         #(manual fitting only) 3   chip types available
+ RA10P4           # 1   chip types available
+ RA10P8           # 1   chip types available
+ RA11P4           # 1   chip types available
+ RA11P8           # 1   chip types available
+ RA12P4           # 1   chip types available
+ RA12P8           # 1   chip types available
+ RA8P4            # 1   chip types available
+ RA8P8            # 1   chip types available
+ RA9P4            # 1   chip types available
+ RA9P8            # 1   chip types available
+ RE8P4            # 1   chip types available
+ XC723644         #(manual fitting only) 37  chip types available
+ XC727284         #(manual fitting only) 32  chip types available

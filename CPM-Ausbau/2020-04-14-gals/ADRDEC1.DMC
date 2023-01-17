@@ -1,0 +1,5 @@
+#$ SOURCEFILE adrdec1.abl
+#$ MODULE adrdec1
+#$ DEVICE 'P16V8'
+#$ PLAFILE adrdec1.tt1
+#$ JEDECFILE adrdec1

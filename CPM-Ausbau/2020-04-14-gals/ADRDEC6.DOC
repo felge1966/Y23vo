@@ -1,0 +1,172 @@
+
+
+
+                                                                      Page 1
+EZ-ABEL 4.30  -  Device Utilization Chart         Wed Apr  8 21:33:02 19<0
+
+Adressdecoder fuer Kramer-MC
+
+    ==== P16V8AS Programmed Logic ====
+
+
+bram     = !(  !a10 & !a11 & a12 & !a13 & a14 & a15 & !MREQ );
+
+sram     = !(  a10 & a11 & !a12 & !a13 & !a14 & !MREQ 
+            #   !a11 & a15 & !MREQ 
+            #   !a12 & a15 & !MREQ 
+            #   !a13 & a15 & !MREQ 
+            #   !a14 & a15 & !MREQ 
+            #   !a15 & !MREQ & RAMDI );
+
+bws     = !(  a11 & a12 & a13 & a14 & a15 & !MREQ );
+
+rom     = (  a10 & a11 & !a12 & !a13 & !a14 
+           #   a15 
+           #   MREQ 
+           #   RAMDI );
+
+
+
+
+                                                                      Page 2
+EZ-ABEL 4.30  -  Device Utilization Chart         Wed Apr  8 21:33:02 19<0
+
+Adressdecoder fuer Kramer-MC
+
+                         ==== P16V8AS Chip Diagram ====
+
+
+
+                                   P16V8AS
+
+                         +---------\       /---------+
+                         |          \     /          |
+                         |           -----           |
+                     a10 |  1                    20  | Vcc                     
+                         |                           |
+                     a11 |  2                    19  | !sram                   
+                         |                           |
+                     a12 |  3                    18  | !bram                   
+                         |                           |
+                     a13 |  4                    17  |                         
+                         |                           |
+                     a14 |  5                    16  | !rom                    
+                         |                           |
+                     a15 |  6                    15  | !bws                    
+                         |                           |
+                    MREQ |  7                    14  |                         
+                         |                           |
+                   RAMDI |  8                    13  |                         
+                         |                           |
+                         |  9                    12  |                         
+                         |                           |
+                     GND | 10                    11  |                         
+                         |                           |
+                         |                           |
+                         `---------------------------'
+
+                        SIGNATURE: N/A
+
+
+
+                                                                      Page 3
+EZ-ABEL 4.30  -  Device Utilization Chart         Wed Apr  8 21:33:02 19<0
+
+Adressdecoder fuer Kramer-MC
+
+                ==== P16V8AS Resource Allocations ====
+
+
+        Device        | Resource  |   Design    |    Part     |  
+       Resources      | Available | Requirement | Utilization | Unused
+======================|===========|=============|=============|==============
+                      |           |             |             |
+Dedicated input pins  |     10    |       8     |     8       |     2 ( 20 %)
+Combinatorial inputs  |     10    |       8     |     8       |     2 ( 20 %)
+Registered inputs     |      -    |       0     |     -       |     -
+                      |           |             |             |
+Dedicated output pins |      2    |       4     |     2       |     0 (  0 %)
+Bidirectional pins    |      6    |       0     |     2       |     4 ( 66 %)
+Combinatorial outputs |      8    |       4     |     4       |     4 ( 50 %)
+Registered outputs    |      -    |       0     |     -       |     -
+Two-input XOR         |      -    |       0     |     -       |     -
+                      |           |             |             |
+Buried nodes          |      -    |       0     |     -       |     -
+Buried registers      |      -    |       0     |     -       |     -
+Buried combinatorials |      -    |       0     |     -       |     -
+
+
+
+                                                                      Page 4
+EZ-ABEL 4.30  -  Device Utilization Chart         Wed Apr  8 21:33:02 19<0
+
+Adressdecoder fuer Kramer-MC
+
+                ==== P16V8AS Product Terms Distribution ====
+
+
+            Signal             |    Pin   | Terms | Terms | Terms
+             Name              | Assigned | Used  |  Max  | Unused
+===============================|==========|=======|=======|=======
+bram                           |   18     |   1   |   8   |   7
+sram                           |   19     |   6   |   8   |   2
+bws                            |   15     |   1   |   8   |   7
+rom                            |   16     |   4   |   8   |   4
+
+
+     ==== List of Inputs/Feedbacks ====
+
+Signal Name                    | Pin      | Pin Type
+============================== |==========|=========
+a10                            |    1     | INPUT
+a11                            |    2     | INPUT
+a12                            |    3     | INPUT
+a13                            |    4     | INPUT
+a14                            |    5     | INPUT
+a15                            |    6     | INPUT
+MREQ                           |    7     | INPUT
+RAMDI                          |    8     | INPUT
+
+
+
+                                                                      Page 5
+EZ-ABEL 4.30  -  Device Utilization Chart         Wed Apr  8 21:33:02 19<0
+
+Adressdecoder fuer Kramer-MC
+
+    ==== P16V8AS Unused Resources ====
+
+
+ Pin   |  Pin   |   Product   | Flip-flop
+Number |  Type  |   Terms     |   Type
+=======|========|=============|==========
+    9  |  INPUT |      -      |    -   
+   11  |  INPUT |      -      |    -   
+   12  |  BIDIR | NORMAL  8   |    -   
+   13  |  BIDIR | NORMAL  8   |    -   
+   14  |  BIDIR | NORMAL  8   |    -   
+   17  |  BIDIR | NORMAL  8   |    -   
+
+
+
+                                                                      Page 6
+EZ-ABEL 4.30  -  Device Utilization Chart         Wed Apr  8 21:33:02 19<0
+
+Adressdecoder fuer Kramer-MC
+
+    ==== I/O Files ====
+
+
+Module: 'adrdec6'
+
+
+Input files
+===========
+ABEL PLA file: adrdec6.tt3
+Vector file: adrdec6.tmv
+Device library: P16V8AS.dev
+
+Output files
+============
+Report file: adrdec6.doc
+Programmer load file: adrdec6.jed

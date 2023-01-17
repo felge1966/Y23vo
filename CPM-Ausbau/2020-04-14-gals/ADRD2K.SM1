@@ -1,0 +1,35 @@
+Simulate EZ-ABEL 4.30  Date: Sat Apr  4 23:35:43 19<0
+Fuse file: 'adrd2k.tt1'  Vector file: 'adrd2k.tmv'  Part: 'PLA'
+Adressdecoder fuer Kramer-MC
+
+
+                     R M        
+                   M A E       s
+       a a a a a a R M M   r b r
+       1 1 1 1 1 1 E D D   o w a
+       5 4 3 2 1 0 Q I I   m s m
+                                
+V0001  0 0 0 0 0 0 1 1 1   H H H
+V0002  0 0 0 0 0 0 0 0 1   L H H
+V0003  0 0 0 0 0 1 1 1 1   H H H
+V0004  0 0 0 0 0 1 0 0 1   L H H
+V0005  0 0 0 0 1 1 1 1 1   H H H
+V0006  0 0 0 0 1 1 0 0 1   H H L
+V0007  0 0 0 0 1 1 0 0 0   H H H
+V0008  0 0 0 1 1 1 1 1 1   H H H
+V0009  0 0 0 1 1 1 0 0 1   H H L
+V0010  1 0 0 0 0 0 1 1 1   H H H
+V0011  1 0 0 0 0 0 0 0 1   L H H
+V0012  1 0 0 1 0 0 1 1 1   H H H
+V0013  1 0 0 1 0 0 0 0 1   L H H
+V0014  1 1 1 1 0 0 1 1 1   H H H
+V0015  1 1 1 1 0 0 0 0 1   L H H
+V0016  1 1 1 1 0 0 0 0 0   H H H
+V0017  1 1 1 1 1 1 1 1 1   H H H
+V0018  1 1 1 1 1 1 0 0 1   H L H
+V0019  1 1 1 1 1 1 0 0 0   H H H
+V0020  1 1 1 1 1 0 1 1 1   H H H
+V0021  1 1 1 1 1 0 0 0 1   H L H
+V0022  1 1 1 1 1 0 0 0 0   H H H
+
+22 out of 22 vectors passed.

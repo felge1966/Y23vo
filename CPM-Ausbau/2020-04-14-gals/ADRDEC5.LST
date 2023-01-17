@@ -1,0 +1,132 @@
+0001e|MODULE ADRDEC5
+0002e|"Adressdekoder f r den Kramer MC"
+0003e|"************************************************"
+0004e|" zweite Ausbaustufe CP/M mit Speicherumschaltug "
+0005e|"************************************************"
+0006e|"externes RS-FF: /RESET an R, bram aus GAL Ausgang an RAMDI, weil bei ADRDEC3 hat kuh-LED auch geflackert"
+0007e|"kuh pin18 und RAMDI pin8 extern verbinden"
+0008e|"64KByte EPROM und 64K SRAM"
+0009e|"EPROM 0000-0bFF, 1000-7fFF nach Reset"
+0010e|"SRAM  0C00-0FFF, 8000-FBFF nach Reset"
+0011e|"BWS   FC00-FFFF"   
+0012e|" nach Speicherumschaltung"
+0013e|"SRAM  0000-FBFF"
+0014e|"EPROM aus  "
+0015e|"BWS   FC00-FFFF  "
+0016e|
+0017e|title  'Adressdecoder fuer Kramer-MC'
+0018e|      
+0019e|        ADRDEC5 device 'P16V8';  
+0020e|        
+0021e|DECLARATIONS
+0022e|  "kleine MACROs der šbersichtlichkeit wegen..."
+0023e|
+0024e|  "wird Monitor-RAM-Bereich mit MREQ angesprochen, kommt swi= 1 raus"
+0025e|  swi MACRO { (address >= ^hf800) & (address <= ^hfbff) & !MREQ };
+0026e|
+0027e|  "RAM-Bereich nach RESET"
+0028e|  RESETRAM MACRO  
+0029e|       {
+0030e|         (      
+0031e|           ( (address>=^h0c00) & (address<=^h0fff) )
+0032e|           +
+0033e|           ( (address>=^h8000) & (address<=^hfbff) )
+0034e|         )
+0035e|         & !MREQ
+0036e|         
+0037e|       }
+0038e|  "RAM-Bereich nach Speicherumschaltung"
+0039e|  CPMRAM MACRO 
+0040e|        {
+0041e|         (
+0042e|           (address <= ^hfbff )
+0043e|         ) 
+0044e|         & !MREQ 
+0045e|         
+0046e|        }
+0047e|  RESETROM MACRO 
+0048e|        {
+0049e|         (
+0050e|           (address < ^h0c00) 
+0051e|           + 
+0052e|           ( (address >=^h1000) & (address <=^h7fff) ) 
+0053e|         ) 
+0054e|         & !MREQ 
+0055e|          
+0056e|        }
+0057e|
+0058e|  CPMROM MACRO 
+0059e|        {
+0060e|         0 &!MREQ 
+0061e|          
+0062e|        }     
+0063e|
+0064e|        a10,a11,a12,a13,a14,a15,MREQ,RAMDI              PIN;
+0065e|        rom,bws,sram,bram                               PIN;
+0066e|        h,l,x   = 1,0,.X.;
+0067e|        address = [a15,a14,a13,a12,a11,a10,x,x, x,x,x,x, x,x,x,x];
+0068e|
+0069e|EQUATIONS
+0070e|        !bram = (address >= ^hf800) & (address <= ^hfbff) & !MREQ ; "bram an externes RS-FF S-Einang"                                 
+0071e|        !sram = 
+0072e|         (      
+0073e|           ( (address>=^h0c00) & (address<=^h0fff) )
+0074e|           +
+0075e|           ( (address>=^h8000) & (address<=^hfbff) )
+0076e|         )
+0077e|         & !MREQ
+0078e|         
+0079e|       & !RAMDI + 
+0080e|         (
+0081e|           (address <= ^hfbff )
+0082e|         ) 
+0083e|         & !MREQ 
+0084e|         
+0085e|        & RAMDI;
+0086e|        !bws = (address >= ^hfc00) & !MREQ;
+0087e|        !rom = 
+0088e|         (
+0089e|           (address < ^h0c00) 
+0090e|           + 
+0091e|           ( (address >=^h1000) & (address <=^h7fff) ) 
+0092e|         ) 
+0093e|         & !MREQ 
+0094e|          
+0095e|        & !RAMDI + 
+0096e|         0 &!MREQ 
+0097e|          
+0098e|        & RAMDI;
+0099e|
+0100e|TEST_VECTORS 
+0101e|             ([address,MREQ,RAMDI] -> [rom,bws,sram]);
+0102e|              [^h0000,1,1]  -> [  h,  h,   h ];
+0103e|              [^h0000,0,1]  -> [  l,  h,   h ];
+0104e|
+0105e|              [^h0400,1,1]  -> [  h,  h,   h ];
+0106e|              [^h0400,0,1]  -> [  l,  h,   h ];
+0107e|
+0108e|              [^h0C00,1,1]  -> [  h,  h,   h ];
+0109e|              [^h0C00,0,1]  -> [  h,  h,   l ];
+0110e|              [^h0C00,0,0]  -> [  h,  h,   h ];
+0111e|
+0112e|              [^h1C00,1,1]  -> [  h,  h,   h ];
+0113e|              [^h1C00,0,1]  -> [  h,  h,   l ];
+0114e|
+0115e|              [^h8000,1,1]  -> [  h,  h,   h ];
+0116e|              [^h8000,0,1]  -> [  l,  h,   h ];
+0117e|
+0118e|              [^h9000,1,1]  -> [  h,  h,   h ];
+0119e|              [^h9000,0,1]  -> [  l,  h,   h ];
+0120e|
+0121e|              [^hF000,1,1]  -> [  h,  h,   h ];
+0122e|              [^hF000,0,1]  -> [  l,  h,   h ];
+0123e|              [^hF000,0,0]  -> [  h,  h,   h ];
+0124e|
+0125e|
+0126e|              [^hFC00,1,1]  -> [  h,  h,   h ];
+0127e|              [^hFC00,0,1]  -> [  h,  l,   h ];
+0128e|              [^hFC00,0,0]  -> [  h,  h,   h ];
+0129e|
+0130e|
+0131e|END ADRDEC5;
+0132e|

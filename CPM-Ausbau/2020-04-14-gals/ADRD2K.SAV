@@ -1,0 +1,62 @@
+MODULE ADRD2k
+"Adressdekoder fr den Kramer MC"
+"erste Ausbaustufe, 2kB BWS"
+"64KByte EPROM und 32K SRAM"
+"EPROM 0000-0bFF, 8000-F7FF"
+"SRAM 0C00-7FFF"
+"BWS F800-FFFF"   
+"2020-04-04  Signal !RAMDI eingefgt"
+
+title  'Adressdecoder fuer Kramer-MC'
+      
+        ADRD2k device 'P16V8';  
+        
+DECLARATIONS
+
+       
+        a10,a11,a12,a13,a14,a15,MREQ,RAMDI,MEMDI         pin;
+        rom,bws,sram                   PIN;
+        h,l,x   = 1,0,.X.;
+        address = [a15,a14,a13,a12,a11,a10,x,x, x,x,x,x, x,x,x,x];
+
+EQUATIONS                                                            
+        !sram = (address >= ^h0c00) & (address <= ^h7fff) & !MREQ & !RAMDI & MEMDI;
+        !bws = (address >= ^hf800) & !MREQ & !RAMDI & MEMDI;
+        !rom = ((address < ^h0c00) +  ((address >=^h8000) & (address <=^hf7ff))) & !MREQ & !RAMDI & MEMDI;
+
+TEST_VECTORS 
+             ([address,MREQ,RAMDI,MEMDI] -> [rom,bws,sram]);
+              [^h0000,1,1,1]  -> [  h,  h,   h ];
+              [^h0000,0,0,1]  -> [  l,  h,   h ];
+
+              [^h0400,1,1,1]  -> [  h,  h,   h ];
+              [^h0400,0,0,1]  -> [  l,  h,   h ];
+
+              [^h0C00,1,1,1]  -> [  h,  h,   h ];
+              [^h0C00,0,0,1]  -> [  h,  h,   l ];
+              [^h0C00,0,0,0]  -> [  h,  h,   h ];
+
+              [^h1C00,1,1,1]  -> [  h,  h,   h ];
+              [^h1C00,0,0,1]  -> [  h,  h,   l ];
+
+              [^h8000,1,1,1]  -> [  h,  h,   h ];
+              [^h8000,0,0,1]  -> [  l,  h,   h ];
+
+              [^h9000,1,1,1]  -> [  h,  h,   h ];
+              [^h9000,0,0,1]  -> [  l,  h,   h ];
+
+              [^hF000,1,1,1]  -> [  h,  h,   h ];
+              [^hF000,0,0,1]  -> [  l,  h,   h ];
+              [^hF000,0,0,0]  -> [  h,  h,   h ];
+
+
+              [^hFC00,1,1,1]  -> [  h,  h,   h ];
+              [^hFC00,0,0,1]  -> [  h,  l,   h ];
+              [^hFC00,0,0,0]  -> [  h,  h,   h ];
+
+
+              [^hF800,1,1,1]  -> [  h,  h,   h ];
+              [^hF800,0,0,1]  -> [  h,  l,   h ];
+              [^hF800,0,0,0]  -> [  h,  h,   h ];
+
+END ADRD2k;

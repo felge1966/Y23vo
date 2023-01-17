@@ -1,0 +1,106 @@
+MODULE ADRDEC5
+"Adressdekoder fr den Kramer MC"
+"************************************************"
+" zweite Ausbaustufe CP/M mit Speicherumschaltug "
+"************************************************"
+"externes RS-FF: /RESET an R, bram aus GAL Ausgang an RAMDI, weil bei ADRDEC3 hat kuh-LED auch geflackert"
+"kuh pin18 und RAMDI pin8 extern verbinden"
+"64KByte EPROM und 64K SRAM"
+"EPROM 0000-0bFF, 1000-7fFF nach Reset"
+"SRAM  0C00-0FFF, 8000-FBFF nach Reset"
+"BWS   FC00-FFFF"   
+" nach Speicherumschaltung"
+"SRAM  0000-FBFF"
+"EPROM aus  "
+"BWS   FC00-FFFF  "
+
+title  'Adressdecoder fuer Kramer-MC'
+      
+        ADRDEC5 device 'P16V8';  
+        
+DECLARATIONS
+  "kleine MACROs der šbersichtlichkeit wegen..."
+
+  "wird Monitor-RAM-Bereich mit MREQ angesprochen, kommt swi= 1 raus"
+  swi MACRO { (address >= ^hf800) & (address <= ^hfbff) & !MREQ };
+
+  "RAM-Bereich nach RESET"
+  RESETRAM MACRO  
+       {
+         (      
+           ( (address>=^h0c00) & (address<=^h0fff) )
+           +
+           ( (address>=^h8000) & (address<=^hfbff) )
+         )
+         & !MREQ
+         
+       }
+  "RAM-Bereich nach Speicherumschaltung"
+  CPMRAM MACRO 
+        {
+         (
+           (address <= ^hfbff )
+         ) 
+         & !MREQ 
+         
+        }
+  RESETROM MACRO 
+        {
+         (
+           (address < ^h0c00) 
+           + 
+           ( (address >=^h1000) & (address <=^h7fff) ) 
+         ) 
+         & !MREQ 
+          
+        }
+
+  CPMROM MACRO 
+        {
+         0 &!MREQ 
+          
+        }     
+
+        a10,a11,a12,a13,a14,a15,MREQ,RAMDI              PIN;
+        rom,bws,sram,bram                               PIN;
+        h,l,x   = 1,0,.X.;
+        address = [a15,a14,a13,a12,a11,a10,x,x, x,x,x,x, x,x,x,x];
+
+EQUATIONS
+        !bram =swi; "bram an externes RS-FF S-Einang"                                 
+        !sram = RESETRAM & !RAMDI + CPMRAM & RAMDI;
+        !bws = (address >= ^hfc00) & !MREQ;
+        !rom = RESETROM & !RAMDI + CPMROM & RAMDI;
+
+TEST_VECTORS 
+             ([address,MREQ,RAMDI] -> [rom,bws,sram]);
+              [^h0000,1,1]  -> [  h,  h,   h ];
+              [^h0000,0,1]  -> [  l,  h,   h ];
+
+              [^h0400,1,1]  -> [  h,  h,   h ];
+              [^h0400,0,1]  -> [  l,  h,   h ];
+
+              [^h0C00,1,1]  -> [  h,  h,   h ];
+              [^h0C00,0,1]  -> [  h,  h,   l ];
+              [^h0C00,0,0]  -> [  h,  h,   h ];
+
+              [^h1C00,1,1]  -> [  h,  h,   h ];
+              [^h1C00,0,1]  -> [  h,  h,   l ];
+
+              [^h8000,1,1]  -> [  h,  h,   h ];
+              [^h8000,0,1]  -> [  l,  h,   h ];
+
+              [^h9000,1,1]  -> [  h,  h,   h ];
+              [^h9000,0,1]  -> [  l,  h,   h ];
+
+              [^hF000,1,1]  -> [  h,  h,   h ];
+              [^hF000,0,1]  -> [  l,  h,   h ];
+              [^hF000,0,0]  -> [  h,  h,   h ];
+
+
+              [^hFC00,1,1]  -> [  h,  h,   h ];
+              [^hFC00,0,1]  -> [  h,  l,   h ];
+              [^hFC00,0,0]  -> [  h,  h,   h ];
+
+
+END ADRDEC5;

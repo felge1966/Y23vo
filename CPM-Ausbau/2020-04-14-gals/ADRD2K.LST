@@ -1,0 +1,63 @@
+0001e|MODULE ADRD2k
+0002e|"Adressdekoder f r den Kramer MC"
+0003e|"erste Ausbaustufe, 2kB BWS"
+0004e|"64KByte EPROM und 32K SRAM"
+0005e|"EPROM 0000-0bFF, 8000-F7FF"
+0006e|"SRAM 0C00-7FFF"
+0007e|"BWS F800-FFFF"   
+0008e|"2020-04-04  Signal !RAMDI eingef gt"
+0009e|
+0010e|title  'Adressdecoder fuer Kramer-MC'
+0011e|      
+0012e|        ADRD2k device 'P16V8';  
+0013e|        
+0014e|DECLARATIONS
+0015e|
+0016e|       
+0017e|        a10,a11,a12,a13,a14,a15,MREQ,RAMDI,MEMDI         pin;
+0018e|        rom,bws,sram                   PIN;
+0019e|        h,l,x   = 1,0,.X.;
+0020e|        address = [a15,a14,a13,a12,a11,a10,x,x, x,x,x,x, x,x,x,x];
+0021e|
+0022e|EQUATIONS                                                            
+0023e|        !sram = (address >= ^h0c00) & (address <= ^h7fff) & !MREQ & !RAMDI & MEMDI;
+0024e|        !bws = (address >= ^hf800) & !MREQ & !RAMDI & MEMDI;
+0025e|        !rom = ((address < ^h0c00) +  ((address >=^h8000) & (address <=^hf7ff))) & !MREQ & !RAMDI & MEMDI;
+0026e|
+0027e|TEST_VECTORS 
+0028e|             ([address,MREQ,RAMDI,MEMDI] -> [rom,bws,sram]);
+0029e|              [^h0000,1,1,1]  -> [  h,  h,   h ];
+0030e|              [^h0000,0,0,1]  -> [  l,  h,   h ];
+0031e|
+0032e|              [^h0400,1,1,1]  -> [  h,  h,   h ];
+0033e|              [^h0400,0,0,1]  -> [  l,  h,   h ];
+0034e|
+0035e|              [^h0C00,1,1,1]  -> [  h,  h,   h ];
+0036e|              [^h0C00,0,0,1]  -> [  h,  h,   l ];
+0037e|              [^h0C00,0,0,0]  -> [  h,  h,   h ];
+0038e|
+0039e|              [^h1C00,1,1,1]  -> [  h,  h,   h ];
+0040e|              [^h1C00,0,0,1]  -> [  h,  h,   l ];
+0041e|
+0042e|              [^h8000,1,1,1]  -> [  h,  h,   h ];
+0043e|              [^h8000,0,0,1]  -> [  l,  h,   h ];
+0044e|
+0045e|              [^h9000,1,1,1]  -> [  h,  h,   h ];
+0046e|              [^h9000,0,0,1]  -> [  l,  h,   h ];
+0047e|
+0048e|              [^hF000,1,1,1]  -> [  h,  h,   h ];
+0049e|              [^hF000,0,0,1]  -> [  l,  h,   h ];
+0050e|              [^hF000,0,0,0]  -> [  h,  h,   h ];
+0051e|
+0052e|
+0053e|              [^hFC00,1,1,1]  -> [  h,  h,   h ];
+0054e|              [^hFC00,0,0,1]  -> [  h,  l,   h ];
+0055e|              [^hFC00,0,0,0]  -> [  h,  h,   h ];
+0056e|
+0057e|
+0058e|              [^hF800,1,1,1]  -> [  h,  h,   h ];
+0059e|              [^hF800,0,0,1]  -> [  h,  l,   h ];
+0060e|              [^hF800,0,0,0]  -> [  h,  h,   h ];
+0061e|
+0062e|END ADRD2k;
+0063e|
