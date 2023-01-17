@@ -1,0 +1,838 @@
+ AS V1.42 Beta [Bld 139] - source file ed.asm - page 1 - 8/15/2019 9:14:33
+EDITOR Y23VO
+
+
+       1/       0 :                     	;PN	ED
+       2/       0 :                     
+       3/       0 :                     	cpu	z80
+       4/       0 :                     
+       5/       0 :                     	TITLE "EDITOR Y23VO"
+       6/       0 :                     
+       7/       0 :                     
+       8/       0 :                     ;VEREINBARUNGEN
+       9/       0 : =DH                 CR: 	EQU	0DH 		;WAGENRUECKLAUF
+      10/       0 : =AH                 LF: 	EQU	0AH 		;ZEILENVORSCHUB
+      11/       0 : =3H                 ETX: 	EQU	3 		;END OF TEXT
+      12/       0 : =4H                 CTRLD: 	EQU	4 		;ZEILE DOPPELN
+      13/       0 : =7FH                DEL: 	EQU	7FH 		;ZEILE LOESCHEN
+      14/       0 : =18H                CAN: 	EQU	18H 		;ZEICHEN LOESCHEN
+      15/       0 : =13H                INS: 	EQU	13H 		;ZEICHEN EINFUEGEN
+      16/       0 : =FFH                NUL: 	EQU	0FFH 		;TABELLENENDE
+      17/       0 : =1EH                NL: 	EQU	1EH 		;NEUE ZEILE
+      18/       0 : =1AH                SUB: 	EQU	1AH 		;ZEILE EINFUEGEN
+      19/       0 : =7FFFH              RAME: 	EQU	7FFFH 		;STANDARDZUWEISUNG
+      20/       0 : =4000H              RAMA: 	EQU	4000H
+      21/       0 : =D39H               SRAM: 	EQU	0D39H
+      22/       0 : =13CH               CIO:	EQU	13CH
+      23/       0 : =E3H                RI: 	EQU	0E3H
+      24/       0 : =E6H                CO: 	EQU	0E6H
+      25/       0 : =E9H                WO: 	EQU	0E9H
+      26/       0 : =ECH                LO:	EQU	0ECH
+      27/       0 : =38H                ERROR: 	EQU	0038H
+      28/       0 : =FF1H               CURS: 	EQU	0FF1H
+      29/       0 : =10CH               TI:	EQU	10CH
+      30/       0 : =4DCH               PA0: 	EQU	4DCH
+      31/       0 : =7AH                FCGA: 	EQU	7AH
+      32/       0 : =518H               PCHK: 	EQU	518H
+      33/       0 : =128H               STR: 	EQU	128H
+      34/       0 : =36BH               INK: 	EQU	36BH
+      35/       0 : =352H               LKOM:	EQU	352H
+      36/       0 : =38CH               OUTK:	EQU	38CH
+      37/       0 : =FC00H              BRAM:	EQU	0FC00H 		;BILDSCHIRM-RAM
+      38/       0 :                     
+      39/    C000 :                     	ORG	0C000H
+      40/    C000 : F5                  	PUSH	AF
+      41/    C001 : C5                  	PUSH	BC
+      42/    C002 : D5                   	PUSH	DE
+      43/    C003 : E5                  	PUSH	HL
+      44/    C004 : 21 57 C1            	LD	HL,ATEXT
+      45/    C007 : CD 28 01            	CALL 	STR
+      46/    C00A : CD 0C 01            	CALL	TI 		;TI
+      47/    C00D : FE 59               	CP 	'Y'
+      48/    C00F : 20 11               	JR	NZ,RESTR
+      49/    C011 :                     ;UEBERTRAGEN SYSTEMTABELLEN
+      50/    C011 : 21 54 C3            	LD 	HL,STAB		;QUELLE
+      51/    C014 : 11 39 0D            	LD	DE,RAMEZ 	;ZIEL
+      52/    C017 : 01 06 00            	LD 	BC,LSTAB
+      53/    C01A : ED B0               	LDIR
+      54/    C01C : 2A 39 0D            	LD 	HL,(RAMEZ)	;ENDE SETZEN
+      55/    C01F : 3E 03               	LD 	A,ETX
+      56/    C021 : 77                  	LD 	(HL), A
+      57/    C022 :                     ;RUECKSETZEN ZEICHENZAEHLER
+      58/    C022 : 2A 39 0D            RESTR:	LD 	HL,(RAMEZ)
+      59/    C025 : 22 3D 0D            	LD	(ZEZL1),HL
+      60/    C028 :                     START:
+ AS V1.42 Beta [Bld 139] - source file ed.asm - page 2 - 8/15/2019 9:14:33
+EDITOR Y23VO
+
+
+      61/    C028 :                     ;STARTADRESSE RETTEN
+      62/    C028 : 21 28 C0            	LD 	HL,START
+      63/    C02B : E5                  	PUSH	HL
+      64/    C02C : 21 90 C1            	LD 	HL,PIONT
+      65/    C02F : CD 28 01            	CALL	STR
+      66/    C032 :                     ;EINGABE KOMMANDO
+      67/    C032 : 21 3F C0            	LD 	HL,JPTBL
+      68/    C035 : CD 0C 01            	CALL 	TI		;TI
+      69/    C038 : CD 7A 00            	CALL	FCGA
+      70/    C03B : DA 3A C3            	JP	C,E1
+      71/    C03E : E9                  	JP	(HL)
+      72/    C03F :                     
+      73/    C03F :                     
+      74/    C03F :                     
+      75/    C03F :                     JPTBL:
+      76/    C03F : 41                  	DB	'A'
+      77/    C040 : 6D C0               	DW	ASGN
+      78/    C042 : 44                  	DB	'D'
+      79/    C043 : 12 C1               	DW	DISPL
+      80/    C045 : 45                  	DB	'E'
+      81/    C046 : AD C1               	DW	EDIT
+      82/    C048 : 47                  	DB	'G'
+      83/    C049 : 6C C2               	DW	GO
+      84/    C04B : 49                  	DB	'I'
+      85/    C04C : 6B 03               	DW	INK
+      86/    C04E : 4C                  	DB	'L'
+      87/    C04F : 52 03               	DW	LKOM
+      88/    C051 : 4F                  	DB	'O'
+      89/    C052 : 8C 03               	DW	OUTK
+      90/    C054 : 50                  	DB	'P'
+      91/    C055 : 94 C0               	DW	PRINT
+      92/    C057 : 51                  	DB	'Q'
+      93/    C058 : 67 C0               	DW	ENDE
+      94/    C05A : 52                  	DB	'R'
+      95/    C05B : B2 C0               	DW	READ
+      96/    C05D : 55                  	DB	'U'
+      97/    C05E : 87 C2               	DW	UP
+      98/    C060 : 57                  	DB	'W'
+      99/    C061 : DB C0               	DW	WRITE
+     100/    C063 : 54                  	DB	'T'
+     101/    C064 : 96 C1               	DW	TOP
+     102/    C066 : FF                  	DB	NUL
+     103/    C067 :                     
+     104/    C067 :                     
+     105/    C067 :                     
+     106/    C067 :                     ENDE:
+     107/    C067 : E1                  	POP	HL		;STARTADR. KOMMANDO
+     108/    C068 : E1                  	POP	HL
+     109/    C069 : D1                  	POP	DE
+     110/    C06A : C1                  	POP	BC
+     111/    C06B : F1                  	POP	AF
+     112/    C06C : C9                  	RET
+     113/    C06D :                     
+     114/    C06D :                     ;KOMMANDO SPEICHERZUWEISUNG
+     115/    C06D :                     ASGN:
+     116/    C06D : 21 6A C1            	LD	HL,EOM
+     117/    C070 : CD 28 01            	CALL	STR
+     118/    C073 : CD 18 05            	CALL	PCHK
+     119/    C076 : C8                  	RET	Z
+     120/    C077 : CD DC 04            	CALL	PA0
+ AS V1.42 Beta [Bld 139] - source file ed.asm - page 3 - 8/15/2019 9:14:33
+EDITOR Y23VO
+
+
+     121/    C07A : 22 39 0D            	LD	(RAMEZ),HL
+     122/    C07D : 22 3D 0D            	LD	(ZEZL1),HL
+     123/    C080 : 3E 03               	LD 	A,ETX 		; ENDE SETZEN
+     124/    C082 : 77                  	LD 	(HL),A
+     125/    C083 : 21 7D C1            	LD 	HL,SOM
+     126/    C086 : CD 28 01            	CALL	STR
+     127/    C089 : CD 18 05            	CALL 	PCHK
+     128/    C08C : C8                  	RET	Z
+     129/    C08D : CD DC 04            	CALL	PA0
+     130/    C090 : 22 3B 0D            	LD	(RAMAZ),HL
+     131/    C093 : C9                  	RET
+     132/    C094 :                     
+     133/    C094 :                     ;AUSGABE ALLER ZElLEN AUF KANAL LO
+     134/    C094 :                     PRINT:
+     135/    C094 : CD BE C2            	CALL	CRLF
+     136/    C097 : 2A 39 0D            	LD 	HL,(RAMEZ)
+     137/    C09A : 7E                  P1:	LD	A,(HL)
+     138/    C09B : FE 03               	CP 	ETX
+     139/    C09D : C8                  	RET	Z		;END OF FILE
+     140/    C09E : FE 1E               	CP	NL		;NEW LINE
+     141/    C0A0 : CC AA C0            	CALL	Z,P3		;UMWANDELN
+     142/    C0A3 : 2B                  	DEC	HL
+     143/    C0A4 : 4F                  	LD	C,A
+     144/    C0A5 : CD EC 00            	CALL	LO
+     145/    C0A8 : 18 F0               	JR	P1
+     146/    C0AA : 0E 0D               P3:	LD	C,CR
+     147/    C0AC : CD EC 00            	CALL	LO
+     148/    C0AF : 3E 0A               	LD	A,LF
+     149/    C0B1 : C9                  	RET
+     150/    C0B2 :                     
+     151/    C0B2 :                     
+     152/    C0B2 :                     ;LESEN BIS ENDE VON KANAL RI
+     153/    C0B2 :                     
+     154/    C0B2 :                     READ:
+     155/    C0B2 : 2A 3D 0D            	LD	HL,(ZEZL1)
+     156/    C0B5 : 23                  	INC	HL
+     157/    C0B6 : 2B                  R1:	DEC	HL
+     158/    C0B7 : CD 9D C1            	CALL	KOPU
+     159/    C0BA : CD E3 00            R2:	CALL	RI
+     160/    C0BD : E6 7F               	AND	7FH
+     161/    C0BF : FE 0D               	CP	CR
+     162/    C0C1 : 28 0D               	JR	Z,LZNL
+     163/    C0C3 : FE 0A               	CP	LF
+     164/    C0C5 : 28 09               	JR	Z,LZNL
+     165/    C0C7 : 77                  R3:	LD	(HL),A
+     166/    C0C8 : FE 03               	CP	ETX		;TEXTENDE
+     167/    C0CA : 20 EA               	JR	NZ,R1
+     168/    C0CC : 22 3D 0D            	LD	(ZEZL1),HL
+     169/    C0CF : C9                  	RET
+     170/    C0D0 :                     
+     171/    C0D0 :                     
+     172/    C0D0 :                     
+     173/    C0D0 :                     ;PRUEFEN LETZTES ZEICHEN NL=?
+     174/    C0D0 :                     ;J:CR,LF UEBERLESEN
+     175/    C0D0 :                     ;N:CR,LF UMWANDELN
+     176/    C0D0 : 23                  LZNL:	INC	HL
+     177/    C0D1 : 7E                  	LD	A,(HL)
+     178/    C0D2 : 2B                  	DEC	HL
+     179/    C0D3 : FE 1E               	CP	1EH
+     180/    C0D5 : 28 E3               	JR	Z,R2
+ AS V1.42 Beta [Bld 139] - source file ed.asm - page 4 - 8/15/2019 9:14:33
+EDITOR Y23VO
+
+
+     181/    C0D7 : 3E 1E               	LD	A,1EH		;CR O. LF ERSETZEN
+     182/    C0D9 : 18 EC               	JR	R3
+     183/    C0DB :                     
+     184/    C0DB :                     
+     185/    C0DB :                     
+     186/    C0DB :                     ;AUSGABE EINER ANZAHL ZEICHEEN AUF KANAL WO
+     187/    C0DB :                     ;MIT AUSGABE ENDE-ZEICHEN
+     188/    C0DB :                     WRITE:
+     189/    C0DB : CD 18 05            	CALL	PCHK
+     190/    C0DE : 38 15               	JR	C,W1		;ALLE
+     191/    C0E0 : CD DC 04            	CALL	PA0
+     192/    C0E3 : EB                  W2:	EX	DE,HL
+     193/    C0E4 : CD FA C0            W3:	CALL	W1Z
+     194/    C0E7 : FE 03               	CP	ETX		;TEXTENDE
+     195/    C0E9 : C8                  	RET	Z
+     196/    C0EA : 1B                  	DEC	DE
+     197/    C0EB : 7B                  	LD	A,E
+     198/    C0EC : B2                  	OR	D
+     199/    C0ED : 20 F5               	JR	NZ,W3
+     200/    C0EF : 0E 03               	LD	C,ETX		;ENDE SETZEN
+     201/    C0F1 : CD E9 00            	CALL	WO
+     202/    C0F4 : C9                  	RET
+     203/    C0F5 : 21 FF FF            W1:	LD	HL,0FFFFH
+     204/    C0F8 : 18 E9               	JR	W2
+     205/    C0FA :                     
+     206/    C0FA :                     
+     207/    C0FA :                     ;AUSGABE EINER ZEILE AUF KANAL WO
+     208/    C0FA :                     ;IN: (ZEZL1)
+     209/    C0FA :                     ;OUT:(ZEZL1)-ZEILENLAENGE
+     210/    C0FA :                     
+     211/    C0FA :                     W1Z:
+     212/    C0FA : 2A 3D 0D            	LD	HL,(ZEZL1)
+     213/    C0FD : 23                  	INC	HL
+     214/    C0FE : 2B                  W1Z1:	DEC	HL
+     215/    C0FF : 7E                  	LD	A,(HL)
+     216/    C100 : F5                  	PUSH	AF
+     217/    C101 : 4F                  	LD	C,A
+     218/    C102 : CD E9 00            	CALL	WO
+     219/    C105 : F1                  	POP	AF
+     220/    C106 : FE 03               	CP	ETX		;TEXTENDE
+     221/    C108 : C8                  	RET	Z
+     222/    C109 : FE 1E               	CP	NL		;ZEILENENDE
+     223/    C10B : 20 F1               	JR	NZ,W1Z1
+     224/    C10D : 2B                  	DEC	HL
+     225/    C10E : 22 3D 0D            	LD	(ZEZL1),HL
+     226/    C111 : C9                  	RET
+     227/    C112 :                     
+     228/    C112 :                     ;AUSGABE EINER ANZAHL ZEILEN AUF BILDSCHIRM
+     229/    C112 :                     ;MIT EINSTELLUNG (ZEZL1)
+     230/    C112 :                     
+     231/    C112 :                     DISPL:
+     232/    C112 : CD 18 05            D4:	CALL	PCHK
+     233/    C115 : D8                  	RET	C		;ENDE BEI CR
+     234/    C116 : 28 0F               	JR	Z,DSPL1		;EINZELN BEI LEERZEICHEN
+     235/    C118 : CD DC 04            	CALL	PA0
+     236/    C11B : CD 2F C1            DSPL2:	CALL	DISP1
+     237/    C11E : FE 03               	CP	ETX		;ENDE ?
+     238/    C120 : C8                  	RET	Z
+     239/    C121 : 2B                  	DEC	HL
+     240/    C122 : 7D                  	LD	A,L
+ AS V1.42 Beta [Bld 139] - source file ed.asm - page 5 - 8/15/2019 9:14:33
+EDITOR Y23VO
+
+
+     241/    C123 : B4                  	OR	H
+     242/    C124 : 20 F5               	JR	NZ,DSPL2
+     243/    C126 : C9                  	RET
+     244/    C127 :                     
+     245/    C127 :                     ;AUSGABE ZEILENWEISE BEI LEERZEICHEN
+     246/    C127 : CD 2F C1            DSPL1: 	CALL 	DISP1
+     247/    C12A : FE 03               	CP	ETX
+     248/    C12C : 20 E4               	JR	NZ,D4
+     249/    C12E : C9                  	RET
+     250/    C12F :                     
+     251/    C12F :                     
+     252/    C12F :                     
+     253/    C12F :                     ;DISPLAY FUER EINE ZEILE
+     254/    C12F :                     ;IN: (ZEZL1)=AKT. ZEICHEN
+     255/    C12F :                     ;OUT:(ZEZL1+1ZEILE),A=1EH ODER 4
+     256/    C12F :                     DISP1:
+     257/    C12F : C5                  	PUSH	BC
+     258/    C130 : E5                  	PUSH	HL
+     259/    C131 : CD BE C2            	CALL	CRLF
+     260/    C134 : 21 C0 FF            	LD	HL,BRAM+960	;UNTERSTE BILDSCH.-ZEILE
+     261/    C137 : 22 F1 0F            	LD	(CURS),HL
+     262/    C13A : 2A 3D 0D            	LD	HL,(ZEZL1)
+     263/    C13D : 7E                  D1:	LD	A,(HL)
+     264/    C13E : FE 03               	CP	ETX
+     265/    C140 : 28 12               	JR	Z,D2		;END OF FILE
+     266/    C142 : 2B                  	DEC	HL
+     267/    C143 : CD 9D C1            	CALL	KOPU
+     268/    C146 : FE 1E               	CP	NL
+     269/    C148 : F5                  	PUSH	AF
+     270/    C149 : 4F                  	LD	C,A
+     271/    C14A : C4 E6 00            	CALL	NZ,CO
+     272/    C14D : 79                  	LD	A,C
+     273/    C14E : F1                  	POP	AF
+     274/    C14F : 20 EC               	JR	NZ,D1
+     275/    C151 : 22 3D 0D            	LD	(ZEZL1),HL
+     276/    C154 : E1                  D2:	POP	HL
+     277/    C155 : C1                  	POP	BC
+     278/    C156 : C9                  	RET
+     279/    C157 :                     
+     280/    C157 :                     
+     281/    C157 :                     ;TEXTE
+     282/    C157 : 0D                  ATEXT:	DB	CR
+     283/    C158 : 0A                  	DB	LF
+     284/    C159 : 54 45 20 30 31      	DB	"TE 01"
+     285/    C15E : 0D                  	DB	CR
+     286/    C15F : 0A                  	DB	LF
+     287/    C160 : 4E 45 57 3F 20 20   	DB	"NEW?  (N)"
+                    28 4E 29 
+     288/    C169 : 00                  	DB	0
+     289/    C16A : 0D                  EOM:	DB	CR
+     290/    C16B : 0A                  	DB	LF
+     291/    C16C : 45 4E 44 20 4F 46   	DB	"END OF MEMORY?  "
+                    20 4D 45 4D 4F 52 
+                    59 3F 20 20 
+     292/    C17C : 00                  	DB	0
+     293/    C17D : 0D                  SOM:	DB	CR
+     294/    C17E : 0A                  	DB	LF
+     295/    C17F : 53 54 41 52 54 20   	DB	"START OF MEMORY?"
+                    4F 46 20 4D 45 4D 
+                    4F 52 59 3F 
+ AS V1.42 Beta [Bld 139] - source file ed.asm - page 6 - 8/15/2019 9:14:33
+EDITOR Y23VO
+
+
+     296/    C18F : 00                  	DB	0
+     297/    C190 : 0D                  PIONT:	DB	CR
+     298/    C191 : 0A                  	DB	LF
+     299/    C192 : 3E 3E 20            	DB	">> "
+     300/    C195 : 00                  	DB	0
+     301/    C196 :                     
+     302/    C196 :                     
+     303/    C196 :                     
+     304/    C196 :                     ;ZEICHENZAEHLER RUECKSTELLEN
+     305/    C196 :                     ;IN: (ZEZL1)=AKT.
+     306/    C196 :                     ;OUT: (ZEZL1)=(RAMEZ)
+     307/    C196 :                     TOP:
+     308/    C196 : 2A 39 0D            	LD	HL,(RAMEZ)
+     309/    C199 : 22 3D 0D            	LD	(ZEZL1),HL
+     310/    C19C : C9                  	RET
+     311/    C19D :                     
+     312/    C19D :                     
+     313/    C19D :                     
+     314/    C19D :                     ;KONTROLLRECHNUNG PUFFER
+     315/    C19D :                     ;IN: <HL>=ZU PRUEFENDE ZEILE
+     316/    C19D :                     ;    <HL>-<RAMAZ>=>0 SONST FEHLER
+     317/    C19D :                     ;KILL: AF
+     318/    C19D :                     KOPU:
+     319/    C19D : E5                  	PUSH	HL
+     320/    C19E : D5                  	PUSH 	DE
+     321/    C19F : EB                  	EX 	DE,HL
+     322/    C1A0 : 2A 3B 0D            	LD 	HL,(RAMAZ)
+     323/    C1A3 : EB                  	EX 	DE,HL
+     324/    C1A4 : B7                  	OR	A
+     325/    C1A5 : ED 52               	SBC	HL,DE
+     326/    C1A7 : FC 41 C3            	CALL	M,E2 		;PUFFER VOLL
+     327/    C1AA : D1                  	POP	DE
+     328/    C1AB : E1                  	POP	HL
+     329/    C1AC : C9                  	RET
+     330/    C1AD :                     
+     331/    C1AD :                     
+     332/    C1AD :                     
+     333/    C1AD :                     ;EDIT-KOMMANDO
+     334/    C1AD :                     EDIT:
+     335/    C1AD :                     ;AKTUELLEZE ILE IN ANZEIGE
+     336/    C1AD : CD 2F C1            ED1:	CALL	DISP1
+     337/    C1B0 : FE 03               	CP	ETX
+     338/    C1B2 : C4 F8 C2            	CALL	NZ,ZLOE
+     339/    C1B5 : CD 3C 01            ED2: 	CALL	CIO
+     340/    C1B8 : FE 0D               	CP	CR
+     341/    C1BA : 28 25               	JR	Z,ED4
+     342/    C1BC : FE 1A               	CP	SUB
+     343/    C1BE : 28 2B               	JR	Z,ED5
+     344/    C1C0 : FE 0A               	CP	LF
+     345/    C1C2 : 28 18               	JR	Z,ED3		 ;NAECHSTE
+     346/    C1C4 : FE 7F               	CP	DEL
+     347/    C1C6 : CC C8 C2            	CALL	Z,PULOE 	;ANZEIGE LOESCHEN
+     348/    C1C9 : FE 04               	CP 	CTRLD 		;ZEILE DOPPELN
+     349/    C1CB : CC 1F C2            	CALL	Z,DUPL
+     350/    C1CE : FE 18               	CP	CAN
+     351/    C1D0 : 28 1E               	JR	Z,CHDEL
+     352/    C1D2 : FE 13               	CP	INS
+     353/    C1D4 : 28 2D               	JR	Z,CHINS
+     354/    C1D6 : 4F                  	LD	C,A
+     355/    C1D7 : CD E6 00            	CALL	CO
+ AS V1.42 Beta [Bld 139] - source file ed.asm - page 7 - 8/15/2019 9:14:33
+EDITOR Y23VO
+
+
+     356/    C1DA : 18 D9               	JR	ED2
+     357/    C1DC :                     
+     358/    C1DC :                     
+     359/    C1DC :                     ;AUSWERTUNG LF
+     360/    C1DC :                     ED3: 				;NEUE ZEILE
+     361/    C1DC : CD E1 C1            	CALL	ED4
+     362/    C1DF : 18 CC               	JR	ED1
+     363/    C1E1 :                     
+     364/    C1E1 :                     ;AUSWERTUNG CR,ENDE EDITKOMMANDO
+     365/    C1E1 : CD 37 C2            ED4:	CALL	LANG
+     366/    C1E4 : CD 42 C2            	CALL	MOVE
+     367/    C1E7 : CD DB C2            	CALL	APZP
+     368/    C1EA : C9                  	RET
+     369/    C1EB :                     ;
+     370/    C1EB :                     ;AUSWERTUNG CONTROL Z=SUB
+     371/    C1EB :                     ;ZEILEN EINFUEGEN
+     372/    C1EB :                     ED5:
+     373/    C1EB : CD E1 C1            	CALL	ED4
+     374/    C1EE : 18 C5               	JR	ED2
+     375/    C1F0 :                     
+     376/    C1F0 :                     
+     377/    C1F0 :                     ;AUSWERTUNG CONTROL X=CANCEL
+     378/    C1F0 :                     ;ZEICHEN AUF BILDSCHIRM LOESCHEN
+     379/    C1F0 :                     CHDEL:
+     380/    C1F0 : CD 37 C2            	CALL	LANG
+     381/    C1F3 : CD 30 C3            	CALL	REST
+     382/    C1F6 : 2A F1 0F            	LD	HL,(CURS)
+     383/    C1F9 : E5                  	PUSH	HL
+     384/    C1FA : D1                  	POP	DE
+     385/    C1FB : 23                  	INC	HL
+     386/    C1FC : ED B0               	LDIR
+     387/    C1FE : 3E 20               	LD	A,' '		;ENDE LOESCHEN
+     388/    C200 : 77                  	LD	(HL),A
+     389/    C201 : 18 B2               	JR	ED2
+     390/    C203 :                     
+     391/    C203 :                     ;AUSWERTUNG CONTROL S
+     392/    C203 :                     ;ZEICHEN AUF BILDSCHIRM EINFUEGEN
+     393/    C203 :                     CHINS:
+     394/    C203 : 2A F1 0F            	LD	HL,(CURS)
+     395/    C206 : E5                  	PUSH	HL
+     396/    C207 : 7E                  	LD 	A,(HL)
+     397/    C208 : E6 7F               	AND	7FH		;CURSOR LOESCHEN
+     398/    C20A : 77                  	LD	(HL),A
+     399/    C20B : CD 37 C2            	CALL	LANG
+     400/    C20E : CD 30 C3            	CALL	REST
+     401/    C211 : 21 FE FF            	LD	HL,BRAM+1022
+     402/    C214 : 11 FF FF            	LD	DE,BRAM+1023 
+     403/    C217 : ED B8               	LDDR
+     404/    C219 : E1                  	POP	HL
+     405/    C21A : 3E A0               	LD	A,0A0H		;CURSOR SETZEN
+     406/    C21C : 77                  	LD	(HL),A
+     407/    C21D : 18 96               	JR	ED2
+     408/    C21F :                     
+     409/    C21F :                     
+     410/    C21F :                     
+     411/    C21F :                     ;AUSWERTUNG CONTROL D
+     412/    C21F :                     ;ZEILE DOPPELN
+     413/    C21F :                     DUPL:
+     414/    C21F : C5                  	PUSH	BC
+     415/    C220 : D5                  	PUSH	DE
+ AS V1.42 Beta [Bld 139] - source file ed.asm - page 8 - 8/15/2019 9:14:33
+EDITOR Y23VO
+
+
+     416/    C221 : E5                  	PUSH	HL
+     417/    C222 : 21 80 FF            	LD	HL,BRAM+380H	;VORLETZTE ZEILE
+     418/    C225 : 11 C0 FF            	LD	DE,BRAM+3C0H	;LETZTE ZEILE
+     419/    C228 : 01 3E 00            	LD	BC,3EH		;LAENGE
+     420/    C22B : ED B0               	LDIR
+     421/    C22D : ED 53 F1 0F         	LD	(CURS),DE
+     422/    C231 : 3E 20               	LD	A,020H		;LEERZ.
+     423/    C233 : E1                  	POP	HL
+     424/    C234 : D1                  	POP	DE
+     425/    C235 : C1                  	POP	BC
+     426/    C236 : C9                  	RET
+     427/    C237 :                     
+     428/    C237 :                     
+     429/    C237 :                     
+     430/    C237 :                     ;ERMITTLUNG DER LAENGE ANZEIGEPUFFER
+     431/    C237 :                     ;IN: (CURS)=AKT.ZEILE
+     432/    C237 :                     ;OUT: A=LAENGE
+     433/    C237 : E5                  LANG:	PUSH	HL
+     434/    C238 : 2A F1 0F            	LD	HL,(CURS)
+     435/    C23B : 7D                  	LD	A,L
+     436/    C23C : 21 C0 FF            	LD	HL,BRAM+960	 ;ANFANG LETZTE BILDSCH.-ZEILE.
+     437/    C23F : 95                  	SUB	L
+     438/    C240 : E1                  	POP	HL
+     439/    C241 : C9                  	RET
+     440/    C242 :                     
+     441/    C242 :                     ;
+     442/    C242 :                     ;VERSCHIEBUNG PUPPERINHALT NACH UNTEN UM 1 ZEILE
+     443/    C242 :                     ;IN: A ZEILENLAENGE
+     444/    C242 :                     ;<BC> = ANZAHL BIS ENDE
+     445/    C242 :                     ;<DE> =ZIELADR.=ZEZL1-ANZAHL-ZEILENLAENGE
+     446/    C242 :                     ;<HL> = QUELLADRESSE=ZEZL1-ANZAHL
+     447/    C242 :                     MOVE:
+     448/    C242 : B7                  	OR	A		 ;SONDERFALL A=0
+     449/    C243 : C8                  	RET	Z
+     450/    C244 : E5                  	PUSH	HL
+     451/    C245 : D5                  	PUSH	DE
+     452/    C246 : C5                  	PUSH	BC
+     453/    C247 : F5                  	PUSH	AF
+     454/    C248 : 2A 3D 0D            	LD	HL,(ZEZL1)
+     455/    C24B : 01 00 00            	LD	BC,0
+     456/    C24E : 7E                  MOV1:	LD 	A,(HL)
+     457/    C24F : 2B                  	DEC	HL
+     458/    C250 : FE 03               	CP	ETX
+     459/    C252 : 03                   	INC	BC
+     460/    C253 : 20 F9               	JR	NZ,MOV1
+     461/    C255 : 23                  	INC	HL
+     462/    C256 : E5                  	PUSH	HL		 ;<HL>=TEXTENDE
+     463/    C257 : D1                  	POP	DE
+     464/    C258 :                     ;BERECHNUNG ZIELADRESSE
+     465/    C258 : F1                  	POP	AF
+     466/    C259 : C5                  	PUSH	BC
+     467/    C25A : 06 00               	LD	B,0
+     468/    C25C : 4F                  	LD	C,A
+     469/    C25D : 0C                  	INC	C		;PLATZ F.1EH
+     470/    C25E : B7                  	OR	A
+     471/    C25F : ED 42               	SBC	HL,BC
+     472/    C261 : CD 9D C1            	CALL	KOPU
+     473/    C264 : C1                  	POP	BC
+     474/    C265 : EB                  	EX	DE,HL		;ZIEL/QUELLE
+     475/    C266 : ED B0               	LDIR
+ AS V1.42 Beta [Bld 139] - source file ed.asm - page 9 - 8/15/2019 9:14:33
+EDITOR Y23VO
+
+
+     476/    C268 : C1                  	POP	BC
+     477/    C269 : D1                  	POP	DE
+     478/    C26A : E1                  	POP	HL
+     479/    C26B : C9                  	RET
+     480/    C26C :                     
+     481/    C26C :                     
+     482/    C26C :                     
+     483/    C26C :                     
+     484/    C26C :                     
+     485/    C26C :                     
+     486/    C26C :                     ;GO ZEILENNUMMER
+     487/    C26C :                     GO:
+     488/    C26C : CD 18 05            	CALL	PCHK
+     489/    C26F : 38 2C               	JR	C,G8		;ALLE
+     490/    C271 : C8                  	RET	Z
+     491/    C272 : CD DC 04            	CALL	PA0		;ANZAHL IN HL
+     492/    C275 : ED 5B 3D 0D         G7:	LD	DE,(ZEZL1)
+     493/    C279 : EB                  	EX	DE,HL
+     494/    C27A : CD AE C2            G1:	CALL	G1Z		;GO 1 ZEILE
+     495/    C27D : D8                  	RET	C		;ENDE
+     496/    C27E : 1B                  	DEC	DE
+     497/    C27F : 7B                  	LD	A,E
+     498/    C280 : B2                  	OR	D
+     499/    C281 : 20 F7               	JR	NZ,G1
+     500/    C283 : 22 3D 0D            G5:	LD	(ZEZL1),HL
+     501/    C286 : C9                  	RET
+     502/    C287 :                     
+     503/    C287 :                     UP:
+     504/    C287 : CD 18 05            	CALL	PCHK
+     505/    C28A : C8                  	RET	Z
+     506/    C28B : CD DC 04            	CALL	PA0
+     507/    C28E : ED 5B 3D 0D         	LD	DE,(ZEZL1)
+     508/    C292 : CD A2 C2            G4:	CALL	G1ZZ
+     509/    C295 : 2B                  	DEC	HL
+     510/    C296 : 7D                  	LD	A,L
+     511/    C297 : B4                  	OR	H
+     512/    C298 : 20 F8               	JR	NZ,G4
+     513/    C29A : EB                  	EX	DE,HL
+     514/    C29B : 18 E6               	JR	G5
+     515/    C29D :                     
+     516/    C29D : 21 FF FF            G8:	LD	HL,0FFFFH	;ALLE
+     517/    C2A0 : 18 D3               	JR	G7
+     518/    C2A2 :                     
+     519/    C2A2 :                     ;GO 1 ZEILE ZURUECK
+     520/    C2A2 :                     ;IN: HL= AKT. PUFFERZELLE
+     521/    C2A2 :                     ;OUT: A=1EH AM PUFFERENDE
+     522/    C2A2 : 13                  G1ZZ:	INC	DE
+     523/    C2A3 : 13                  G6:	INC	DE
+     524/    C2A4 : 1A                  	LD	A,(DE)
+     525/    C2A5 : CD 1C C3            	CALL	TEPUE
+     526/    C2A8 : FE 1E               	CP	NL
+     527/    C2AA : 20 F7               	JR	NZ,G6
+     528/    C2AC : 1B                  	DEC	DE
+     529/    C2AD : C9                  	RET
+     530/    C2AE :                     
+     531/    C2AE :                     
+     532/    C2AE :                     ;GO 1 ZEILE
+     533/    C2AE :                     ;OUT: CY=1 BEI EOF
+     534/    C2AE : 7E                  G1Z:	LD	A,(HL)
+     535/    C2AF : FE 03               	CP	ETX
+ AS V1.42 Beta [Bld 139] - source file ed.asm - page 10 - 8/15/2019 9:14:33
+EDITOR Y23VO
+
+
+     536/    C2B1 : 28 09               	JR	Z,G1Z1
+     537/    C2B3 : 2B                  	DEC	HL
+     538/    C2B4 : CD 9D C1            	CALL	KOPU
+     539/    C2B7 : FE 1E               	CP	NL
+     540/    C2B9 : 20 F3               	JR	NZ,G1Z
+     541/    C2BB : C9                  	RET
+     542/    C2BC :                     
+     543/    C2BC : 37                  G1Z1:	SCF
+     544/    C2BD : C9                  	RET
+     545/    C2BE :                     
+     546/    C2BE :                     
+     547/    C2BE : F5                  CRLF:	PUSH	AF		;AUSGABE NEUE ZEILE BILDSCHIRM
+     548/    C2BF : C5                  	PUSH	BC
+     549/    C2C0 : 0E 1E               	LD	C,NL
+     550/    C2C2 : CD E6 00            	CALL	CO
+     551/    C2C5 : C1                  	POP	BC
+     552/    C2C6 : F1                  	POP	AF
+     553/    C2C7 : C9                  	RET
+     554/    C2C8 :                     
+     555/    C2C8 :                     
+     556/    C2C8 :                     
+     557/    C2C8 :                     ;ANZEIGE LOESCHEN
+     558/    C2C8 :                     PULOE:
+     559/    C2C8 : C5                  	PUSH	BC
+     560/    C2C9 : E5                  	PUSH	HL
+     561/    C2CA : 06 41               	LD	B,41H
+     562/    C2CC : 3E 20               	LD	A,' '
+     563/    C2CE : 21 BF FF            	LD	HL,BRAM+959	;LETZTE BILDZEILE-1ZEICH.
+     564/    C2D1 : 22 F1 0F            	LD	(CURS),HL
+     565/    C2D4 : 77                  PUL1:	LD	(HL),A	
+     566/    C2D5 : 23                  	INC	HL
+     567/    C2D6 : 10 FC               	DJNZ	PUL1
+     568/    C2D8 : E1                  	POP	HL
+     569/    C2D9 : C1                  	POP	BC
+     570/    C2DA : C9                  	RET
+     571/    C2DB :                     
+     572/    C2DB :                     
+     573/    C2DB :                     ;BILDSCH.IN ZEICHENPUFFER UEBERTRAGEN
+     574/    C2DB :                     ;IN:  A=LAENGE
+     575/    C2DB :                     APZP:
+     576/    C2DB : B7                  	OR	A
+     577/    C2DC : C8                  	RET	Z
+     578/    C2DD : C5                  	PUSH	BC
+     579/    C2DE : 47                  	LD	B,A
+     580/    C2DF : 11 C0 FF            	LD	DE,BRAM+960	;LETZTE BILDSCH.-ZEILE
+     581/    C2E2 : 2A 3D 0D            	LD	HL,(ZEZL1)	;ZIEL
+     582/    C2E5 : 1A                  APZP1:	LD	A,(DE)
+     583/    C2E6 : E6 7F               	AND	7FH		;CURSOR AUSBLENDEN
+     584/    C2E8 : 77                  	LD	(HL),A
+     585/    C2E9 : 13                  	INC	DE
+     586/    C2EA : 2B                  	DEC	HL
+     587/    C2EB : 10 F8               	DJNZ	APZP1
+     588/    C2ED : 36 1E               	LD	(HL),NL
+     589/    C2EF : 2B                  	DEC	HL
+     590/    C2F0 : 22 3D 0D            	LD	(ZEZL1),HL
+     591/    C2F3 : CD BE C2            	CALL	CRLF
+     592/    C2F6 : C1                  	POP	BC
+     593/    C2F7 : C9                  	RET
+     594/    C2F8 :                     
+     595/    C2F8 :                     ;1 ZEILE IM PUFFER LOESCHEN
+ AS V1.42 Beta [Bld 139] - source file ed.asm - page 11 - 8/15/2019 9:14:33
+EDITOR Y23VO
+
+
+     596/    C2F8 :                     ;IN: <ZEZL1>=ANFANG NAECHSTE ZEILE
+     597/    C2F8 :                     ;NAECHSTER SPEICHERPLATZ 1EH
+     598/    C2F8 :                     ZLOE:
+     599/    C2F8 : F5                  	PUSH	AF
+     600/    C2F9 : C5                  	PUSH	BC
+     601/    C2FA : D5                  	PUSH	DE
+     602/    C2FB : E5                  	PUSH	HL
+     603/    C2FC : 2A 3D 0D            	LD	HL,(ZEZL1)
+     604/    C2FF : E5                  	PUSH	HL
+     605/    C300 :                     ;BERECHNUNG ANZAHL,-> BC
+     606/    C300 : 01 00 00            	LD	BC,0
+     607/    C303 : 3E 03               	LD	A,ETX
+     608/    C305 : 56                  ZL1: 	LD	D,(HL)
+     609/    C306 : 03                  	INC	BC
+     610/    C307 : 2B                  	DEC	HL
+     611/    C308 : BA                  	CP	D
+     612/    C309 : 20 FA               	JR	NZ,ZL1
+     613/    C30B : E1                  	POP	HL
+     614/    C30C : E5                  	PUSH	HL
+     615/    C30D : D1                  	POP	DE		;<HL>=<ZEZL1>
+     616/    C30E :                     ;EINSTELLUNG DE AUF ZIELADRESSE
+     617/    C30E : CD A2 C2            	CALL	G1ZZ
+     618/    C311 : ED 53 3D 0D         	LD	(ZEZL1),DE
+     619/    C315 : ED B8               	LDDR
+     620/    C317 : E1                  	POP	HL
+     621/    C318 : D1                  	POP	DE
+     622/    C319 : C1                  	POP	BC
+     623/    C31A : F1                  	POP	AF
+     624/    C31B : C9                  	RET
+     625/    C31C :                     
+     626/    C31C :                     ;TEST PUFFERENDE
+     627/    C31C : E5                  TEPUE:	PUSH	HL
+     628/    C31D : 2A 39 0D            	LD	HL,(RAMEZ)
+     629/    C320 : B7                  	OR	A
+     630/    C321 : ED 52               	SBC	HL,DE
+     631/    C323 : FC 28 C3            	CALL	M,TEP1
+     632/    C326 : E1                  	POP	HL
+     633/    C327 : C9                  	RET
+     634/    C328 :                     
+     635/    C328 :                     TEP1:
+     636/    C328 : ED 5B 39 0D         	LD	DE,(RAMEZ)
+     637/    C32C : 13                  	INC	DE
+     638/    C32D : 3E 1E               	LD	A,NL		;PUFFERENDE
+     639/    C32F : C9                  	ReT
+     640/    C330 :                     
+     641/    C330 :                     
+     642/    C330 :                     REST:
+     643/    C330 :                     ;IN: A - LABNGE
+     644/    C330 :                     ;OUT: B=0,C=ANZAHL BIS ZEILENENDE
+     645/    C330 :                     
+     646/    C330 : F5                  	PUSH	AF
+     647/    C331 : 47                  	LD	B,A
+     648/    C332 : 3E 3F               	LD	A,3FH
+     649/    C334 : 90                  	SUB	B
+     650/    C335 : 06 00               	LD	B,0
+     651/    C337 : 4F                  	LD	C,A
+     652/    C338 : F1                  	POP	AF
+     653/    C339 : C9                  	RET
+     654/    C33A :                     
+     655/    C33A :                     
+ AS V1.42 Beta [Bld 139] - source file ed.asm - page 12 - 8/15/2019 9:14:33
+EDITOR Y23VO
+
+
+     656/    C33A :                     ;FEHLERMELDUNGEN
+     657/    C33A :                     
+     658/    C33A : 21 45 31            E1:	LD	HL,3145H	;KOMMANDOFEHLER
+     659/    C33D : 22 FE FF            ERA:	LD	(BRAM+1022),HL	;PLATZ FEHLERANZEIGE
+     660/    C340 : C9                  	RET
+     661/    C341 :                     
+     662/    C341 : 21 45 32            E2:	LD	HL,3245H	;PUFFER VOLL
+     663/    C344 : CD 3D C3            	CALL	ERA
+     664/    C347 : 2A 3B 0D            	LD	HL,(RAMAZ)
+     665/    C34A : 36 03               	LD	(HL),ETX
+     666/    C34C : C3 38 00            	JP	ERROR
+     667/    C34F :                     
+     668/    C34F : 21 45 33            E3:	LD	HL,3345H	;ADRESSE O.PARAMETER FALSCH
+     669/    C352 : 18 E9               	JR	ERA
+     670/    C354 :                     
+     671/    C354 :                     
+     672/    C354 :                     ;SYSTEMTABELLE
+     673/    C354 :                     
+     674/    C354 :                     STAB:
+     675/    C354 : FF 7F               	DW	RAME 		;RAMENDE
+     676/    C356 : 00 40               	DW	RAMA		;RAMANFANG
+     677/    C358 : FF 7F               	DW	RAME		;RAM-ZUWEISUNG
+     678/    C35A : =6H                 LSTAB:	EQU $-STAB
+     679/    C35A :                     
+     680/    C35A :                     
+     681/    C35A :                     
+     682/    C35A :                     
+     683/     D39 :                     	ORG	SRAM
+     684/     D39 :                     
+     685/     D39 :                     RAMEZ:	DS	2		;RAMENDEZELLE
+     686/     D3B :                     RAMAZ:	DS	2		;RAMANFANG
+     687/     D3D :                     ZEZL1:	DS	2		; RAME  ;ZEICHENZAEHLER1
+     688/     D3F :                     	END	
+ AS V1.42 Beta [Bld 139] - source file ed.asm - page 13 - 8/15/2019 9:14:33
+EDITOR Y23VO
+
+
+  symbol table (* = unused):
+  ------------------------
+
+ APZP :                        C2DB C |  APZP1 :                       C2E5 C |
+*ARCHITECTURE :  i386-unknown-win32 - |  ASGN :                        C06D C |
+ ATEXT :                       C157 C | *BIGENDIAN :                      0 - |
+ BRAM :                        FC00 - | *BRANCHEXT :                      0 - |
+ CAN :                           18 - | *CASESENSITIVE :                  0 - |
+ CHDEL :                       C1F0 C |  CHINS :                       C203 C |
+ CIO :                          13C - |  CO :                            E6 - |
+*CONSTPI :        3.141592653589793 - |  CR :                             D - |
+ CRLF :                        C2BE C |  CTRLD :                          4 - |
+ CURS :                         FF1 - |  D1 :                          C13D C |
+ D2 :                          C154 C |  D4 :                          C112 C |
+*DATE :                   8/15/2019 - |  DEL :                           7F - |
+ DISP1 :                       C12F C |  DISPL :                       C112 C |
+ DSPL1 :                       C127 C |  DSPL2 :                       C11B C |
+ DUPL :                        C21F C |  E1 :                          C33A C |
+ E2 :                          C341 C | *E3 :                          C34F C |
+ ED1 :                         C1AD C |  ED2 :                         C1B5 C |
+ ED3 :                         C1DC C |  ED4 :                         C1E1 C |
+ ED5 :                         C1EB C |  EDIT :                        C1AD C |
+ ENDE :                        C067 C |  EOM :                         C16A C |
+ ERA :                         C33D C |  ERROR :                         38 - |
+ ETX :                            3 - | *FALSE :                          0 - |
+ FCGA :                          7A - | *FULLPMMU :                       1 - |
+ G1 :                          C27A C |  G1Z :                         C2AE C |
+ G1Z1 :                        C2BC C |  G1ZZ :                        C2A2 C |
+ G4 :                          C292 C |  G5 :                          C283 C |
+ G6 :                          C2A3 C |  G7 :                          C275 C |
+ G8 :                          C29D C |  GO :                          C26C C |
+*HAS64 :                          1 - | *HASDSP :                         0 - |
+*HASFPU :                         0 - | *HASPMMU :                        0 - |
+*INEXTMODE :                      0 - |  INK :                          36B - |
+*INLWORDMODE :                    0 - | *INMAXMODE :                      0 - |
+ INS :                           13 - | *INSRCMODE :                      0 - |
+*INSUPMODE :                      0 - |  JPTBL :                       C03F C |
+ KOPU :                        C19D C |  LANG :                        C237 C |
+ LF :                             A - | *LISTON :                         1 - |
+ LKOM :                         352 - |  LO :                            EC - |
+ LSTAB :                          6 - |  LZNL :                        C0D0 C |
+*MACEXP :                         7 - | *MOMCPU :                        80 - |
+*MOMCPUNAME :                   Z80 - |  MOV1 :                        C24E C |
+ MOVE :                        C242 C | *NESTMAX :                      100 - |
+ NL :                            1E - |  NUL :                           FF - |
+ OUTK :                         38C - |  P1 :                          C09A C |
+ P3 :                          C0AA C |  PA0 :                          4DC - |
+*PACKING :                        0 - | *PADDING :                        1 - |
+ PCHK :                         518 - |  PIONT :                       C190 C |
+ PRINT :                       C094 C |  PUL1 :                        C2D4 C |
+ PULOE :                       C2C8 C |  R1 :                          C0B6 C |
+ R2 :                          C0BA C |  R3 :                          C0C7 C |
+ RAMA :                        4000 - |  RAMAZ :                        D3B C |
+ RAME :                        7FFF - |  RAMEZ :                        D39 C |
+ READ :                        C0B2 C | *RELAXED :                        0 - |
+ REST :                        C330 C |  RESTR :                       C022 C |
+ RI :                            E3 - |  SOM :                         C17D C |
+ SRAM :                         D39 - |  STAB :                        C354 C |
+ START :                       C028 C |  STR :                          128 - |
+ SUB :                           1A - |  TEP1 :                        C328 C |
+ AS V1.42 Beta [Bld 139] - source file ed.asm - page 14 - 8/15/2019 9:14:33
+EDITOR Y23VO
+
+
+ TEPUE :                       C31C C |  TI :                           10C - |
+*TIME :                     9:14:33 - |  TOP :                         C196 C |
+*TRUE :                           1 - |  UP :                          C287 C |
+*VERSION :                     142F - |  W1 :                          C0F5 C |
+ W1Z :                         C0FA C |  W1Z1 :                        C0FE C |
+ W2 :                          C0E3 C |  W3 :                          C0E4 C |
+ WO :                            E9 - |  WRITE :                       C0DB C |
+ ZEZL1 :                        D3D C |  ZL1 :                         C305 C |
+ ZLOE :                        C2F8 C |
+
+    131 symbols
+     29 unused symbols
+
+ AS V1.42 Beta [Bld 139] - source file ed.asm - page 15 - 8/15/2019 9:14:33
+EDITOR Y23VO
+
+
+  codepages:
+  ----------
+
+STANDARD (0 changed characters)
+
+
+0.02 seconds assembly time
+
+    689 lines source file
+      2 passes
+      0 errors
+      0 warnings

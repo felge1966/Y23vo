@@ -1,0 +1,995 @@
+ AS V1.42 Beta [Bld 139] - source file cbios.asm - page 1 - 8/26/2019 11:31:6
+
+
+       1/       0 :                     	;PN	CB
+       2/       0 :                     	
+       3/       0 :                     	cpu	z80
+       4/       0 :                     
+       5/       0 :                     	;TITL	"CBIOS Y23VO"
+       6/       0 :                     
+       7/       0 :                     ;DEFINITION VON KONSTANTEN
+       8/       0 :                     
+       9/       0 : =7CH                CFDC: 	EQU	7CH		;STEUERUNG FDC
+      10/       0 : =7DH                DFDC: 	EQU	7DH		;DATEN FDC
+      11/       0 : =78H                TC: 	EQU	78H		;TERMINAL COUNT (ENDE-IMPULS)
+      12/       0 : =FCH                PIOAD:	EQU	0FCH
+      13/       0 : =2H                 NDISK:	EQU	2		;ANZAHL LAUFWERKE,1 IM RAM SIMULIERT
+      14/       0 : =DH                 CR:	EQU	0DH
+      15/       0 : =AH                 LF:	EQU	0AH
+      16/       0 : =E200H              ROM:	EQU	0E200H		;60K RAM
+      17/       0 : =D400H              BDOS:	EQU	ROM-0E00H
+      18/       0 : =CC00H              CCP:	EQU	ROM-1600H
+      19/       0 : =7000H              RDSK:	EQU	7000H		;IM RAM SIMULIERTE FLOPPY
+      20/       0 : =F003H              MCSTS:	EQU	0F003H
+      21/       0 : =F13CH              CIO:	EQU	0F13CH
+      22/       0 : =F009H              MCO:	EQU	0F009H
+      23/       0 : =F00FH              MWO:	EQU	0F00FH
+      24/       0 : =F012H              MRI:	EQU	0F012H
+      25/       0 : =F400H              RESTR:	EQU	0F400H		;RESTART MONITOR
+      26/       0 : =F089H              ZS:	EQU	0F089H		;STRING-AUSGABE
+      27/       0 : =F128H              STR:	EQU	0F128H
+      28/       0 :                     
+      29/    E200 :                     	ORG	ROM
+      30/    E200 :                     
+      31/    E200 : C3 9B E2            	JP	BOOT 
+      32/    E203 : C3 CD E2            WBOTE:	JP     WBOOT
+      33/    E206 : C3 03 F0            	JP     MCSTS
+      34/    E209 : C3 3C F1            	JP     CIO  
+      35/    E20C : C3 09 F0            	JP     MCO  
+      36/    E20F : C3 53 E5            	JP     DRUCK
+      37/    E212 : C3 0F F0            	JP     MWO  
+      38/    E215 : C3 12 F0            	JP     MRI  
+      39/    E218 : C3 33 E2            	JP     HOME 
+      40/    E21B : C3 38 E2            	JP     SDISK
+      41/    E21E : C3 6B E2            	JP     STRCK
+      42/    E221 : C3 66 E2            	JP     SSEC 
+      43/    E224 : C3 70 E2            	JP     SDMA 
+      44/    E227 : C3 53 E3            	JP     READ 
+      45/    E22A : C3 49 E3            	JP     WRITE
+      46/    E22D : C3 53 E2            	JP     LSTS 		;LISTER STATUS
+      47/    E230 : C3 54 E2            	JP     STRAN		;SECTOR TRANSFORMATION
+      48/    E233 :                     ;-----------------------------------------------------------
+      49/    E233 :                     ;KOPF AUF SPUR NULL STELLEN
+      50/    E233 : 01 00 00            HOME:	LD	BC,0
+      51/    E236 : 18 33               	JR	STRCK
+      52/    E238 :                     ;LAUFWERK AUSWAEHLEN
+      53/    E238 :                     ;IN:C LAUFWERK (A ODER B)
+      54/    E238 :                     ;OUT:HL DPH-VEKTOR
+      55/    E238 : 21 00 00            SDISK:	LD 	HL,0		;FEHLER
+      56/    E23B : C5                  	PUSH	BC
+      57/    E23C : 06 00               	LD	B,0
+      58/    E23E : 79                  	LD	A,C
+      59/    E23F : FE 01               	CP	NDISK-1
+      60/    E241 : =E240H              DISKS:	EQU $-1
+ AS V1.42 Beta [Bld 139] - source file cbios.asm - page 2 - 8/26/2019 11:31:6
+
+
+      61/    E241 : D2 00 F4            	JP	NC,RESTR	;FEHLER
+      62/    E244 : 69                  	LD	L,C
+      63/    E245 : 60                  	LD	H,B
+      64/    E246 : 29                  	ADD	HL,HL
+      65/    E247 : 29                  	ADD	HL,HL
+      66/    E248 : 29                  	ADD	HL,HL
+      67/    E249 : 29                  	ADD	HL,HL		;*16
+      68/    E24A : 11 15 E5            	LD	DE,DPBAS	;DPH-VECTOR 1.LW
+      69/    E24D : 19                  	ADD	HL,DE
+      70/    E24E : 32 04 00            	LD	(4),A
+      71/    E251 : C1                  	POP	BC
+      72/    E252 : C9                  	RET
+      73/    E253 : C9                  LSTS:	RET			;LISTER STATUS
+      74/    E254 : =E254H              STRAN:	EQU	$		;SECTOR TRANSFOR.
+      75/    E254 :                     ;IN: BC LOG. SECTOR
+      76/    E254 :                     ;    DE TABELLE
+      77/    E254 : 06 00               	LD	B,0
+      78/    E256 : 7A                  	LD 	A,D		;DE=0->KEINE TRANSF.
+      79/    E257 : B7                  	OR	A
+      80/    E258 : 20 04               	JR	NZ,STRN1
+      81/    E25A : 60                  	LD	H,B
+      82/    E25B : 69                  	LD	L,C
+      83/    E25C : 23                  	INC	HL
+      84/    E25D : C9                  	RET
+      85/    E25E : EB                  STRN1:	EX	DE,HL
+      86/    E25F : 09                  	ADD	HL,BC
+      87/    E260 : 7E                  	LD	A,(HL)		;NEUE NR.
+      88/    E261 : 32 12 F8            	LD	(SEC1),A
+      89/    E264 : 6F                  	LD	L,A
+      90/    E265 : C9                  	RET
+      91/    E266 :                     ;SECTOR EINSTELLEN
+      92/    E266 :                     ;IN: C SECTOR
+      93/    E266 :                     ;OUT: (SEC1) =C
+      94/    E266 : =E266H              SSEC:	EQU	$
+      95/    E266 : 21 12 F8            	LD	HL,SEC1
+      96/    E269 : 71                   	LD	(HL),C
+      97/    E26A : C9                  	RET
+      98/    E26B :                     ;SPUR ANWAEHLEN
+      99/    E26B :                     ;IN: C SPUR
+     100/    E26B :                     ;OUT (TRACK)=C
+     101/    E26B : =E26BH              STRCK:	EQU	$
+     102/    E26B : 21 02 F8            	LD	HL,TRACK
+     103/    E26E : 71                  	LD	(HL),C
+     104/    E26F : C9                  	RET
+     105/    E270 :                     ;DMA SETZEN
+     106/    E270 :                     ;IN: BC DMA
+     107/    E270 : ED 43 13 F8         SDMA:	LD	(DMA),BC
+     108/    E274 : C9                  	RET
+     109/    E275 :                     ;-----------------------------------------------------------
+     110/    E275 :                     ;CCP UND BDOS VON DEN ERSTEN SPUREN DER DISKETTE LADEN
+     111/    E275 : 0A                  MSGS	DB	0AH
+     112/    E276 : 0D                  	DB	0DH
+     113/    E277 : 59 32 33 56 4F 20   	DB	"Y23VO 56K CP/M 2.2"
+                    35 36 4B 20 43 50 
+                    2F 4D 20 32 2E 32 
+     114/    E289 : 0D                  	DB	0DH
+     115/    E28A : 0A                  	DB	0AH
+     116/    E28B : 52 41 4D 44 49 53   	DB	"RAMDISK ? (Y)"
+                    4B 20 3F 20 28 59 
+                    29 
+ AS V1.42 Beta [Bld 139] - source file cbios.asm - page 3 - 8/26/2019 11:31:6
+
+
+     117/    E298 : 0D                  	DB	0DH
+     118/    E299 : 0A                  	DB	0AH
+     119/    E29A : 00                  	DB	0
+     120/    E29B : =E29BH              BOOT:	EQU	$
+     121/    E29B : 3E C3               	LD	A,0C3H
+     122/    E29D : 32 00 00            	LD	(0),A
+     123/    E2A0 : 21 03 E2            	LD	HL,WBOTE
+     124/    E2A3 : 22 01 00            	LD	(1),HL
+     125/    E2A6 : 32 05 00            	LD	(5),A
+     126/    E2A9 : 21 06 D4            	LD	HL,BDOS+6
+     127/    E2AC : 22 06 00            	LD	(6),HL
+     128/    E2AF : 32 38 00            	LD	(38H),A		;HALTEPUNKT VORBEREITEN
+     129/    E2B2 : 21 00 F4            	LD	HL,RESTR
+     130/    E2B5 : 22 39 00            	LD	(39H),HL
+     131/    E2B8 : 21 75 E2            	LD	HL,MSGS
+     132/    E2BB : CD 28 F1            	CALL	STR
+     133/    E2BE : CD 3C F1            	CALL	CIO
+     134/    E2C1 : FE 59               	CP	'Y'
+     135/    E2C3 : CC 16 E3            	CALL	Z,IRDSK		;RAMDISK ERLAUBEN
+     136/    E2C6 : AF                  	XOR	A
+     137/    E2C7 : 32 03 00            	LD	(3),A		;IOBYTE
+     138/    E2CA : 32 04 00            	LD	(4),A
+     139/    E2CD : =E2CDH              WBOOT:	EQU	$		;LESEN DER SYSTEMSEKTOREN
+     140/    E2CD : 31 80 00            	LD	SP,80H
+     141/    E2D0 : CD F2 E3            	CALL	INIFD		;INITIALISIERUNG FLOPPY-CONTROLLER
+     142/    E2D3 : 0E 00               	LD	C,0		;LAUFWERK
+     143/    E2D5 : CD 38 E2            	CALL	SDISK
+     144/    E2D8 : 06 2C               	LD	B,2CH		;SECTORZAEHLER
+     145/    E2DA : 0E 00               	LD	C,0		;SPUR-NR.
+     146/    E2DC : CD 6B E2            	CALL	STRCK
+     147/    E2DF : 16 01               	LD	D,1		;SECTOR
+     148/    E2E1 : 21 00 CC            	LD	HL,CCP		;LADEZIEL
+     149/    E2E4 : C5                  LOAD1:	PUSH	BC		;NAECHSTEN SECTOR
+     150/    E2E5 : D5                  	PUSH	DE
+     151/    E2E6 : E5                  	PUSH	HL
+     152/    E2E7 : 4A                  	LD	C,D
+     153/    E2E8 : CD 66 E2            	CALL	SSEC		;NEUEN SECT.ANWAEHLEN
+     154/    E2EB : C1                  	POP	BC		;BC=LADEADRESSE
+     155/    E2EC : C5                  	PUSH	BC		;LADEADR RETTEN
+     156/    E2ED : CD 70 E2            	CALL	SDMA
+     157/    E2F0 : CD 5D E3            	CALL	RFLOP		;SYSTEM RAUFSCHREIBEN: WFLOP EINSETZEN
+     158/    E2F3 : FE 00               	CP	0		;FEHLER?
+     159/    E2F5 : C4 00 F4            	CALL	NZ,RESTR	;JA
+     160/    E2F8 : E1                  	POP	HL
+     161/    E2F9 : 11 80 00            	LD	DE,128
+     162/    E2FC : 19                  	ADD	HL,DE		;LADEADR.ERHOEHEN
+     163/    E2FD : D1                  	POP	DE
+     164/    E2FE : C1                  	POP	BC
+     165/    E2FF : 05                  	DEC	B		;SEKTORZAHL - 1
+     166/    E300 : 28 3A               	JR	Z,GOCPM
+     167/    E302 : 14                  	INC	D		;NAECHSTEN SECT.
+     168/    E303 : 7A                  	LD	A,D
+     169/    E304 : FE 21               	CP	21H		;LETZTER?
+     170/    E306 : 38 DC               	JR	C,LOAD1
+     171/    E308 : 16 01               	LD	D,1		;1.SECT.NAECHST.SPUR
+     172/    E30A : 0C                  	INC	C
+     173/    E30B : C5                  	PUSH	BC
+     174/    E30C : D5                  	PUSH	DE
+     175/    E30D : E5                  	PUSH	HL
+     176/    E30E : CD 6B E2            	CALL	STRCK
+ AS V1.42 Beta [Bld 139] - source file cbios.asm - page 4 - 8/26/2019 11:31:6
+
+
+     177/    E311 : E1                  	POP	HL
+     178/    E312 : D1                  	POP	DE
+     179/    E313 : C1                  	POP	BC
+     180/    E314 : 18 CE               	JR	LOAD1
+     181/    E316 :                     ;-----------------------------------------------------------
+     182/    E316 : 21 00 E2            IRDSK:  LD	HL,0E200H	;RAMDISK INITIALISIEREN
+     183/    E319 : 11 00 70            	LD	DE,RDSK		;RAM-DISK
+     184/    E31C : 01 33 00            	LD	BC,51
+     185/    E31F : ED B0               	LDIR
+     186/    E321 : 21 03 70            	LD	HL,7003H	;SPRUNG ZUM CCP
+     187/    E324 : 22 01 00            	LD	(1),HL
+     188/    E327 : 3E 02               	LD	A,2
+     189/    E329 : 32 40 E2            	LD	(DISKS),A
+     190/    E32C : 21 06 62            	LD	HL,6206H	;BDOS-SPRUNG
+     191/    E32F : 22 06 00            	LD	(6),HL
+     192/    E332 : 3E C3               	LD	A,0C3H
+     193/    E334 : 77                  	LD	(HL),A
+     194/    E335 : 21 06 D4            	LD	HL,BDOS+6
+     195/    E338 : 22 07 62            	LD	(6207H),HL
+     196/    E33B : C9                  	RET
+     197/    E33C :                     ;-----------------------------------------------------------
+     198/    E33C : 01 80 00            GOCPM:	LD	BC,80H
+     199/    E33F : CD 70 E2            	CALL	SDMA
+     200/    E342 : 3A 04 00            	LD	A,(4)		;AKTUELLES LAUFWERK HOLEN
+     201/    E345 : 4F                  	LD	C,A
+     202/    E346 : C3 00 CC            	JP	CCP
+     203/    E349 :                     ;-----------------------------------------------------------
+     204/    E349 : 3A 04 00            WRITE:	LD	A,(4)
+     205/    E34C : B7                  	OR	A
+     206/    E34D : 28 68               	JR	Z,WFLOP
+     207/    E34F : CD D5 E4            	CALL	WRDSK		;RAM-DISK
+     208/    E352 : C9                  	RET
+     209/    E353 : 3A 04 00            READ:	LD	A,(4)
+     210/    E356 : B7                  	OR	A
+     211/    E357 : 28 04               	JR	Z,RFLOP
+     212/    E359 : CD E5 E4            	CALL	RRDSK		;RAM-DISK
+     213/    E35C : C9                  	RET
+     214/    E35D :                     ;-----------------------------------------------------------
+     215/    E35D :                     ;FLOPPY LESEN MIT SEKTORAUFLOESUNG
+     216/    E35D :                     ;IN: SEC1,TRACK,DMA V. BDOS
+     217/    E35D :                     ;OUT: DMA/BDOS=1 /2ZDMA/FLOPPY
+     218/    E35D : E5                  RFLOP:	PUSH	HL
+     219/    E35E : D5                  	PUSH	DE
+     220/    E35F : C5                  	PUSH	BC
+     221/    E360 :                     ;VERGLEICH OB AUS PUFFER GELESEN WERDEN KANN
+     222/    E360 : 3E 46               	LD	A,46H		;LETZTE OPERATION LESEN ?
+     223/    E362 : 21 00 F8            	LD	HL,CTAB
+     224/    E365 : BE                  	CP	(HL)
+     225/    E366 : 20 33               	JR	NZ,RFLP
+     226/    E368 : 23                  	INC	HL
+     227/    E369 : 11 09 F8            	LD	DE,RESLT	;GLEICHES LAUFWERK ?
+     228/    E36C : 1A                  	LD	A,(DE)
+     229/    E36D : E6 03               	AND	3
+     230/    E36F : BE                  	CP	(HL)
+     231/    E370 : 20 29               	JR	NZ,RFLP
+     232/    E372 : 23                  	INC	HL		;GLEICHE SPUR ?
+     233/    E373 : 13                  	INC	DE
+     234/    E374 : 13                  	INC	DE
+     235/    E375 : 13                  	INC	DE
+     236/    E376 : 1A                  	LD	A,(DE)
+ AS V1.42 Beta [Bld 139] - source file cbios.asm - page 5 - 8/26/2019 11:31:6
+
+
+     237/    E377 : BE                  	CP	(HL)
+     238/    E378 : 20 21               	JR	NZ,RFLP
+     239/    E37A : 23                  	INC	HL		;KOPF ?
+     240/    E37B : 13                  	INC	DE
+     241/    E37C : 1A                  	LD	A,(DE)
+     242/    E37D : BE                  	CP	(HL)
+     243/    E37E : 20 1B               	JR	NZ,RFLP
+     244/    E380 : 23                  	INC	HL
+     245/    E381 : 3A 12 F8            	LD	A,(SEC1)	;HOSTSECTOR=BDOS/2
+     246/    E384 : 1F                  	RRA
+     247/    E385 : 38 14               	JR	C,RFLP		;UNGERADE
+     248/    E387 : BE                  	CP	(HL)
+     249/    E388 : 20 11               	JR	NZ,RFLP
+     250/    E38A :                     ;GLEICH, ALSO PUFFER LESEN, NICHT LAUFWERK
+     251/    E38A : 21 73 F9            	LD	HL,FDMA+80H	;QUELLE
+     252/    E38D : ED 5B 13 F8         	LD	DE,(DMA)	;ZIEL
+     253/    E391 : 01 80 00            	LD	BC,80H		;ANZAHL BYTES
+     254/    E394 : ED B0               	LDIR			;UEBERTRAGEN
+     255/    E396 : C1                  	POP	BC
+     256/    E397 : D1                  	POP	DE
+     257/    E398 : E1                  	POP	HL
+     258/    E399 : AF                  	XOR	A
+     259/    E39A : C9                  	RET
+     260/    E39B : CD D9 E3            RFLP:	CALL	TRANS		;SEKTOR LESEN + UMRECHNEN
+     261/    E39E : F5                  	PUSH	AF		;FEHLER R8272
+     262/    E39F : 21 F3 F8            	LD	HL,FDMA
+     263/    E3A2 : CB 48               	BIT	1,B
+     264/    E3A4 : 20 03               	JR	NZ,B2
+     265/    E3A6 : 21 73 F9            	LD	HL, FDMA+80H	;QUELLE
+     266/    E3A9 : ED 5B 13 F8         B2:	LD	DE,(DMA)	;ZIEL
+     267/    E3AD : 01 80 00            	LD	BC,80H
+     268/    E3B0 : ED B0               	LDIR
+     269/    E3B2 : F1                  	POP	AF
+     270/    E3B3 : C1                  	POP	BC
+     271/    E3B4 : D1                  	POP	DE
+     272/    E3B5 : E1                  	POP	HL
+     273/    E3B6 : C9                  	RET
+     274/    E3B7 :                     ;-----------------------------------------------------------
+     275/    E3B7 :                     ;FLOPPY SCHREIBEN MIT SEKTOR EINFUEGEN
+     276/    E3B7 : E5                  WFLOP:	PUSH	HL
+     277/    E3B8 : D5                  	PUSH	DE
+     278/    E3B9 : C5                  	PUSH	BC
+     279/    E3BA : CD D9 E3            	CALL	TRANS
+     280/    E3BD : B7                  	OR	A		;LESEFEHLER ?
+     281/    E3BE : 20 15               	JR	NZ,B4
+     282/    E3C0 : 11 F3 F8            	LD	DE,FDMA
+     283/    E3C3 : CB 48               	BIT	1,B
+     284/    E3C5 : 20 03               	JR	NZ,B3
+     285/    E3C7 : 11 73 F9            	LD	DE,FDMA+80H
+     286/    E3CA : 2A 13 F8            B3:	LD	HL,(DMA)
+     287/    E3CD : 01 80 00            	LD	BC,80H
+     288/    E3D0 : ED B0               	LDIR
+     289/    E3D2 : CD 25 E4            	CALL	W8272
+     290/    E3D5 : C1                  B4:	POP	BC
+     291/    E3D6 : D1                  	POP	DE
+     292/    E3D7 : E1                  	POP	HL
+     293/    E3D8 : C9                  	RET
+     294/    E3D9 :                     ;-----------------------------------------------------------
+     295/    E3D9 :                     ;SEKTORTUMRECHNUNG
+     296/    E3D9 :                     ;IN: BDOS-SEKTOR-NR IN SEC1
+ AS V1.42 Beta [Bld 139] - source file cbios.asm - page 6 - 8/26/2019 11:31:6
+
+
+     297/    E3D9 :                     ;OUT:FLOPPY-SEKTOR-NR IN SECTR
+     298/    E3D9 :                     ;    B=0 WENN VORDERER TEIL SONST HINTEREN AUSWERTEN
+     299/    E3D9 :                     ;    GELESENER FLOPPY-SECTOR IN BIOS-PUFFER FDMA
+     300/    E3D9 : =E3D9H              TRANS:	EQU	$
+     301/    E3D9 : 06 00               	LD	B,0
+     302/    E3DB : 3A 12 F8            	LD	A,(SEC1)	;BDOS-SEKTOR
+     303/    E3DE : B7                  	OR	A
+     304/    E3DF : 1F                  	RRA			;UNGERADE?, /2
+     305/    E3E0 : 30 07               	JR	NC,B1		;NEIN ·
+     306/    E3E2 : C6 01               	ADD	A,1
+     307/    E3E4 : DC 00 F4            	CALL	C,RESTR		;FEHLER
+     308/    E3E7 : 06 FF               	LD	B,0FFH		;KENNZEICHEN
+     309/    E3E9 : C5                  B1:	PUSH	BC
+     310/    E3EA : 32 04 F8            	LD	(SECTR),A
+     311/    E3ED : CD 2C E4            	CALL	R8272
+     312/    E3F0 : C1                  	POP	BC		;FLAG F.UNGERADE
+     313/    E3F1 : C9                  	RET
+     314/    E3F2 :                     ;-----------------------------------------------------------
+     315/    E3F2 :                     ;TREIBER MIT U8272
+     316/    E3F2 :                     ;-----------------------------------------------------------
+     317/    E3F2 : 06 00               INIFD:	LD	B,0		;INITIALISIERUNG P8272
+     318/    E3F4 : 10 FE               	DJNZ	INIFD+2
+     319/    E3F6 : DB 7C               	IN	A,(CFDC)
+     320/    E3F8 : FE 80               	CP	80H
+     321/    E3FA : 28 04               	JR	Z,SPEZI
+     322/    E3FC : DB 7D               	IN	A,(DFDC)
+     323/    E3FE : 18 F2               	JR	INIFD
+     324/    E400 : 21 22 E4            SPEZI:	LD	HL,STAB-1	;PARAMETER LADEN
+     325/    E403 : 01 03 03            	LD	BC,0303H	;SPECIFY-COMM 3BYTES
+     326/    E406 : CD 92 E4            	CALL	WCOM1		;SCHREIBEN COMM
+     327/    E409 : 01 07 02            RECAL:	LD	BC,0207H	;SPUR 0 EINSTELLEN
+     328/    E40C : CD 85 E4            	CALL	RDY		;DRIVE READY?
+     329/    E40F :                     ;-----------------------------------------------------------
+     330/    E40F : 01 08 01            SENSE:	LD	BC,0108H	;PRUEFE INTERRUPT STATUS
+     331/    E412 : CD 8F E4            	CALL	WCOM
+     332/    E415 : CD AC E4            	CALL	RBYTE		;RESULT REG 0:IC1,IC2,SE,EC,NR,HD,US1,US2
+     333/    E418 : 47                  	LD	B,A
+     334/    E419 : FE 80               	CP	80H
+     335/    E41B : C4 AC E4            	CALL	NZ,RBYTE	;PCN HOLEN
+     336/    E41E : CB 68               	BIT	5,B		;SEEK ENDE?
+     337/    E420 : 28 ED               	JR	Z,SENSE
+     338/    E422 : C9                  	RET
+     339/    E423 : 1F                  STAB:	DB	1FH		;XXXX=SRT,XXXX=HUT
+     340/    E424 : 33                  	DB	33H		;XXXXXXX=HLT,X=ND
+     341/    E425 :                     ;-----------------------------------------------------------
+     342/    E425 :                     ;SEKTOR SCHREIBEN/LESEN IN BETRIEBSART OHNE DMA-SCHALTKREIS
+     343/    E425 :                     ;SECTOR IN (SECTR)
+     344/    E425 :                     ;SPUR  IN (TRACK)
+     345/    E425 :                     ;AKT.LAUFWERK IN (UNIT)
+     346/    E425 :                     ;ZIEL-/QUELLADRESSE = FDMA
+     347/    E425 :                     ;KILL: A B DE HL
+     348/    E425 : 11                  W8272:	DB	11H		;CODE LD DE,...
+     349/    E426 : ED A3               	OUTI			;WRITE DATA
+     350/    E428 : 3E 45               	LD	A,045H		;SCHREIBKOMMANDO
+     351/    E42A : 18 05               	JR	RWIT
+     352/    E42C :                     ;-----------------------------------------------------------
+     353/    E42C : 11                  R8272:	DB	11H		;CODE LD DE,...
+     354/    E42D : ED A2               	INI
+     355/    E42F : 3E 46               	LD	A,046H		;LESEKOMMANDO
+     356/    E431 : 32 00 F8            RWIT:	LD	(CTAB),A
+ AS V1.42 Beta [Bld 139] - source file cbios.asm - page 7 - 8/26/2019 11:31:6
+
+
+     357/    E434 : ED 53 66 E4         	LD	(MODE),DE	;EINTRAGEN INI/OUTI-OP-CODE
+     358/    E438 : CD 75 E4            	CALL	SEEK
+     359/    E43B : 06 0A               RWLOP:	LD	B,10
+     360/    E43D : C5                  RWOP:	PUSH	BC
+     361/    E43E : F3                  	DI
+     362/    E43F : 06 09               	LD	B,9		;9COMMANDOBYTES
+     363/    E441 : 3A 00 F8            	LD	A,(CTAB)
+     364/    E444 : 4F                  	LD	C,A
+     365/    E445 : CD 85 E4            	CALL	RDY		;AUSGABE KOMMANDO
+     366/    E448 : 21 F3 F8            	LD	HL,FDMA
+     367/    E44B : 0E 7D               	LD	C,DFDC
+     368/    E44D : CD 5C E4            	CALL	RW
+     369/    E450 : D3 78               	OUT	(TC),A		;ENDE-IMPULS
+     370/    E452 : CD B5 E4            	CALL	RRSLT
+     371/    E455 : C1                  	POP	BC
+     372/    E456 : C8                  	RET	Z		;ST0=0=KEINE FEHLER
+     373/    E457 : 10 E4               	DJNZ	RWOP
+     374/    E459 : 3E 01               ERR:	LD	A,1
+     375/    E45B : C9                  	RET			;ERROR
+     376/    E45C :                     ;-----------------------------------------------------------
+     377/    E45C :                     ;SCHREIBEN ODER LESEN 256 BYTES
+     378/    E45C :                     ;IN: HL QUELLE ODER ZIEL
+     379/    E45C :                     ; C: DATENPORT
+     380/    E45C : =E45CH              RW:	EQU	$
+     381/    E45C : 06 00               	LD	B,0		;256 BYTES
+     382/    E45E : DB 7C               RW1:	IN	A,(CFDC)
+     383/    E460 : 07                  	RLCA			;RQM-TEST
+     384/    E461 : 30 FB               	JR	NC,RW1
+     385/    E463 : 07                  	RLCA			;DIO
+     386/    E464 : 07                  	RLCA			;NON-DMA
+     387/    E465 : D0                  	RET	NC		;FERTIG?
+     388/    E466 : ED A2               MODE:	INI			;INI BEI READ DATA SONST OUTI
+     389/    E468 : 20 F4               	JR	NZ,RW1
+     390/    E46A : C9                  	RET
+     391/    E46B :                     ;-----------------------------------------------------------
+     392/    E46B : 01 04 02            SDS:	LD	BC,0204H	;PRUEFE LAUFWERK STATUS
+     393/    E46E : CD 8F E4            	CALL	WCOM
+     394/    E471 : CD AC E4            	CALL	RBYTE		;STATUS REG 3:FAULT,WP,RDY,T0,TS,HD,US1,U
+     395/    E474 : C9                  	RET
+     396/    E475 :                     ;-----------------------------------------------------------
+     397/    E475 : 01 0F 03            SEEK:	LD	BC,030FH	;COMM SPUR EINSTELLEN
+     398/    E478 : CD 85 E4            	CALL	RDY
+     399/    E47B : CD 0F E4            	CALL	SENSE
+     400/    E47E : DB 7C               SKBSY:	IN	A,(CFDC)
+     401/    E480 : E6 0F               	AND	0FH
+     402/    E482 : 20 FA               	JR	NZ,SKBSY
+     403/    E484 : C9                  	RET
+     404/    E485 :                     ;-----------------------------------------------------------
+     405/    E485 : C5                  RDY:	PUSH	BC		;LAUFWERK BETRIEBSFAEHIG ?
+     406/    E486 : CD 6B E4            	CALL	SDS
+     407/    E489 : C1                  	POP	BC
+     408/    E48A : CB 6F               	BIT	5,A		;READY-BIT IN STATUSREG.3
+     409/    E48C : CC 00 F4            	CALL	Z,RESTR		;FEHLER
+     410/    E48F :                     ;-----------------------------------------------------------
+     411/    E48F : 21 00 F8            WCOM:	LD	HL,CTAB		;COMM IN FDC SCHREIBEN
+     412/    E492 :                     ;IN: B ANZAHL D. BYTES,C COMM
+     413/    E492 : CD A5 E4            WCOM1:	CALL	DELAY
+     414/    E495 : DB 7C               	IN	A,(CFDC)
+     415/    E497 : E6 C0               	AND	0C0H
+     416/    E499 : FE 80               	CP	80H		;RQM,DIO=OUT
+ AS V1.42 Beta [Bld 139] - source file cbios.asm - page 8 - 8/26/2019 11:31:6
+
+
+     417/    E49B : 20 F5               	JR	NZ,WCOM1
+     418/    E49D : 79                  	LD	A,C
+     419/    E49E : D3 7D               	OUT	(DFDC),A
+     420/    E4A0 : 23                  	INC	HL
+     421/    E4A1 : 4E                  	LD	C,(HL)
+     422/    E4A2 : 10 EE               	DJNZ	WCOM1
+     423/    E4A4 : C9                  	RET
+     424/    E4A5 :                     ;-----------------------------------------------------------
+     425/    E4A5 : C5                  DELAY:	PUSH	BC		;VERZOEGERUNG F.STATUSFLAG 8272
+     426/    E4A6 : 06 0F               	LD	B,0FH
+     427/    E4A8 : 10 FE               DEL1:	DJNZ	DEL1
+     428/    E4AA : C1                  	POP	BC
+     429/    E4AB : C9                  	RET
+     430/    E4AC :                     ;-----------------------------------------------------------
+     431/    E4AC : CD A5 E4            RBYTE:	CALL	DELAY		;1 BYTE LESEN
+     432/    E4AF : CD CB E4            	CALL	IRDY
+     433/    E4B2 : DB 7D               	IN	A,(DFDC)
+     434/    E4B4 : C9                  	RET
+     435/    E4B5 :                     ;-----------------------------------------------------------
+     436/    E4B5 : 06 06               RRSLT:	LD	B,6		;LESE 7 RESULT BYTES
+     437/    E4B7 : CD AC E4            	CALL	RBYTE
+     438/    E4BA : 21 09 F8            	LD	HL,RESLT
+     439/    E4BD : 77                  	LD	(HL),A
+     440/    E4BE : E6 C0               	AND	0C0H		;ERROR?
+     441/    E4C0 : 4F                  	LD	C,A
+     442/    E4C1 : CD AC E4            RESL1:	CALL	RBYTE
+     443/    E4C4 : 23                  	INC	HL
+     444/    E4C5 : 77                  	LD	(HL),A
+     445/    E4C6 : 10 F9               	DJNZ	RESL1
+     446/    E4C8 : 79                  	LD	A,C		;FEHLERMELDUNG STATUS REG 0
+     447/    E4C9 : B7                  	OR	A
+     448/    E4CA : C9                  	RET
+     449/    E4CB :                     ;-----------------------------------------------------------
+     450/    E4CB : DB 7C               IRDY:	IN	A,(CFDC)	;BEREIT F.DATENEINGABE ?
+     451/    E4CD : 07                  	RLCA
+     452/    E4CE : 30 FB               	JR	NC,IRDY
+     453/    E4D0 : E6 80               	AND	80H
+     454/    E4D2 : 07                  	RLCA
+     455/    E4D3 : D8                  	RET	C
+     456/    E4D4 :                     ;-----------------------------------------------------------
+     457/    E4D4 :                     ;FEHLERBEHANDLUNG
+     458/    E4D4 : FF                  ERM:	DB	0FFH		;SPRUNG IN MONITOR
+     459/    E4D5 :                     ;-----------------------------------------------------------
+     460/    E4D5 :                     ;RAM-DISK
+     461/    E4D5 :                     ;SCHREIBEN
+     462/    E4D5 : CD F3 E4            WRDSK:	CALL	RADR		;SEKTORADR BERECHNEN
+     463/    E4D8 : 38 16               	JR	C,BDERR		;BEREICH UEBERSCHRITTEN
+     464/    E4DA : EB                  	EX	DE,HL		;ZIEL-/QUELLADR. RAM-DISK
+     465/    E4DB : 2A 13 F8            	LD	HL,(DMA)	;ZIEL-/QUELLADR. BDOS
+     466/    E4DE : 01 80 00            RDSK1:	LD	BC,80H		;=1 SEKTOR
+     467/    E4E1 : ED B0               	LDIR
+     468/    E4E3 : AF                  	XOR	A
+     469/    E4E4 : C9                  	RET
+     470/    E4E5 :                     ;LESEN
+     471/    E4E5 : CD F3 E4            RRDSK:	CALL	RADR
+     472/    E4E8 : 38 06               	JR	C,BDERR		;FEHLER
+     473/    E4EA : ED 5B 13 F8         	LD	DE,(DMA)
+     474/    E4EE : 18 EE               	JR	RDSK1
+     475/    E4F0 : 3E 01               BDERR:	LD	A,1		;BDOS-ERROR
+     476/    E4F2 : C9                  	RET
+ AS V1.42 Beta [Bld 139] - source file cbios.asm - page 9 - 8/26/2019 11:31:6
+
+
+     477/    E4F3 :                     ;SEKTORADR. IM RAM BERECHNEN
+     478/    E4F3 :                     ;DE AKT. SPUR
+     479/    E4F3 :                     ;C AKT. SEKTOR
+     480/    E4F3 :                     ;B MAX. SEKTORANZAHL/DISK
+     481/    E4F3 : 16 00               RADR:	LD	D,0
+     482/    E4F5 : 3A 02 F8            	LD	A,(TRACK)
+     483/    E4F8 : 5F                  	LD	E,A
+     484/    E4F9 : 3A 12 F8            	LD	A,(SEC1)
+     485/    E4FC : 4F                  	LD	C,A
+     486/    E4FD : 21 00 00            	LD	HL,0
+     487/    E500 : 06 1A               	LD	B,26
+     488/    E502 : 19                  RADR1:	ADD	HL,DE		;UMWANDLUNG SPUREN IN SEKTOREN
+     489/    E503 : 10 FD               	DJNZ	RADR1
+     490/    E505 : 09                  	ADD	HL,BC		;AKT.SEKT.DAZU
+     491/    E506 : 29                  	ADD	HL,HL		;WANDLUNG SEKTOR IN BYTES
+     492/    E507 : 29                  	ADD	HL,HL
+     493/    E508 : 29                  	ADD	HL,HL
+     494/    E509 : 29                  	ADD	HL,HL
+     495/    E50A : 29                  	ADD	HL,HL
+     496/    E50B : 29                  	ADD	HL,HL
+     497/    E50C : 29                  	ADD	HL,HL
+     498/    E50D : 01 00 70            	LD	BC,RDSK		;RAM-DISK-ANFANG
+     499/    E510 : 09                  	ADD	HL,BC
+     500/    E511 : 3E BF               	LD	A,0BFH		;HIGH-ADR RAM-DISK
+     501/    E513 : BC                  	CP	H
+     502/    E514 : C9                  	RET
+     503/    E515 :                     ;-----------------------------------------------------------
+     504/    E515 : =E515H              DPBAS:	EQU	$
+     505/    E515 : 00 00               DPHA:	DW	0
+     506/    E517 : 00 00               	DW	0
+     507/    E519 : 00 00               	DW	0
+     508/    E51B : 00 00               	DW	0
+     509/    E51D : 15 F8               	DW	DIRBF
+     510/    E51F : 44 E5               	DW	DPBF
+     511/    E521 : B4 F8               	DW	CHK0
+     512/    E523 : 95 F8               	DW	ALL0
+     513/    E525 : 00 00               DPHR:	DW	0
+     514/    E527 : 00 00               	DW	0
+     515/    E529 : 00 00               	DW	0
+     516/    E52B : 00 00               	DW	0
+     517/    E52D : 15 F8               	DW	DIRBF
+     518/    E52F : 35 E5               	DW	DPBR		;GERABTEBESCHREIBUNG
+     519/    E531 : E3 F8               	DW	CHK1		;DIRECTORY-KONTROLLE
+     520/    E533 : C4 F8               	DW	ALL1		;BELEGUNG DISKETTE
+     521/    E535 :                     ;DISK-PARAMETER-BLOCK RAM-DISK
+     522/    E535 : 1A 00               DPBR:	DW	26		;SECTOREN
+     523/    E537 : 03                  	DB	3		;BLOCKGROESSE 1K
+     524/    E538 : 07                  	DB	7		;(SECTOREN/BLOCK)-1
+     525/    E539 : 00                  	DB	00		;NICHT BENUTZT
+     526/    E53A : 14 00               	DW	20		;(BLOECKE/DISK)-1
+     527/    E53C : 1F 00               	DW	31		;32 DIRECTORY-ENTR.
+     528/    E53E : 80                  	DB	080H		;1 BELEGTER BLOCK DURCH DIR.
+     529/    E53F : 00                  	DB	0
+     530/    E540 : 10 00               	DW	16		;DIR/4
+     531/    E542 : 00 00               	DW	0		;0SPUREN DURCH SYSTEM BELEGT
+     532/    E544 :                     ;DISK-PARAMETER-BLOCK FLOPPY 5,25 ZOLL
+     533/    E544 : 20 00               DPBF:	DW	20H		;20LOGISCHB=10H=16 PHYSISCHE SEKTOREN/SPUR
+     534/    E546 : 04                  	DB	4		;2K-BLOECKE
+     535/    E547 : 0F                  	DB	15
+     536/    E548 : 01                  	DB	1
+ AS V1.42 Beta [Bld 139] - source file cbios.asm - page 10 - 8/26/2019 11:31:6
+
+
+     537/    E549 : 49 00               	DW	73
+     538/    E54B : 3F 00               	DW	63
+     539/    E54D : 80                  	DB	80H
+     540/    E54E : 00                  	DB	0
+     541/    E54F : 10 00               	DW	16
+     542/    E551 : 03 00               	DW	3		;SYSTEMSPUREN
+     543/    E553 :                     ;-----------------------------------------------------------
+     544/    E553 : =E553H              DRUCK:	EQU	$		;FOLGT
+     545/    E553 :                     
+     546/    E553 :                     	include	DRUCK.ASM
+(1)    1/    E553 :                     	ORG	DRUCK
+(1)    2/    E553 :                     
+(1)    3/    E553 :                     
+(1)    4/    E553 :                     	;TITL	"DRUCK"
+(1)    5/    E553 :                     
+(1)    6/    E553 :                     
+(1)    7/    E553 :                     ;DEFINITION VON KONSTANTEN ·
+(1)    8/    E553 :                     
+(1)    9/    E553 :                     ;PIOAD:	EQU	0FCH
+(1)   10/    E553 :                     ;CR:	EQU	0DH
+(1)   11/    E553 :                     ;LF:	EQU	0AH
+(1)   12/    E553 :                     ;ZS:	EQU	0F089H
+(1)   13/    E553 :                     ;-----------------------------------------------------------
+(1)   14/    E553 :                     ;DRUCK MIT FERNSCHREIBER F12XX
+(1)   15/    E553 :                     ;-----------------------------------------------------------
+(1)   16/    E553 :                     ;DRUCKPROGRAMM FUER GROSSE UND KLEINE BUCHSTABEN
+(1)   17/    E553 :                     ;IN  :C ZEICHEN IN ASCII
+(1)   18/    E553 :                     ;OUT :A   ZEICHEN IN CCITT
+(1)   19/    E553 :                     ;KILL:A,F
+(1)   20/    E553 : C5                  	PUSH	BC
+(1)   21/    E554 : D5                  	PUSH	DE
+(1)   22/    E555 : E5                  	PUSH	HL
+(1)   23/    E556 : 3E 0A               	LD	A,LF
+(1)   24/    E558 : B9                  	CP	C
+(1)   25/    E559 : CC AF E5            	CALL	Z,ZEPR
+(1)   26/    E55C : CD 74 E5            	CALL	KODE		;ZEICHEN IN A CCITT, C ASCII
+(1)   27/    E55F : CD CE E5            	CALL	ART
+(1)   28/    E562 : 21 11 F8            	LD 	HL,MERK
+(1)   29/    E565 : BE                  	CP	(HL)
+(1)   30/    E566 : 28 04               	JR	Z,ZAUS		;KEIN STEUERZ.AUSGEBEN
+(1)   31/    E568 : 77                  	LD	(HL),A		;NEUE ART LADEN
+(1)   32/    E569 : CD EA E5            	CALL	FSA
+(1)   33/    E56C : 79                  ZAUS:	LD	A,C
+(1)   34/    E56D : CD EA E5            	CALL	FSA
+(1)   35/    E570 : E1                  	POP	HL
+(1)   36/    E571 : D1                  	POP	DE
+(1)   37/    E572 : C1                  	POP	BC
+(1)   38/    E573 : C9                  	RET
+(1)   39/    E574 :                     ;KODEWANDLUNG ASCII/CCITT
+(1)   40/    E574 :                     ;IN C ZEICHEN
+(1)   41/    E574 :                     ;OUT A CCITT C ASCII
+(1)   42/    E574 :                     ;T7S STEUER ASCII
+(1)   43/    E574 :                     ;T5S
+(1)   44/    E574 :                     ;T7K KLEINE ASCII
+(1)   45/    E574 :                     ;T51
+(1)   46/    E574 :                     ;T7G GROSSE ASCII
+(1)   47/    E574 :                     ;T53
+(1)   48/    E574 :                     ;T7Z ZEICHEN ASCII
+(1)   49/    E574 :                     ;T52
+(1)   50/    E574 : =E574H              KODE:	EQU $
+ AS V1.42 Beta [Bld 139] - source file cbios.asm(DRUCK.ASM) - page 11 - 8/26/2019 11:31:6
+
+
+(1)   51/    E574 : C5                  	PUSH	BC
+(1)   52/    E575 : 79                  	LD	A,C
+(1)   53/    E576 : 21 FD E5            	LD	HL,T7S
+(1)   54/    E579 : 01 03 00            	LD	BC,LT7S
+(1)   55/    E57C : C5                  	PUSH	BC
+(1)   56/    E57D : D1                  	POP	DE
+(1)   57/    E57E : ED B1               	CPIR
+(1)   58/    E580 : 28 28               	JR	Z,GF
+(1)   59/    E582 : 21 03 E6            	LD	HL,T7K
+(1)   60/    E585 : 01 1A 00            	LD	BC,LT7K
+(1)   61/    E588 : C5                  	PUSH 	BC
+(1)   62/    E589 : D1                  	POP	DE
+(1)   63/    E58A : ED B1               	CPIR
+(1)   64/    E58C : 28 1C               	JR	Z,GF
+(1)   65/    E58E : 21 37 E6            	LD	HL,T7G
+(1)   66/    E591 : 01 1A 00            	LD	BC,LT7G
+(1)   67/    E594 : C5                  	PUSH	BC
+(1)   68/    E595 : D1                  	POP	DE
+(1)   69/    E596 : ED B1               	CPIR
+(1)   70/    E598 : 28 10               	JR	Z,GF
+(1)   71/    E59A : 21 6B E6            	LD	HL,T7Z
+(1)   72/    E59D : 01 17 00            	LD	BC,LT7Z
+(1)   73/    E5A0 : C5                  	PUSH	BC
+(1)   74/    E5A1 : D1                  	POP	DE
+(1)   75/    E5A2 : ED B1               	CPIR
+(1)   76/    E5A4 : 28 04               	JR	Z,GF
+(1)   77/    E5A6 : 3E 04               	LD	A,4
+(1)   78/    E5A8 : C1                  	POP	BC
+(1)   79/    E5A9 : C9                  	RET
+(1)   80/    E5AA : 19                  GF:	ADD	HL,DE
+(1)   81/    E5AB : 2B                  	DEC	HL
+(1)   82/    E5AC : 7E                  	LD	A,(HL)
+(1)   83/    E5AD : C1                  	POP	BC
+(1)   84/    E5AE : C9                  	RET	
+(1)   85/    E5AF : 21 10 F8            ZEPR:	LD	HL,DZEIL	;ZEILENZAHL /SEITE PRUEFEN
+(1)   86/    E5B2 : C5                  	PUSH	BC
+(1)   87/    E5B3 : 06 40               	LD	B,40H
+(1)   88/    E5B5 : CD 89 F0            Z2:	CALL	ZS
+(1)   89/    E5B8 : 10 FB               	DJNZ	Z2
+(1)   90/    E5BA : C1                  	POP	BC
+(1)   91/    E5BB : 35                  	DEC	(HL)
+(1)   92/    E5BC : C0                  	RET	NZ
+(1)   93/    E5BD : F5                  LCRLF:	PUSH	AF		;AUSGABE 4 LEERZEILEN
+(1)   94/    E5BE : C5                  	PUSH	BC
+(1)   95/    E5BF : 3E 1E               	LD	A,30
+(1)   96/    E5C1 : 77                  	LD	(HL),A
+(1)   97/    E5C2 : 06 04               	LD	B,4
+(1)   98/    E5C4 : 3E 02               L1:	LD	A,2		;LF IN CCITT
+(1)   99/    E5C6 : CD EA E5            	CALL	FSA
+(1)  100/    E5C9 : 10 F9               	DJNZ	L1
+(1)  101/    E5CB : C1                  	POP	BC
+(1)  102/    E5CC : F1                  	POP	AF
+(1)  103/    E5CD : C9                  	RET
+(1)  104/    E5CE :                     ;SUBROUTINE ART ERMITTELN
+(1)  105/    E5CE :                     ;IN: C ASCII
+(1)  106/    E5CE :                     ;(HL) LETZTE ART
+(1)  107/    E5CE :                     ;A CCITT
+(1)  108/    E5CE :                     ;OUT: A STEUERZEICHEN
+(1)  109/    E5CE :                     ;C CCITT
+(1)  110/    E5CE :                     ;<40H=ZIFFER=D0=1,>60H=KLEINE BUCHST.0A=0,SONST D1=1
+ AS V1.42 Beta [Bld 139] - source file cbios.asm(DRUCK.ASM) - page 12 - 8/26/2019 11:31:6
+
+
+(1)  111/    E5CE : F5                  ART:	PUSH	AF
+(1)  112/    E5CF : C5                  	PUSH	BC
+(1)  113/    E5D0 : 79                  	LD	A,C
+(1)  114/    E5D1 : FE 60               	CP	60H
+(1)  115/    E5D3 : 30 0A               	JR	NC,KB
+(1)  116/    E5D5 : FE 40               	CP	40H
+(1)  117/    E5D7 : 30 0C               	JR	NC,GB
+(1)  118/    E5D9 : C1                  	POP	BC
+(1)  119/    E5DA : F1                  	POP	AF
+(1)  120/    E5DB : 4F                  	LD	C,A
+(1)  121/    E5DC : 3E 1B               	LD	A,1BH		;ZI/ZEI
+(1)  122/    E5DE : C9                  	RET
+(1)  123/    E5DF : C1                  KB:	POP	BC
+(1)  124/    E5E0 : F1                  	POP	AF
+(1)  125/    E5E1 : 4F                  	LD	C,A
+(1)  126/    E5E2 : 3E 1F               	LD	A,1FH		;KLEINE
+(1)  127/    E5E4 : C9                  	RET
+(1)  128/    E5E5 : C1                  GB:	POP	BC
+(1)  129/    E5E6 : F1                  	POP	AF
+(1)  130/    E5E7 : 4F                  	LD	C,A
+(1)  131/    E5E8 : AF                  	XOR	A
+(1)  132/    E5E9 : C9                  	RET
+(1)  133/    E5EA :                     ;FERNSCHREIBAUSGABE UEBER PIO
+(1)  134/    E5EA : C5                  FSA:	PUSH	BC
+(1)  135/    E5EB : 06 08               	LD	B,8
+(1)  136/    E5ED : F6 60               	OR	60H
+(1)  137/    E5EF : 17                  	RLA
+(1)  138/    E5F0 : D3 FC               FSA1:	OUT	(PIOAD),A
+(1)  139/    E5F2 : CD 89 F0            	CALL	ZS
+(1)  140/    E5F5 : CD 89 F0            	CALL	ZS
+(1)  141/    E5F8 : 1F                  	RRA
+(1)  142/    E5F9 : 10 F5               	DJNZ	FSA1
+(1)  143/    E5FB : C1                  	POP	BC
+(1)  144/    E5FC : C9                  	RET
+(1)  145/    E5FD :                     ;TABELLEN
+(1)  146/    E5FD : 0A                  T7S:	DB	LF
+(1)  147/    E5FE : 0D                  	DB	CR
+(1)  148/    E5FF : 20                  	DB	20H
+(1)  149/    E600 : =3H                 LT7S:	EQU	$-T7S	
+(1)  150/    E600 : 02                  T5S:	DB	2
+(1)  151/    E601 : 08                  	DB	8
+(1)  152/    E602 : 04                  	DB	4
+(1)  153/    E603 : 61                  T7K:	DB	61H
+(1)  154/    E604 : 62                  	DB	62H
+(1)  155/    E605 : 63                  	DB	63H
+(1)  156/    E606 : 64                  	DB	64H
+(1)  157/    E607 : 65                  	DB	65H
+(1)  158/    E608 : 66                  	DB	66H
+(1)  159/    E609 : 67                  	DB	67H
+(1)  160/    E60A : 68                  	DB	68H
+(1)  161/    E60B : 69                  	DB	69H
+(1)  162/    E60C : 6A                  	DB	6AH
+(1)  163/    E60D : 6B                  	DB	6BH
+(1)  164/    E60E : 6C                  	DB	6CH
+(1)  165/    E60F : 6D                  	DB	6DH
+(1)  166/    E610 : 6E                  	DB	6EH
+(1)  167/    E611 : 6F                  	DB	6FH
+(1)  168/    E612 : 70                  	DB	70H
+(1)  169/    E613 : 71                  	DB	71H
+(1)  170/    E614 : 72                  	DB	72H
+ AS V1.42 Beta [Bld 139] - source file cbios.asm(DRUCK.ASM) - page 13 - 8/26/2019 11:31:6
+
+
+(1)  171/    E615 : 73                  	DB	73H
+(1)  172/    E616 : 74                  	DB	74H
+(1)  173/    E617 : 75                  	DB	75H
+(1)  174/    E618 : 76                  	DB	76H
+(1)  175/    E619 : 77                  	DB	77H
+(1)  176/    E61A : 78                  	DB	78H
+(1)  177/    E61B : 79                  	DB	79H
+(1)  178/    E61C : 7A                  	DB	7AH
+(1)  179/    E61D : =1AH                LT7K:	EQU	$-T7K
+(1)  180/    E61D : 03                  T51:	DB	3
+(1)  181/    E61E : 19                  	DB	19H
+(1)  182/    E61F : 0E                  	DB 	0EH
+(1)  183/    E620 : 09                  	DB	9
+(1)  184/    E621 : 01                  	DB	1
+(1)  185/    E622 : 0D                  	DB	0DH
+(1)  186/    E623 : 1A                  	DB	1AH
+(1)  187/    E624 : 14                  	DB	14H
+(1)  188/    E625 : 06                  	DB	6
+(1)  189/    E626 : 0B                  	DB	0BH
+(1)  190/    E627 : 0F                  	DB	0FH
+(1)  191/    E628 : 12                  	DB	12H
+(1)  192/    E629 : 1C                  	DB	1CH
+(1)  193/    E62A : 0C                  	DB	0CH
+(1)  194/    E62B : 18                  	DB	18H
+(1)  195/    E62C : 16                  	DB	16H
+(1)  196/    E62D : 17                  	DB	17H
+(1)  197/    E62E : 0A                  	DB	0AH
+(1)  198/    E62F : 05                  	DB	5
+(1)  199/    E630 : 10                  	DB	10H
+(1)  200/    E631 : 07                  	DB	07H
+(1)  201/    E632 : 1E                  	DB	1EH
+(1)  202/    E633 : 13                  	DB	13H
+(1)  203/    E634 : 1D                  	DB	1DH
+(1)  204/    E635 : 15                  	DB	15H
+(1)  205/    E636 : 11                  	DB	11H
+(1)  206/    E637 : 41 42 43 44 45 46   T7G:	DB	"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                    47 48 49 4A 4B 4C 
+                    4D 4E 4F 50 51 52 
+                    53 54 55 56 57 58 
+                    59 5A 
+(1)  207/    E651 : =1AH                LT7G:	EQU	$-T7G
+(1)  208/    E651 : 03                  T53:	DB	3
+(1)  209/    E652 : 19                  	DB	19H
+(1)  210/    E653 : 0E                  	DB	0EH
+(1)  211/    E654 : 09                  	DB	09H
+(1)  212/    E655 : 01                  	DB	01H
+(1)  213/    E656 : 0D                  	DB	0DH
+(1)  214/    E657 : 1A                  	DB	1AH
+(1)  215/    E658 : 14                  	DB	14H
+(1)  216/    E659 : 06                  	DB	06
+(1)  217/    E65A : 0B                  	DB	0BH
+(1)  218/    E65B : 0F                  	DB	0FH
+(1)  219/    E65C : 12                  	DB	12H
+(1)  220/    E65D : 1C                  	DB	1CH
+(1)  221/    E65E : 0C                  	DB	0CH
+(1)  222/    E65F : 18                  	DB	18H
+(1)  223/    E660 : 16                  	DB	16H
+(1)  224/    E661 : 17                  	DB	17H
+(1)  225/    E662 : 0A                  	DB	0AH
+(1)  226/    E663 : 05                  	DB	5
+ AS V1.42 Beta [Bld 139] - source file cbios.asm(DRUCK.ASM) - page 14 - 8/26/2019 11:31:6
+
+
+(1)  227/    E664 : 10                  	DB	10H
+(1)  228/    E665 : 07                  	DB	7
+(1)  229/    E666 : 1E                  	DB	1EH
+(1)  230/    E667 : 13                  	DB	13H
+(1)  231/    E668 : 1D                  	DB	1DH
+(1)  232/    E669 : 15                  	DB	15H
+(1)  233/    E66A : 11                  	DB	11H
+(1)  234/    E66B : 20 21 22 28 29 2B   T7Z:	DB	" !",'"',"()+,-./0123456789:=?"
+                    2C 2D 2E 2F 30 31 
+                    32 33 34 35 36 37 
+                    38 39 3A 3D 3F 
+(1)  235/    E682 : =17H                LT7Z:	EQU	$-T7Z
+(1)  236/    E682 : 04                  T52:	DB	4
+(1)  237/    E683 : 1D                  	DB	1DH
+(1)  238/    E684 : 05                  	DB	05H
+(1)  239/    E685 : 0F                  	DB	0FH
+(1)  240/    E686 : 12                  	DB	12H
+(1)  241/    E687 : 11                  	DB	11H
+(1)  242/    E688 : 0C                  	DB	0CH
+(1)  243/    E689 : 03                  	DB	03H
+(1)  244/    E68A : 1C                  	DB	1CH
+(1)  245/    E68B : 1D                  	DB	1DH
+(1)  246/    E68C : 16                  	DB	16H
+(1)  247/    E68D : 17                  	DB	17H
+(1)  248/    E68E : 13                  	DB 	13H
+(1)  249/    E68F : 01                  	DB	01H
+(1)  250/    E690 : 0A                  	DB	0AH
+(1)  251/    E691 : 10                  	DB	10H
+(1)  252/    E692 : 15                  	DB	15H
+(1)  253/    E693 : 07                  	DB	07
+(1)  254/    E694 : 06                  	DB	6
+(1)  255/    E695 : 18                  	DB	18H
+(1)  256/    E696 : 0E                  	DB	0EH
+(1)  257/    E697 : 1E                  	DB	1EH
+(1)  258/    E698 : 19                  	DB	19H
+(1)  259/    E699 :                     
+     547/    E699 :                     
+     548/    E699 :                     ;-----------------------------------------------------------
+     549/    E699 :                     
+     550/    E699 :                     ;RAM-ADRESSEN
+     551/    E699 :                     
+     552/    F800 :                     	ORG	0F800H
+     553/    F800 :                     CTAB:	DS 1; DB	46H	;MFM LESEN
+     554/    F801 :                     UNIT:	DS 1; DB	0	;LAUFWERK A VOREINGESTELLT
+     555/    F802 :                     TRACK:	DS 1; DB	0
+     556/    F803 :                     HEAD:	DS 1; DB	0
+     557/    F804 :                     SECTR:	DS 1; DB	1
+     558/    F805 :                     N:	DS 1; DB	1	;N=1=256BYTES
+     559/    F806 :                     EOT:	DS 1; DB	16	;16 SECTOREN JE SPUR
+     560/    F807 :                     GPL:	DS 1; DB	1BH	;LUECKE
+     561/    F808 :                     DTL:	DS 1; DB	0FFH
+     562/    F809 :                     RESLT:	DS	7		;RESULT TAB F.FDC
+     563/    F810 :                     DZEIL:	DS 1; DB	30	;DRUCKER 30 ZEILEN/SEITE
+     564/    F811 :                     MERK:	DS 1; DB	0	;UMSCHALTZ. FERNSCHR.
+     565/    F812 :                     SEC1:	DS 1; DB	1	;BDOS-SEKTOR
+     566/    F813 :                     DMA:	DS 2; DW	80H	;BDOS-DMA
+     567/    F815 :                     DIRBF:	DS	128		;INHALTSVERZ. DISKETTE
+     568/    F895 :                     ALL0:	DS	31
+     569/    F8B4 :                     CHK0:	DS	16
+     570/    F8C4 :                     ALL1:	DS	31
+ AS V1.42 Beta [Bld 139] - source file cbios.asm - page 15 - 8/26/2019 11:31:6
+
+
+     571/    F8E3 :                     CHK1:	DS	16
+     572/    F8F3 :                     FDMA:	DS	256		;FLOPPY-ZWISCHENSPEICHER IM BIOS
+     573/    F9F3 :                     
+     574/    F9F3 :                     	END
+ AS V1.42 Beta [Bld 139] - source file cbios.asm - page 16 - 8/26/2019 11:31:6
+
+
+  symbol table (* = unused):
+  ------------------------
+
+ ALL0 :                        F895 C |  ALL1 :                        F8C4 C |
+*ARCHITECTURE :  i386-unknown-win32 - |  ART :                         E5CE C |
+ B1 :                          E3E9 C |  B2 :                          E3A9 C |
+ B3 :                          E3CA C |  B4 :                          E3D5 C |
+ BDERR :                       E4F0 C |  BDOS :                        D400 - |
+*BIGENDIAN :                      0 - |  BOOT :                        E29B - |
+*BRANCHEXT :                      0 - | *CASESENSITIVE :                  0 - |
+ CCP :                         CC00 - |  CFDC :                          7C - |
+ CHK0 :                        F8B4 C |  CHK1 :                        F8E3 C |
+ CIO :                         F13C - | *CONSTPI :        3.141592653589793 - |
+ CR :                             D - |  CTAB :                        F800 C |
+*DATE :                   8/26/2019 - |  DEL1 :                        E4A8 C |
+ DELAY :                       E4A5 C |  DFDC :                          7D - |
+ DIRBF :                       F815 C |  DISKS :                       E240 - |
+ DMA :                         F813 C |  DPBAS :                       E515 - |
+ DPBF :                        E544 C |  DPBR :                        E535 C |
+*DPHA :                        E515 C | *DPHR :                        E525 C |
+ DRUCK :                       E553 - | *DTL :                         F808 C |
+ DZEIL :                       F810 C | *EOT :                         F806 C |
+*ERM :                         E4D4 C | *ERR :                         E459 C |
+*FALSE :                          0 - |  FDMA :                        F8F3 C |
+ FSA :                         E5EA C |  FSA1 :                        E5F0 C |
+*FULLPMMU :                       1 - |  GB :                          E5E5 C |
+ GF :                          E5AA C |  GOCPM :                       E33C C |
+*GPL :                         F807 C | *HAS64 :                          1 - |
+*HASDSP :                         0 - | *HASFPU :                         0 - |
+*HASPMMU :                        0 - | *HEAD :                        F803 C |
+ HOME :                        E233 C | *INEXTMODE :                      0 - |
+ INIFD :                       E3F2 C | *INLWORDMODE :                    0 - |
+*INMAXMODE :                      0 - | *INSRCMODE :                      0 - |
+*INSUPMODE :                      0 - |  IRDSK :                       E316 C |
+ IRDY :                        E4CB C |  KB :                          E5DF C |
+ KODE :                        E574 - |  L1 :                          E5C4 C |
+*LCRLF :                       E5BD C |  LF :                             A - |
+*LISTON :                         1 - |  LOAD1 :                       E2E4 C |
+ LSTS :                        E253 C |  LT7G :                          1A - |
+ LT7K :                          1A - |  LT7S :                           3 - |
+ LT7Z :                          17 - | *MACEXP :                         7 - |
+ MCO :                         F009 - |  MCSTS :                       F003 - |
+ MERK :                        F811 C |  MODE :                        E466 C |
+*MOMCPU :                        80 - | *MOMCPUNAME :                   Z80 - |
+ MRI :                         F012 - |  MSGS :                        E275 C |
+ MWO :                         F00F - | *N :                           F805 C |
+ NDISK :                          2 - | *NESTMAX :                      100 - |
+*PACKING :                        0 - | *PADDING :                        1 - |
+ PIOAD :                         FC - |  R8272 :                       E42C C |
+ RADR :                        E4F3 C |  RADR1 :                       E502 C |
+ RBYTE :                       E4AC C |  RDSK :                        7000 - |
+ RDSK1 :                       E4DE C |  RDY :                         E485 C |
+ READ :                        E353 C | *RECAL :                       E409 C |
+*RELAXED :                        0 - |  RESL1 :                       E4C1 C |
+ RESLT :                       F809 C |  RESTR :                       F400 - |
+ RFLOP :                       E35D C |  RFLP :                        E39B C |
+ ROM :                         E200 - |  RRDSK :                       E4E5 C |
+ RRSLT :                       E4B5 C |  RW :                          E45C - |
+ RW1 :                         E45E C |  RWIT :                        E431 C |
+*RWLOP :                       E43B C |  RWOP :                        E43D C |
+ AS V1.42 Beta [Bld 139] - source file cbios.asm - page 17 - 8/26/2019 11:31:6
+
+
+ SDISK :                       E238 C |  SDMA :                        E270 C |
+ SDS :                         E46B C |  SEC1 :                        F812 C |
+ SECTR :                       F804 C |  SEEK :                        E475 C |
+ SENSE :                       E40F C |  SKBSY :                       E47E C |
+ SPEZI :                       E400 C |  SSEC :                        E266 - |
+ STAB :                        E423 C |  STR :                         F128 - |
+ STRAN :                       E254 - |  STRCK :                       E26B - |
+ STRN1 :                       E25E C | *T51 :                         E61D C |
+*T52 :                         E682 C | *T53 :                         E651 C |
+*T5S :                         E600 C |  T7G :                         E637 C |
+ T7K :                         E603 C |  T7S :                         E5FD C |
+ T7Z :                         E66B C |  TC :                            78 - |
+*TIME :                     11:31:6 - |  TRACK :                       F802 C |
+ TRANS :                       E3D9 - | *TRUE :                           1 - |
+*UNIT :                        F801 C | *VERSION :                     142F - |
+ W8272 :                       E425 C |  WBOOT :                       E2CD - |
+ WBOTE :                       E203 C |  WCOM :                        E48F C |
+ WCOM1 :                       E492 C |  WFLOP :                       E3B7 C |
+ WRDSK :                       E4D5 C |  WRITE :                       E349 C |
+ Z2 :                          E5B5 C |  ZAUS :                        E56C C |
+ ZEPR :                        E5AF C |  ZS :                          F089 - |
+
+    156 symbols
+     45 unused symbols
+
+ AS V1.42 Beta [Bld 139] - source file cbios.asm - page 18 - 8/26/2019 11:31:6
+
+
+  codepages:
+  ----------
+
+STANDARD (0 changed characters)
+
+
+0.01 seconds assembly time
+
+    834 lines source file
+      2 passes
+      0 errors
+      0 warnings

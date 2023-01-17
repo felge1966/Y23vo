@@ -1,0 +1,256 @@
+ AS V1.42 Beta [Bld 139] - source file format.asm - page 1 - 8/26/2019 16:50:34
+DISKETTEN-INIT
+
+
+       1/       0 :                     	cpu	Z80
+       2/       0 :                     	TITLE	"DISKETTEN-INIT"
+       3/       0 :                     
+       4/       0 :                     
+       5/       0 :                     ;PROGRAMM ARBEITET IN VERBINDUNG MIT MONITOR
+       6/       0 :                     
+       7/       0 :                     ;VEREINBARUNGEN
+       8/       0 : =7CH                CFDC	EQU	7CH   		;FLOPPY-CONTROLLER
+       9/       0 : =70H                DFDC	EQU     70H   
+      10/       0 : =78H                TC	EQU     78H   
+      11/       0 : =300H               FMTAB	EQU     300H  		;ID-TABELLE
+      12/       0 : =F800H              CTAB	EQU     0F800H
+      13/       0 : =F809H              RESLT	EQU     CTAB+9
+      14/       0 : =5H                 BDOS	EQU     5     
+      15/       0 : =E209H              CI	EQU     0E209H		;MONITORADRESSEN
+      16/       0 : =F400H              RESTR	EQU     0F400H
+      17/       0 :                     
+      18/       0 :                     	ASEG
+      19/     100 :                     	ORG	100H
+      20/     100 :                     ;----------------------------------------------------------------
+      21/     100 :                     ;HAUPTPROGRAMM
+      22/     100 :                     ;----------------------------------------------------------------
+      23/     100 : 11 5E 01            FORM:	LD	DE,TEXT		;TEXTAUSGABE
+      24/     103 : 0E 09               	LD	C,9
+      25/     105 : CD 05 00            	CALL	BDOS
+      26/     108 : CD 09 E2            	CALL	CI		;WARTEN AUF CONSOLEINGABE
+      27/     10B : FE 79               	CP	79H		;KLEINES Y
+      28/     10D : C2 00 00            	JP	NZ,0		;ENDE DES FORMATIERENS
+      29/     110 : CD B1 01            	CALL	RECAL		;KOPF AUF SPUR 0
+      30/     113 : 0E 00               	LD	C,0		;SPUR
+      31/     115 : 06 01               FORM0:	LD	B,1		;SEKTOR
+      32/     117 : 1E 00               	LD	E,0		;KOPFAUSWAHL F. BEIDSEITIGE LAUFWERKE
+      33/     119 : 79                  	LD	A,C
+      34/     11A : 32 02 F8            	LD	(CTAB+2),A
+      35/     11D : C5                  	PUSH	BC
+      36/     11E : CD D5 01            	CALL	SEEK		;SPUR EINSTELLEN
+      37/     121 : C1                  	POP	BC
+      38/     122 : 21 3F 03            	LD	HL,FMTAB+10H*4-1	;TABELLEN-ENDE
+      39/     125 : 3E 10               	LD	A,10H		;ANZAHL SEKTOREN
+      40/     127 : 36 01               FORM2:	LD	(HL),1		;SETZEN N
+      41/     129 : 2B                  	DEC	HL
+      42/     12A : 77                  	LD	(HL),A		;SET R
+      43/     12B : 2B                  	DEC	HL
+      44/     12C : 73                  	LD	(HL),E		;SET H
+      45/     12D : 2B                  	DEC	HL
+      46/     12E : 71                  	LD	(HL),C		;SET C
+      47/     12F : 2B                  	DEC	HL
+      48/     130 : 3D                  	DEC	A
+      49/     131 : 20 F4               	JR	NZ,FORM2
+      50/     133 : 36 E5               	LD	(HL),0E5H	;AUFZUSCHREIBENDES BYTE
+      51/     135 : 2B                  	DEC	HL
+      52/     136 : 36 35               	LD	(HL),53		;GAP (LUECKENLAENGE)
+      53/     138 : 2B                  	DEC	HL
+      54/     139 : 36 10               	LD	(HL),10H	;EOT (LETZTESEKTOR-NR.)
+      55/     13B : 2B                  	DEC	HL
+      56/     13C : 36 01               	LD	(HL),1		;N, 1 = 256 BYTES/SEKTOR
+      57/     13E : 2B                  	DEC	HL
+      58/     13F : 36 00               	LD	(HL),0
+      59/     141 : 2B                  	DEC	HL
+      60/     142 : C5                  	PUSH	BC
+ AS V1.42 Beta [Bld 139] - source file format.asm - page 2 - 8/26/2019 16:50:34
+DISKETTEN-INIT
+
+
+      61/     143 : 06 06               	LD	B,6		;ANZAHL KOMMANDOBYTES F. FDC
+      62/     145 : 0E 4D               	LD	C,4DH		;KOMMANDO FORMAT A TRACK
+      63/     147 : CD F2 01            	CALL	WCOM1		;IN FDC SCHREIBEN
+      64/     14A : CD A0 01            	CALL	F4		;AUSFUEHRUNG
+      65/     14D : D3 78               	OUT	(TC),A		;ENDE-IMPULS
+      66/     14F : CD 15 02            	CALL	RRSLT
+      67/     152 : C1                  	POP	BC
+      68/     153 : C2 00 F4            	JP	NZ,RESTR	;FEHLER
+      69/     156 : 0C                  	INC	C
+      70/     157 : 79                  	LD	A,C
+      71/     158 : FE 28               	CP	40		;ALLE SPUREN DURCH?
+      72/     15A : 20 B9               	JR	NZ,FORM0
+      73/     15C : 18 A2               	JR	FORM
+      74/     15E :                     
+      75/     15E : 46 6F 72 6D 61 74   TEXT:	DB	"Format Y23VO",0DH,0AH
+                    20 59 32 33 56 4F 
+                    0D 0A 
+      76/     16C : 34 30 20 54 52 41   	DB	"40 TRACKS, 16 SECTORS, 256 BYTES",0DH,0AH
+                    43 4B 53 2C 20 31 
+                    36 20 53 45 43 54 
+                    4F 52 53 2C 20 32 
+                    35 36 20 42 59 54 
+                    45 53 0D 0A 
+      77/     18E : 44 69 73 6B 65 74   	DB	"Diskette ?  (y)",0DH,0AH,'$'
+                    74 65 20 3F 20 20 
+                    28 79 29 0D 0A 24 
+      78/     1A0 :                     	
+      79/     1A0 :                     ;FORMATIERSCHLEIFE FUER EINE SPUR
+      80/     1A0 : 0E 70               F4:	LD	C,DFDC
+      81/     1A2 : 06 40               	LD	B,10H*4		;ANZAHL ID
+      82/     1A4 : DB 7C               FORM3:	IN	A,(CFDC)
+      83/     1A6 : 07                  	RLCA			;RQM-TEST
+      84/     1A7 : 30 FB               	JR	NC,FORM3
+      85/     1A9 : 07                  	RLCA			;DIO
+      86/     1AA : 07                  	RLCA			;NON-DMA
+      87/     1AB : D0                  	RET	NC		;FERTIG ?
+      88/     1AC : ED A3               	OUTI
+      89/     1AE : 20 F4               	JR	NZ,FORM3
+      90/     1B0 : C9                  	RET
+      91/     1B1 :                     ;-----------------------------------------------------------
+      92/     1B1 :                     ;UNTERPROGRAMME
+      93/     1B1 :                     ;-----------------------------------------------------------
+      94/     1B1 : 01 07 02            RECAL:	LD	BC,0207H	;SPUR 0 EINSTELLEN
+      95/     1B4 : CD E5 01            	CALL	RDY		;DRIVE READY?
+      96/     1B7 :                     ;-----------------------------------------------------------
+      97/     1B7 : 01 08 01            SENSE:	LD	BC,0108H	;PRUEFE INTERRUPT STATUS
+      98/     1BA : CD EF 01            	CALL	WCOM
+      99/     1BD : CD 0C 02            	CALL	RBYTE		;RESULT REG 0:IC1,IC2,SE,EC,NR,HD,US1,US2
+     100/     1C0 : 47                  	LD	B,A
+     101/     1C1 : FE 80               	CP	80H
+     102/     1C3 : C4 0C 02            	CALL	NZ,RBYTE	;PCN HOLEN
+     103/     1C6 : CB 68               	BIT	5,B		;SEEK ENDE?
+     104/     1C8 : 28 ED               	JR	Z,SENSE
+     105/     1CA : C9                  	RET
+     106/     1CB :                     ;-----------------------------------------------------------
+     107/     1CB : 01 04 02            SDS:	LD	BC,0204H	;PRUEFE LAUFWERK STATUS
+     108/     1CE : CD EF 01            	CALL	WCOM
+     109/     1D1 : CD 0C 02            	CALL	RBYTE		;STATUS REG 3:FAULT,WP,RDY,T0,TS,HD,US1,U
+     110/     1D4 : C9                  	RET
+     111/     1D5 :                     ;-----------------------------------------------------------
+ AS V1.42 Beta [Bld 139] - source file format.asm - page 3 - 8/26/2019 16:50:34
+DISKETTEN-INIT
+
+
+     112/     1D5 : 01 0F 03            SEEK:	LD	BC,030FH	;COMM SPUR EINSTELLEN
+     113/     1D8 : CD E5 01            	CALL	RDY
+     114/     1DB : CD B7 01            	CALL	SENSE
+     115/     1DE : DB 7C               SKBSY:	IN	A,(CFDC)
+     116/     1E0 : E6 0F               	AND	0FH
+     117/     1E2 : 20 FA               	JR	NZ,SKBSY
+     118/     1E4 : C9                  	RET
+     119/     1E5 :                     ;-----------------------------------------------------------
+     120/     1E5 : C5                  RDY:	PUSH	BC		;LAUFWERK BETRIEBSFAEHIG ?
+     121/     1E6 : CD CB 01            	CALL	SDS
+     122/     1E9 : C1                  	POP	BC
+     123/     1EA : CB 6F               	BIT	5,A		;READY-BIT IN STATUSREG.3
+     124/     1EC : CC 00 F4            	CALL	Z,RESTR		;FEHLER
+     125/     1EF :                     ;-----------------------------------------------------------
+     126/     1EF : 21 00 F8            WCOM:	LD	HL,CTAB		;COMM IN FDC SCHREIBEN
+     127/     1F2 :                     ;IN: B ANZAHL D. BYTES,C COMM
+     128/     1F2 : CD 05 02            WCOM1:	CALL	DELAY
+     129/     1F5 : DB 7C               	IN	A,(CFDC)
+     130/     1F7 : E6 C0               	AND	0C0H
+     131/     1F9 : FE 80               	CP	80H		;RQM,DIO=OUT
+     132/     1FB : 20 F5               	JR	NZ,WCOM1
+     133/     1FD : 79                  	LD	A,C
+     134/     1FE : D3 70               	OUT	(DFDC),A
+     135/     200 : 23                  	INC	HL
+     136/     201 : 4E                  	LD	C,(HL)
+     137/     202 : 10 EE               	DJNZ	WCOM1
+     138/     204 : C9                  	RET
+     139/     205 :                     ;-----------------------------------------------------------
+     140/     205 : C5                  DELAY:	PUSH	BC		;VERZOEGERUNG F.STATUSFLAG 8272
+     141/     206 : 06 0F               	LD	B,0FH
+     142/     208 : 10 FE               DEL1:	DJNZ	DEL1
+     143/     20A : C1                  	POP	BC
+     144/     20B : C9                  	RET
+     145/     20C :                     ;-----------------------------------------------------------
+     146/     20C : CD 05 02            RBYTE:	CALL	DELAY		;1 BYTE LESEN
+     147/     20F : CD 2B 02            	CALL	IRDY
+     148/     212 : DB 70               	IN	A,(DFDC)
+     149/     214 : C9                  	RET
+     150/     215 :                     ;-----------------------------------------------------------
+     151/     215 : 06 06               RRSLT:	LD	B,6		;LESE 7 RESULT BYTES
+     152/     217 : CD 0C 02            	CALL	RBYTE
+     153/     21A : 21 09 F8            	LD	HL,RESLT
+     154/     21D : 77                  	LD	(HL),A
+     155/     21E : E6 C0               	AND	0C0H		;ERROR?
+     156/     220 : 4F                  	LD	C,A
+     157/     221 : CD 0C 02            RESL1:	CALL	RBYTE
+     158/     224 : 23                  	INC	HL
+     159/     225 : 77                  	LD	(HL),A
+     160/     226 : 10 F9               	DJNZ	RESL1
+     161/     228 : 79                  	LD	A,C		;FEHLERMELDUNG STATUS REG 0
+     162/     229 : B7                  	OR	A
+     163/     22A : C9                  	RET
+     164/     22B :                     ;-----------------------------------------------------------
+     165/     22B : DB 7C               IRDY:	IN	A,(CFDC)	;BEREIT F.DATENEINGABE ?
+     166/     22D : 07                  	RLCA
+     167/     22E : 30 FB               	JR	NC,IRDY
+     168/     230 : E6 80               	AND	80H
+     169/     232 : 07                  	RLCA
+     170/     233 : D8                  	RET	C
+     171/     234 :                     ;-----------------------------------------------------------
+ AS V1.42 Beta [Bld 139] - source file format.asm - page 4 - 8/26/2019 16:50:34
+DISKETTEN-INIT
+
+
+     172/     234 :                     ;FEHLERBEHANDLUNG: SPRUNG IN MONITOR
+     173/     234 : C3 00 F4            	JP	RESTR
+     174/     237 :                     
+     175/     237 :                     	END
+ AS V1.42 Beta [Bld 139] - source file format.asm - page 5 - 8/26/2019 16:50:34
+DISKETTEN-INIT
+
+
+  symbol table (* = unused):
+  ------------------------
+
+*ARCHITECTURE :  i386-unknown-win32 - |  BDOS :                           5 - |
+*BIGENDIAN :                      0 - | *BRANCHEXT :                      0 - |
+*CASESENSITIVE :                  0 - |  CFDC :                          7C - |
+ CI :                          E209 - | *CONSTPI :        3.141592653589793 - |
+ CTAB :                        F800 - | *DATE :                   8/26/2019 - |
+ DEL1 :                         208 C |  DELAY :                        205 C |
+ DFDC :                          70 - |  F4 :                           1A0 C |
+*FALSE :                          0 - |  FMTAB :                        300 - |
+ FORM :                         100 C |  FORM0 :                        115 C |
+ FORM2 :                        127 C |  FORM3 :                        1A4 C |
+*FULLPMMU :                       1 - | *HAS64 :                          1 - |
+*HASDSP :                         0 - | *HASFPU :                         0 - |
+*HASPMMU :                        0 - | *INEXTMODE :                      0 - |
+*INLWORDMODE :                    0 - | *INMAXMODE :                      0 - |
+*INSRCMODE :                      0 - | *INSUPMODE :                      0 - |
+ IRDY :                         22B C | *LISTON :                         1 - |
+*MACEXP :                         7 - | *MOMCPU :                        80 - |
+*MOMCPUNAME :                   Z80 - | *NESTMAX :                      100 - |
+*PACKING :                        0 - | *PADDING :                        1 - |
+ RBYTE :                        20C C |  RDY :                          1E5 C |
+ RECAL :                        1B1 C | *RELAXED :                        0 - |
+ RESL1 :                        221 C |  RESLT :                       F809 - |
+ RESTR :                       F400 - |  RRSLT :                        215 C |
+ SDS :                          1CB C |  SEEK :                         1D5 C |
+ SENSE :                        1B7 C |  SKBSY :                        1DE C |
+ TC :                            78 - |  TEXT :                         15E C |
+*TIME :                    16:50:34 - | *TRUE :                           1 - |
+*VERSION :                     142F - |  WCOM :                         1EF C |
+ WCOM1 :                        1F2 C |
+
+     57 symbols
+     28 unused symbols
+
+ AS V1.42 Beta [Bld 139] - source file format.asm - page 6 - 8/26/2019 16:50:34
+DISKETTEN-INIT
+
+
+  codepages:
+  ----------
+
+STANDARD (0 changed characters)
+
+
+0.02 seconds assembly time
+
+    176 lines source file
+      2 passes
+      0 errors
+      0 warnings

@@ -1,0 +1,1962 @@
+ AS V1.42 Beta [Bld 139] - source file monitor_f000.asm - page 1 - 8/24/2019 16:48:31
+Y23VO  DEBUGGER
+
+
+       1/       0 :                     		cpu	z80
+       2/       0 :                     
+       3/       0 :                     ; Makros
+       4/       0 :                     high            function x, (x>>8) & 0ffh	; High-Byte
+       5/       0 :                     low             function x, x & 0ffh		; Low-Byte
+       6/       0 :                     
+       7/       0 :                     
+       8/       0 :                     ;		org	0F000h
+       9/       0 :                     		include io_f000.asm
+(1)    1/       0 :                     	;PN	IO
+(1)    2/       0 :                     
+(1)    3/       0 :                     ;Version 0F000h S. 199
+(1)    4/       0 :                     ;reass V.Pohlers 08/2019
+(1)    5/       0 :                     
+(1)    6/       0 :                     
+(1)    7/       0 :                     
+(1)    8/       0 :                     	TITLE "I-O MONITOR Y23VO"
+(1)    9/       0 :                     
+(1)   10/       0 :                     
+(1)   11/       0 :                     ;DEFINITION VON KONSTANTEN
+(1)   12/       0 :                     
+(1)   13/       0 : =F000H              ROM:	EQU	0F000H
+(1)   14/       0 :                     ;RAM:	EQU	0000H
+(1)   15/       0 : =F400H              RESTR: 	EQU 	ROM+400H
+(1)   16/       0 : =FC00H              BRAM: 	EQU 	0FC00H 		;BILDSCHIRM-RAM
+(1)   17/       0 : =FB00H              EOM: 	EQU 	ROM+0B00H 	;SYSTEMRAM
+(1)   18/       0 : =FBCEH              STACK:	EQU 	ROM+0BCEH
+(1)   19/       0 : =FBE3H              RSLOC:	EQU 	ROM+0BE3H	;USER-STACK
+(1)   20/       0 : =FBF1H              CURS:	EQU 	ROM+0BF1H	;AKT.BILDSCHIRMPLATZ
+(1)   21/       0 : =FBFEH              FLGIO:	EQU 	ROM+0BFEH 	;SPEICHERPLATZ F.STEUERUNG I/O-GERAETE
+(1)   22/       0 : =FBFFH              IOBYT:	EQU 	ROM+0BFFH 	;SPEICHERPLATZ F.STEUERUNG I/O-GERAETE
+(1)   23/       0 : =FBFCH              RAMZK:	EQU 	ROM+0BFCH
+(1)   24/       0 :                     
+(1)   25/       0 : =FCH                PIOAD:	EQU	0FCH		;DATENAUSGABE KANAL A
+(1)   26/       0 : =FDH                PIOBD:	EQU	0FDH		;EINGABEDATEN KANAL B
+(1)   27/       0 : =FEH                PIOAC:	EQU	0FEH		;STEUERADRESSE KANAL A
+(1)   28/       0 : =FFH                PIOBC:	EQU	0FFH		;STEUERADRESSE KANAL B
+(1)   29/       0 :                     
+(1)   30/       0 : =F3H                IMSK: 	EQU 	0F3H		;MASKE FUER IN-KANAL (TERMINAL/EXT.SPEICHER)
+(1)   31/       0 : =CFH                OMSK:	EQU 	0CFH		;MASKE FUER OUT-GERAET (TERMINAL/EXT.SPEICHER)
+(1)   32/       0 : =3FH                LMSK:	EQU 	03FH		;MASKE FUER LIST-GERAET (TERMINAL/DRUCKER)
+(1)   33/       0 : =0H                 IT:	EQU	0		;"IN"-GERAET   I = TERMINAL (TASTATUR)
+(1)   34/       0 : =8H                 IL:	EQU	8		;"IN"-GERAET   I = KASSETTENREKORDER
+(1)   35/       0 : =CH                 IU:	EQU	0CH		;"IN"-GERAET   I = VOM ANWENDER DEF. GERAET
+(1)   36/       0 : =0H                 OT:	EQU	0		;"OUT"-GERAET  O = TERMINAL (BILDSCHIRM)
+(1)   37/       0 : =20H                OL:	EQU	20H		;"OUT"-GERAET  O = KASSETTENREKORDER
+(1)   38/       0 : =30H                OU:	EQU	30H		;"OUT"-GERAET  O = VOM ANWENDER DEF. GERAET
+(1)   39/       0 : =0H                 LT:	EQU	0		;LIST-GERAET   L = TERMINAL (BILDSCHIRM)
+(1)   40/       0 : =80H                LL:	EQU	80H		;LIST-GERAET   L = FERNSCHREIBER
+(1)   41/       0 : =C0H                LU:	EQU	0C0H		;LIST-GERAET   L = VOM ANWENDER DEF. GERAET
+(1)   42/       0 : =DH                 CR:	EQU 	00DH		;WAGEN-RUECKLAUF
+(1)   43/       0 : =AH                 LF: 	EQU 	00AH 		;ZEILENVORSCHUB
+(1)   44/       0 : =3H                 ETX:	EQU	003H		;CONTROL/C (END OF TEXT)
+(1)   45/       0 : =27H                APST:	EQU	27H		;APOSTROPH 
+(1)   46/       0 : =FBF9H              ULOCR: 	EQU 	ROM+0BF9H
+(1)   47/       0 : =C800H              ASS: 	EQU	0C800H		;ASSEMBLER
+(1)   48/       0 : =8000H              BASIC:	EQU 	8000H
+(1)   49/       0 : =E800H              PRINT:	EQU 	0E800H 		;REASSEMBLER
+(1)   50/       0 : =C000H              TEXT: 	EQU 	0C000H 		;TEXTEDITOR
+(1)   51/       0 : =EFA0H              TRAM: 	EQU	0EFA0H		;SPEICHERUMSCHALTUNG
+ AS V1.42 Beta [Bld 139] - source file monitor_f000.asm(io_f000.asm) - page 2 - 8/24/2019 16:48:31
+I-O MONITOR Y23VO
+
+
+(1)   52/       0 : =FFH                EOT: 	EQU 	0FFH 		;END 0F TABL
+(1)   53/       0 :                     
+(1)   54/       0 :                     	;EJEC
+(1)   55/    F000 :                     	ORG 	ROM
+(1)   56/    F000 :                     
+(1)   57/    F000 : C3 1B F0            	JP	BEGIN
+(1)   58/    F003 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)   59/    F003 :                     ;SPRUNGTABELLE IN/OUT-ROUTINEN
+(1)   60/    F003 : C3 F8 F2            MCSTS:	JP	CSTS		;CONSOLE STATUS
+(1)   61/    F006 : C3 32 F1            MCI:	JP	CI		;CONSOLE INPUT
+(1)   62/    F009 : C3 FF F1            MCO:	JP	CO		;CONSOLE OUTPUT
+(1)   63/    F00C : C3 DE F2            MLO:	JP	LO		;LISTER OUTPUT
+(1)   64/    F00F : C3 B9 F2            MWO:	JP	WO		;WRITE OUTPUT
+(1)   65/    F012 : C3 94 F2            MRI:	JP	RI		;READER INPUT
+(1)   66/    F015 : C3 F8 F0            MIOC:	JP	IOCHK
+(1)   67/    F018 : C3 FC F0            MIOS:	JP	IOSET
+(1)   68/    F01B :                     
+(1)   69/    F01B :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)   70/    F01B : =F01BH              BEGIN:	EQU	$
+(1)   71/    F01B :                     				;UEBERTRAGEN DER SYSTEMTABELLEN IN DEN RAM
+(1)   72/    F01B : 21 CE FB            	LD	HL,STACK	;ZIEL
+(1)   73/    F01E : 11 CE F3            	LD	DE,TOS		;QUELLE
+(1)   74/    F021 : 01 32 00            	LD	BC,LTOS		;LAENGE
+(1)   75/    F024 : F9                  	LD	SP,HL
+(1)   76/    F025 : EB                  	EX	DE,HL
+(1)   77/    F026 : ED B0               	LDIR
+(1)   78/    F028 :                     ;PROGRAMMIERUNG PIO FUER TASTATUR
+(1)   79/    F028 : 06 03               	LD	B,LPIOA		;LAENGE
+(1)   80/    F02A : 0E FE               	LD	C,PIOAC		;ADRESSE PORT A COMMANDO
+(1)   81/    F02C : 21 01 F1            	LD	HL,TPIOA	;TAB.-ANFANG
+(1)   82/    F02F : ED B3               	OTIR
+(1)   83/    F031 : 06 03               	LD	B,LPIOB
+(1)   84/    F033 : 0C                  	INC	C
+(1)   85/    F034 : ED B3               	OTIR
+(1)   86/    F036 : 3E 40               	ld      a, 40h ; '@'
+(1)   87/    F038 : D3 7F               	out     (7Fh), a
+(1)   88/    F03A : 3E 49               	ld      a, 49h ; 'I'
+(1)   89/    F03C : D3 7F               	out     (7Fh), a
+(1)   90/    F03E : 3E 27               	ld      a, 27h ; '''
+(1)   91/    F040 : D3 7F               	out     (7Fh), a
+(1)   92/    F042 : 21 E3 FB            	LD	HL,RSLOC	;USER-STACK
+(1)   93/    F045 : 74                  	LD	(HL),H
+(1)   94/    F046 : 35                  	DEC	(HL)
+(1)   95/    F047 : CD 7D F2            	CALL	BLOE
+(1)   96/    F04A : 21 60 F0            	LD	HL,RUFZ		;CALL-AUSGABE
+(1)   97/    F04D : CD 28 F1            	CALL	STR
+(1)   98/    F050 : CD B0 F7            	CALL	0F7B0h
+(1)   99/    F053 : 11 38 00            	ld      de, 38h ; '8'
+(1)  100/    F056 : 21 F6 F3            	ld      hl, PULOC
+(1)  101/    F059 : 01 03 00            	ld      bc, 3
+(1)  102/    F05C : ED B0               	ldir
+(1)  103/    F05E :                     	
+(1)  104/    F05E : 18 0D               	JR	START
+(1)  105/    F060 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  106/    F060 : =F060H              RUFZ:	EQU	$
+(1)  107/    F060 : 59 32 33            	DB	"Y23"
+(1)  108/    F063 : 56 4F               	DB	"VO"
+(1)  109/    F065 : 00                  	DB	00H
+(1)  110/    F066 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  111/    F066 : 31 CE FB            ERROR:	LD	SP,STACK	;STACK RESET
+ AS V1.42 Beta [Bld 139] - source file monitor_f000.asm(io_f000.asm) - page 3 - 8/24/2019 16:48:31
+I-O MONITOR Y23VO
+
+
+(1)  112/    F069 : CD 21 F1            	CALL	COMC
+(1)  113/    F06C : 3F                  	DB	'?'		;FEHLERMELDUNG
+(1)  114/    F06D :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  115/    F06D :                     ;ANFORDERUNG EINES KOMMANDOS
+(1)  116/    F06D : CD 09 F3            START:	CALL	CRLF		;LEERZEILE
+(1)  117/    F070 : CD 12 F3            	CALL	TON
+(1)  118/    F073 : CD 21 F1            	CALL	COMC
+(1)  119/    F076 : 3E                  	DB	'>'
+(1)  120/    F077 :                     ;RETTEN DER STARTADRESSE
+(1)  121/    F077 : 11 6D F0            	LD	DE,START
+(1)  122/    F07A : D5                  	PUSH	DE
+(1)  123/    F07B :                     ;EINGABE PROGRAMMNAME
+(1)  124/    F07B : CD 0C F1            	CALL	TI		;ZEICHENEINGABE+ECHO
+(1)  125/    F07E : 21 B2 F0            	LD	HL,JPTBL	;SPRUNGTABELLE
+(1)  126/    F081 : CD 96 F0            	CALL	FCGA		;SUCHE
+(1)  127/    F084 : 38 E0               	JR	C,ERROR		;WENN NICHT GEFUNDEN
+(1)  128/    F086 : 0E 02               	LD	C,2		;PARAMETERANZAHL
+(1)  129/    F088 : E9                  	JP	(HL)
+(1)  130/    F089 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  131/    F089 :                     
+(1)  132/    F089 :                     
+(1)  133/    F089 :                     ;                SUBROUTINEN
+(1)  134/    F089 :                     
+(1)  135/    F089 :                     
+(1)  136/    F089 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  137/    F089 :                     ;ZEITSCHLEIFE
+(1)  138/    F089 : =F089H              ZS:	EQU	$
+(1)  139/    F089 : E5                  	PUSH	HL
+(1)  140/    F08A : F5                  	PUSH	AF
+(1)  141/    F08B : 2A FC FB            	LD	HL,(RAMZK)
+(1)  142/    F08E : 2B                  ZS1:	DEC	HL
+(1)  143/    F08F : 7C                  	LD	A,H
+(1)  144/    F090 : B5                  	OR	L
+(1)  145/    F091 : 20 FB               	JR	NZ,ZS1
+(1)  146/    F093 : F1                  	POP	AF
+(1)  147/    F094 : E1                  	POP	HL
+(1)  148/    F095 : C9                  	RET
+(1)  149/    F096 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  150/    F096 :                     ;SUBROUTINE VERZWEIGUNG
+(1)  151/    F096 :                     ;IN:  ZEICHEN IN A
+(1)  152/    F096 :                     ;     TABELLENADRESSE IN HL
+(1)  153/    F096 :                     ;OUT: CY=0:HL=ADR,CY=1:NOT FOUND
+(1)  154/    F096 : =F096H              FCGA:	EQU	$
+(1)  155/    F096 : D5                  	PUSH	DE
+(1)  156/    F097 : 5F                  	LD	E,A		;ZEICHEN
+(1)  157/    F098 : =F098H              FCGA1:	EQU	$
+(1)  158/    F098 : 7E                  	LD	A,(HL)
+(1)  159/    F099 : FE FF               	CP	EOT		;END OF TAB
+(1)  160/    F09B : 28 11               	JR	Z,FCGA3
+(1)  161/    F09D : BB                  	CP	E
+(1)  162/    F09E : 28 05               	JR	Z,FCGA2		;FOUND
+(1)  163/    F0A0 : 23                  	INC	HL
+(1)  164/    F0A1 : 23                  	INC	HL
+(1)  165/    F0A2 : 23                  	INC	HL
+(1)  166/    F0A3 : 18 F3               	JR	FCGA1
+(1)  167/    F0A5 : =F0A5H              FCGA2:	EQU	$	
+(1)  168/    F0A5 : 7B                  	LD	A,E
+(1)  169/    F0A6 : 23                  	INC	HL
+(1)  170/    F0A7 : 5E                  	LD	E,(HL)
+(1)  171/    F0A8 : 23                  	INC	HL
+ AS V1.42 Beta [Bld 139] - source file monitor_f000.asm(io_f000.asm) - page 4 - 8/24/2019 16:48:31
+I-O MONITOR Y23VO
+
+
+(1)  172/    F0A9 : 56                  	LD	D,(HL)
+(1)  173/    F0AA : 23                  	INC	HL
+(1)  174/    F0AB : EB                  	EX	DE,HL
+(1)  175/    F0AC : 18 02               	JR	FCGA4
+(1)  176/    F0AE : =F0AEH              FCGA3:	EQU	$
+(1)  177/    F0AE : 37                  	SCF			;NOT FOUND
+(1)  178/    F0AF : 7B                  	LD	A,E
+(1)  179/    F0B0 : =F0B0H              FCGA4:	EQU	$
+(1)  180/    F0B0 : D1                  	POP	DE
+(1)  181/    F0B1 : C9                  	RET
+(1)  182/    F0B2 :                     
+(1)  183/    F0B2 :                     
+(1)  184/    F0B2 :                     ;ADRESSTABELLE KOMMANDOS
+(1)  185/    F0B2 : =F0B2H              JPTBL:	EQU	$
+(1)  186/    F0B2 : 41                  	DB	'A'
+(1)  187/    F0B3 : 00 C8               	DW	ASS
+(1)  188/    F0B5 : 42                  	DB	'B'
+(1)  189/    F0B6 : 00 80               	DW	BASIC
+(1)  190/    F0B8 : 43                  	DB	'C'
+(1)  191/    F0B9 : 81 F3               	DW	COPY
+(1)  192/    F0BB : 44                  	DB	'D'
+(1)  193/    F0BC : 64 F5               	DW	DISP
+(1)  194/    F0BE : 45                  	DB	'E'
+(1)  195/    F0BF : 85 F5               	DW	EOF
+(1)  196/    F0C1 : 46                  	DB	'F'
+(1)  197/    F0C2 : A9 F5               	DW	FILL
+(1)  198/    F0C4 : 47                  	DB	'G'
+(1)  199/    F0C5 : B7 F5               	DW	GOTO
+(1)  200/    F0C7 : 48                  	DB	'H'
+(1)  201/    F0C8 : F4 F5               	DW	HEXN
+(1)  202/    F0CA : 49                  	DB	'I'
+(1)  203/    F0CB : 47 F3               	DW	INK
+(1)  204/    F0CD : 4A                  	DB	'J'		
+(1)  205/    F0CE : F9 FB               	DW	ULOCR
+(1)  206/    F0D0 : 4B                  	DB	'K'
+(1)  207/    F0D1 : 8C F6               	DW	KNOW
+(1)  208/    F0D3 : 4C                  	DB	'L'
+(1)  209/    F0D4 : 2E F3               	DW	LKOM		;LIST-ZUWEISUNG
+(1)  210/    F0D6 : 4D                  	DB	'M'
+(1)  211/    F0D7 : 0B F6               	DW	MOVE
+(1)  212/    F0D9 : 4F                  	DB	'O'
+(1)  213/    F0DA : 68 F3               	DW	OUTK
+(1)  214/    F0DC : 50                  	DB	'P'
+(1)  215/    F0DD : 00 E8               	DW	PRINT		;DISASSEMBLER
+(1)  216/    F0DF : 52                  	DB	'R'
+(1)  217/    F0E0 : 1E F6               	DW	READ
+(1)  218/    F0E2 : 53                  	DB	'S'
+(1)  219/    F0E3 : 70 F6               	DW	SUBS
+(1)  220/    F0E5 : 54                  	DB	'T'
+(1)  221/    F0E6 : 00 C0               	DW	TEXT
+(1)  222/    F0E8 : 56                  	DB	'V'
+(1)  223/    F0E9 : E9 F6               	DW	VER
+(1)  224/    F0EB : 57                  	DB	'W'
+(1)  225/    F0EC : AA F6               	DW	WRITE
+(1)  226/    F0EE : 58                  	DB	'X'
+(1)  227/    F0EF : 02 F7               	DW	X
+(1)  228/    F0F1 : 59                  	DB	'Y'
+(1)  229/    F0F2 : B0 F7               	DW	0F7B0h
+(1)  230/    F0F4 : 5A                  	DB	'Z'		
+(1)  231/    F0F5 : 79 F7               	DW	ZR
+ AS V1.42 Beta [Bld 139] - source file monitor_f000.asm(io_f000.asm) - page 5 - 8/24/2019 16:48:31
+I-O MONITOR Y23VO
+
+
+(1)  232/    F0F7 : FF                  	DB	EOT
+(1)  233/    F0F8 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  234/    F0F8 :                     ;SUBR. ZUR ABFRAGE DER AKTUELLEN GERAETEZUWEISUNG
+(1)  235/    F0F8 :                     ;***IN:	-
+(1)  236/    F0F8 :                     ;**OUT:	A...AKTUELLE ZUWEISUNG
+(1)  237/    F0F8 :                     ;*KILL:	A
+(1)  238/    F0F8 : 3A FF FB            IOCHK:	LD	A,(IOBYT)
+(1)  239/    F0FB : C9                  	RET
+(1)  240/    F0FC :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  241/    F0FC :                     ;SUBR. ZUR VERAENDERUNG DER AKT. GERAETEZUWEISUNG
+(1)  242/    F0FC :                     ;***IN:	C...NEUE GERAETEZUWEISUNG
+(1)  243/    F0FC :                     ;**OUT:	-
+(1)  244/    F0FC :                     ;*KILL:	A
+(1)  245/    F0FC : 79                  IOSET:	LD	A,C
+(1)  246/    F0FD : 32 FF FB            	LD	(IOBYT),A
+(1)  247/    F100 : C9                  	RET
+(1)  248/    F101 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  249/    F101 :                     ;PIO-TABELLEN
+(1)  250/    F101 : =F101H              TPIOA:	EQU	$
+(1)  251/    F101 : CF                  	DB	0CFH	;BITWEISE E/A
+(1)  252/    F102 : C0                  	DB	0C0H	;1=IN,0=OUT
+(1)  253/    F103 : 07                  	DB	007H	;INT-STEUERWORT
+(1)  254/    F104 : =3H                 LPIOA:	EQU	$-TPIOA
+(1)  255/    F104 : =F104H              TPIOB:	EQU	$
+(1)  256/    F104 : CF                  	DB	0CFH
+(1)  257/    F105 : FF                  	DB	0FFH
+(1)  258/    F106 : 07                  	DB	07H
+(1)  259/    F107 : =3H                 LPIOB:	EQU	$-TPIOB
+(1)  260/    F107 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  261/    F107 :                     ;SUBR. ZUM TEST, OB UNTERBRECHUNG EINGEGEBEN WURDE
+(1)  262/    F107 :                     ;***IN:	-
+(1)  263/    F107 :                     ;**OUT:	A=0...KEIN ZEICHEN
+(1)  264/    F107 :                     ;       A SONST...ZEICHEN
+(1)  265/    F107 :                     ;*KILL:	A,F
+(1)  266/    F107 : CD F8 F2            BREAK:	CALL	CSTS
+(1)  267/    F10A : B7                  	OR	A
+(1)  268/    F10B : C8                  	RET	Z
+(1)  269/    F10C :                     ;*---*--*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  270/    F10C :                     ;SUBR. ZUR EINGABE EINES ASCII-ZEICHENS UEBER DAS TERMINAL
+(1)  271/    F10C :                     ;UND AUSGABE DES ECHOS
+(1)  272/    F10C :                     ;***IN:	-
+(1)  273/    F10C :                     ;**OUT:	A...ZEICHEN
+(1)  274/    F10C :                     ;*KILL:	A,F
+(1)  275/    F10C : C5                  TI:	PUSH	BC
+(1)  276/    F10D : CD 06 F0            	CALL	MCI
+(1)  277/    F110 : FE 03               	CP	ETX
+(1)  278/    F112 : CA 6D F0            	JP	Z,START
+(1)  279/    F115 : 4F                  	LD	C,A
+(1)  280/    F116 : CD 09 F0            	CALL	MCO
+(1)  281/    F119 : 79                  	LD	A,C
+(1)  282/    F11A : CB 77               	BIT	6,A		;KLEINBUCHSTABE ?
+(1)  283/    F11C : C4 BC F1            	CALL	NZ,SH2
+(1)  284/    F11F : C1                  	POP	BC
+(1)  285/    F120 : C9                  	RET
+(1)  286/    F121 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  287/    F121 :                     ;SUBR. Z. AUSG. E. ZEICHENS UEB. DAS TERMINAL
+(1)  288/    F121 :                     ;***IN:	ZEICHEN AUF SPEICHERPLATZ HINTER CALL
+(1)  289/    F121 :                     ;**OUT:	C...ZEICHEN
+(1)  290/    F121 :                     ;	(SP)=(SP)+1
+(1)  291/    F121 :                     ;KILL:	A,F,C
+ AS V1.42 Beta [Bld 139] - source file monitor_f000.asm(io_f000.asm) - page 6 - 8/24/2019 16:48:31
+I-O MONITOR Y23VO
+
+
+(1)  292/    F121 : E3                  COMC:	EX	(SP),HL
+(1)  293/    F122 : 4E                  	LD	C,(HL)
+(1)  294/    F123 : 23                  	INC	HL
+(1)  295/    F124 : E3                  	EX	(SP),HL
+(1)  296/    F125 : C3 09 F0            	JP	MCO
+(1)  297/    F128 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  298/    F128 :                     ;SUBROUTINE ZUR AUSGABE EINER ZEICHENFOLGE,ABSCHLUSS DER FOLGE MIT 00
+(1)  299/    F128 :                     ;***IN:	ANFANGSADR. IN HL
+(1)  300/    F128 :                     ;**OUT:	-
+(1)  301/    F128 :                     ;*KILL:	AF,HL
+(1)  302/    F128 : 7E                  STR:	LD	A,(HL)
+(1)  303/    F129 : 4F                  	LD	C,A
+(1)  304/    F12A : 23                  	INC	HL
+(1)  305/    F12B : B7                  	OR	A
+(1)  306/    F12C : C8                  	RET	Z
+(1)  307/    F12D : CD 0C F0            	CALL	MLO
+(1)  308/    F130 : 18 F6               	JR	STR
+(1)  309/    F132 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  310/    F132 :                     ;SUBROUTINE ZUR EINGABE EINES ZEICHENS UEBER DAS TERMINAL
+(1)  311/    F132 :                     ;***IN:	-
+(1)  312/    F132 :                     ;**OUT:	A...ZEICHEN IN ASCII 
+(1)  313/    F132 :                     ;*KILL:	A,F
+(1)  314/    F132 : =F132H              CI:	EQU	$
+(1)  315/    F132 : CD 3C F1            	CALL	CI0
+(1)  316/    F135 : CB 77               	BIT	6,A	;UMWANDLUNG KLEIN/GROSS
+(1)  317/    F137 : C4 BC F1            	CALL	NZ,SH2
+(1)  318/    F13A : B7                  	OR	A
+(1)  319/    F13B : C9                  	RET
+(1)  320/    F13C : C5                  CI0:	PUSH	BC
+(1)  321/    F13D : D5                  	PUSH	DE
+(1)  322/    F13E : E5                  	PUSH	HL
+(1)  323/    F13F : 21 FE FB            	LD	HL, FLGIO
+(1)  324/    F142 : CD 69 F1            CI2:	CALL	ZYKL
+(1)  325/    F145 : 28 FB               	JR	Z, CI2
+(1)  326/    F147 :                     ;TASTE GEDRUECKT
+(1)  327/    F147 : 57                  	LD	D, A
+(1)  328/    F148 : CD 8B F1            	CALL	CVTA	;- ASCII
+(1)  329/    F14B : F5                  	PUSH	AF
+(1)  330/    F14C : CD 12 F3            	CALL	TON
+(1)  331/    F14F : CD 69 F1            CI1:	CALL	ZYKL
+(1)  332/    F152 : 20 FB               	JR	NZ, CI1
+(1)  333/    F154 :                     ;TASTE FREI
+(1)  334/    F154 : F1                  	POP	AF
+(1)  335/    F155 :                     ;UMSCHALTTASTE ?
+(1)  336/    F155 : FE 11               	CP	11H	;DC1=SHIFT
+(1)  337/    F157 : 28 08               	JR	Z, CI3
+(1)  338/    F159 : FE 12               	CP	12H	;DC2=CONTROL
+(1)  339/    F15B : 28 08               	JR	Z, CI4
+(1)  340/    F15D : E1                  	POP	HL
+(1)  341/    F15E : D1                  	POP	DE
+(1)  342/    F15F : C1                  	POP	BC
+(1)  343/    F160 : C9                  	RET
+(1)  344/    F161 : CB DE               CI3:	SET	3, (HL)
+(1)  345/    F163 : 18 DD               	JR	CI2
+(1)  346/    F165 : CB E6               CI4:	SET	4, (HL)
+(1)  347/    F167 : 18 D9               	JR	CI2
+(1)  348/    F169 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  349/    F169 :                     ;SUBR. FUER EINEN ZYKLUS DER TASTENEINGABE
+(1)  350/    F169 :                     ;***IN:	-
+(1)  351/    F169 :                     ;**OUT:	A=0...KEINE EINGABE
+ AS V1.42 Beta [Bld 139] - source file monitor_f000.asm(io_f000.asm) - page 7 - 8/24/2019 16:48:31
+I-O MONITOR Y23VO
+
+
+(1)  352/    F169 :                     ;	A...SONST SPALTENBYTE
+(1)  353/    F169 :                     ;	E...ZEILENBYTE
+(1)  354/    F169 :                     ;*KILL:	A,B,C,E,F
+(1)  355/    F169 : =F169H              ZYKL:	EQU	$
+(1)  356/    F169 : 06 08               	LD	B, 08H
+(1)  357/    F16B : 0E FC               	LD	C, PIOAD
+(1)  358/    F16D : ED 78               	IN	A, (C)
+(1)  359/    F16F : E6 F1               	AND	0F1H
+(1)  360/    F171 : 5F                  ZYK1:	LD	E, A
+(1)  361/    F172 : ED 59               	OUT	(C), E
+(1)  362/    F174 : CD 89 F0            	CALL	ZS
+(1)  363/    F177 : DB FD               	IN	A, (PIOBD)
+(1)  364/    F179 : FE FF               	CP	0FFH
+(1)  365/    F17B : 20 07               	JR	NZ, ZYK2	;TASTE GEDRUECKT
+(1)  366/    F17D : 7B                  	LD	A, E
+(1)  367/    F17E : C6 02               	ADD	A, 02H
+(1)  368/    F180 : 10 EF               	DJNZ	ZYK1		;KEINE TASTE GEDRUECKT
+(1)  369/    F182 : AF                  	XOR	A
+(1)  370/    F183 : C9                  	RET
+(1)  371/    F184 : 1E FE               ZYK2:	LD	E, 0FEH
+(1)  372/    F186 : CB 0B               ZYK3:	RRC	E
+(1)  373/    F188 : 10 FC               	DJNZ	ZYK3
+(1)  374/    F18A : C9                  	RET
+(1)  375/    F18B :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  376/    F18B :                     ;SUBR. ZUR KONVERTIERUNG TASTENKODE -> ASCII
+(1)  377/    F18B :                     ;***IN:	DE...ZEICHEN IM TASTENKODE
+(1)  378/    F18B :                     ;**OUT:	A=...ZEICHEN IM ASCII-KODE
+(1)  379/    F18B :                     ;*KILL:	A,B,C,D,E,F
+(1)  380/    F18B : E5                  CVTA:	PUSH	HL
+(1)  381/    F18C : AF                  	XOR	A
+(1)  382/    F18D : 47                  	LD	B, A		;B=0 F.ADD HLL,BC
+(1)  383/    F18E :                     ;REL. TAB.PLATZ FUER SPALTE
+(1)  384/    F18E : C6 07               CVTA0:	ADD	A, 7
+(1)  385/    F190 : CB 0A               	RRC	D
+(1)  386/    F192 : 38 FA               	JR	C, CVTA0
+(1)  387/    F194 : D6 07               	SUB	7
+(1)  388/    F196 : 4F                  	LD	C, A
+(1)  389/    F197 :                     ;REL. TAB.PLATZ FUER ZEILE
+(1)  390/    F197 : AF                  	XOR	A
+(1)  391/    F198 : 3C                  CVTA1:	INC	A
+(1)  392/    F199 : CB 0B               	RRC	E
+(1)  393/    F19B : 38 FB               	JR	C, CVTA1
+(1)  394/    F19D : 3D                  	DEC	A
+(1)  395/    F19E :                     ;REL. TAB.PLATZ FUER ZEICHEN IN C
+(1)  396/    F19E : 81                  	ADD	A, C
+(1)  397/    F19F : 4F                  	LD	C, A
+(1)  398/    F1A0 : 21 C5 F1            	LD	HL, TTAB
+(1)  399/    F1A3 : 09                  	ADD	HL, BC
+(1)  400/    F1A4 : 7E                  	LD	A, (HL)
+(1)  401/    F1A5 :                     ;TEST AUF UMSCHALTUNG
+(1)  402/    F1A5 : 21 FE FB            	LD	HL, FLGIO
+(1)  403/    F1A8 : CB 5E               	BIT	3, (HL)
+(1)  404/    F1AA : C4 B8 F1            	CALL	NZ, SHIFT
+(1)  405/    F1AD : CB 9E               	RES	3, (HL)		;UMSCHALTUNG LOESCHEN
+(1)  406/    F1AF :                     ;TEST AUF CONTROL
+(1)  407/    F1AF : CB 66               	BIT	4, (HL)
+(1)  408/    F1B1 : C4 C2 F1            	CALL	NZ, CONT
+(1)  409/    F1B4 : CB A6               	RES	4, (HL)
+(1)  410/    F1B6 : E1                  	POP	HL
+(1)  411/    F1B7 : C9                  	RET
+ AS V1.42 Beta [Bld 139] - source file monitor_f000.asm(io_f000.asm) - page 8 - 8/24/2019 16:48:31
+I-O MONITOR Y23VO
+
+
+(1)  412/    F1B8 : =F1B8H              SHIFT:	EQU	$
+(1)  413/    F1B8 : CB 77               	BIT	6, A		;BUCHST.
+(1)  414/    F1BA : 28 03               	JR	Z, SH1
+(1)  415/    F1BC : CB AF               SH2:	RES	5, A		;GROSS:=KLEIN
+(1)  416/    F1BE : C9                  	RET
+(1)  417/    F1BF : CB A7               SH1:	RES	4, A		;ZEICHEN:=ZIFFER
+(1)  418/    F1C1 : C9                  	RET
+(1)  419/    F1C2 : E6 1F               CONT:	AND	1FH
+(1)  420/    F1C4 : C9                  	RET
+(1)  421/    F1C5 :                     ;KONVERTIERUNGSTABELLE FUER IMPL. TASTEN
+(1)  422/    F1C5 :                     ; END OF FUNCTION CONT
+(1)  423/    F1C5 : 0B                  TTAB:	DB	0BH		;VTABULATOR
+(1)  424/    F1C6 : 70                  	DB	'p'
+(1)  425/    F1C7 : 69                  	DB	'i'
+(1)  426/    F1C8 : 7A                  	DB	'z'
+(1)  427/    F1C9 : 72                  	DB	'r'
+(1)  428/    F1CA : 77                  	DB	'w'
+(1)  429/    F1CB : 09                  	DB	9		;HTABULATOR
+(1)  430/    F1CC :                     ;---------------------------------
+(1)  431/    F1CC : 08                  	DB	8		;BACKSPACE
+(1)  432/    F1CD : 6F                  	DB	'o'
+(1)  433/    F1CE : 75                  	DB	'u'
+(1)  434/    F1CF : 74                  	DB	't'
+(1)  435/    F1D0 : 65                  	DB	'e'
+(1)  436/    F1D1 : 71                  	DB	'q'
+(1)  437/    F1D2 : 20                  	DB	' '		;SPACE
+(1)  438/    F1D3 :                     ;---------------------------------
+(1)  439/    F1D3 : 3B                  	DB	';'
+(1)  440/    F1D4 : 7F                  	DB	7Fh		;DEL
+(1)  441/    F1D5 : 6E                  	DB	'n'
+(1)  442/    F1D6 : 76                  	DB	'v'
+(1)  443/    F1D7 : 78                  	DB	'x'
+(1)  444/    F1D8 : 00                  	DB	0
+(1)  445/    F1D9 : 00                  	DB	0
+(1)  446/    F1DA :                     ;---------------------------------
+(1)  447/    F1DA : 3C                  	DB	'<'
+(1)  448/    F1DB : 6B                  	DB	'k'
+(1)  449/    F1DC : 68                  	DB	'h'
+(1)  450/    F1DD : 66                  	DB	'f'
+(1)  451/    F1DE : 73                  	DB	's'
+(1)  452/    F1DF : 00                  	DB	0
+(1)  453/    F1E0 : 00                  	DB	0
+(1)  454/    F1E1 :                     ;---------------------------------
+(1)  455/    F1E1 : 7E                  	db  7Eh ; ~
+(1)  456/    F1E2 : 0D                  	DB	0DH		;CR
+(1)  457/    F1E3 : 6D                  	DB	'm'
+(1)  458/    F1E4 : 62                  	DB	'b'
+(1)  459/    F1E5 : 63                  	DB	'c'
+(1)  460/    F1E6 : 79                  	DB	'y'
+(1)  461/    F1E7 : 12                  	DB	12h		;DC2=CONTROL
+(1)  462/    F1E8 :                     ;---------------------------------
+(1)  463/    F1E8 : 11                  	DB	11h		;DC1=SHIFT
+(1)  464/    F1E9 : 6C                  	DB	'l'
+(1)  465/    F1EA : 6A                  	DB	'j'
+(1)  466/    F1EB : 67                  	DB	'g'
+(1)  467/    F1EC : 64                  	DB	'd'
+(1)  468/    F1ED : 61                  	DB	'a'
+(1)  469/    F1EE : 3E                  	DB	'>'
+(1)  470/    F1EF :                     ;---------------------------------
+(1)  471/    F1EF : 0A                  	DB	0Ah
+ AS V1.42 Beta [Bld 139] - source file monitor_f000.asm(io_f000.asm) - page 9 - 8/24/2019 16:48:31
+I-O MONITOR Y23VO
+
+
+(1)  472/    F1F0 : 30 38 36 34         	DB	"0864"
+(1)  473/    F1F4 : 32 3F               	DB	"2?"
+(1)  474/    F1F6 :                     ;---------------------------------
+(1)  475/    F1F6 : 3A 39 37 35         	DB	":975"
+(1)  476/    F1FA : 33 31 3D            	DB	"31="
+(1)  477/    F1FD : =38H                LTTAB:	EQU	$-TTAB
+(1)  478/    F1FD :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  479/    F1FD :                     ;SUBR. ZUR AUSGABE EINES LEERZEICHENS UEBER BILDSCHIRM
+(1)  480/    F1FD : 0E 20               BLK:	LD	C, ' '
+(1)  481/    F1FF :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  482/    F1FF :                     ;SUBR. ZUR AUSGABE EINES ZEICHENS UEBER BILDSCHIRM
+(1)  483/    F1FF :                     ;***IN:	C...ZEICHEN
+(1)  484/    F1FF :                     ;	(CURS)....BILDSCHIRMADRESSE
+(1)  485/    F1FF :                     ;**OUT:	(CURS)....AKT. BILDSCHIRMADRESSE
+(1)  486/    F1FF :                     ;*KILL:	A,F
+(1)  487/    F1FF : =F1FFH              CO:	EQU	$
+(1)  488/    F1FF : F5                  	PUSH	AF
+(1)  489/    F200 : C5                  	PUSH	BC
+(1)  490/    F201 : D5                  	PUSH	DE
+(1)  491/    F202 : E5                  	PUSH	HL
+(1)  492/    F203 : DD E5               	PUSH	IX
+(1)  493/    F205 : 11 40 00            	LD	DE, 64		;1ZEILE
+(1)  494/    F208 : 2A F1 FB            	LD	HL, (CURS)	;CURSOR POSITION LADEN
+(1)  495/    F20B : E5                  	PUSH	HL		;CURSORPOSITION IN STACK
+(1)  496/    F20C : 7E                  	LD	A, (HL)		;ZEICHEN HOLEN
+(1)  497/    F20D : E6 7F               	AND	7FH		;CURSOR LOESCHEN
+(1)  498/    F20F : 77                  	LD	(HL), A
+(1)  499/    F210 : 79                  	LD	A, C		;NEUES ZEICHEN
+(1)  500/    F211 : E6 7F               	AND	7FH
+(1)  501/    F213 : 21 4E F2            	LD	HL, COTAB	;STEUERZEICHEN?
+(1)  502/    F216 : CD 96 F0            	CALL	FCGA
+(1)  503/    F219 : 38 06               	JR	C, CO0		;NEIN
+(1)  504/    F21B :                     ;STEUERZEICHEN AUSWERTEN
+(1)  505/    F21B : E5                  	PUSH	HL
+(1)  506/    F21C : DD E1               	POP	IX
+(1)  507/    F21E : E1                  	POP	HL
+(1)  508/    F21F : DD E9               	JP	(IX)
+(1)  509/    F221 : 79                  CO0:	LD	A, C
+(1)  510/    F222 : E1                  	POP	HL		;CURSORPOSITION LADEN
+(1)  511/    F223 : 77                  	LD	(HL), A		;ZEICHEN AUSGEBEN
+(1)  512/    F224 : 23                  HTAB:	INC	HL		;NAECHSTER BILDSCHIRMPLATZ
+(1)  513/    F225 : CD 64 F2            CO3:	CALL	VOLL
+(1)  514/    F228 : 7E                  CO1:	LD	A, (HL)		;ZEICHEN RUECKLESEN
+(1)  515/    F229 : C6 80               	ADD	A, 80H		;CURSOR SETZEN
+(1)  516/    F22B : 77                  	LD	(HL), A		;ZEICHEN AUSGEBEN
+(1)  517/    F22C : 22 F1 FB            CO2:	LD	(CURS), HL
+(1)  518/    F22F : DD E1               	POP	IX
+(1)  519/    F231 : E1                  	POP	HL
+(1)  520/    F232 : D1                  	POP	DE
+(1)  521/    F233 : C1                  	POP	BC
+(1)  522/    F234 : F1                  	POP	AF
+(1)  523/    F235 : C9                  	RET
+(1)  524/    F236 :                     ;STEUERZEICHEN
+(1)  525/    F236 : 2B                  BS:	DEC	HL		;BACKSTEP
+(1)  526/    F237 : 18 EF               	JR	CO1
+(1)  527/    F239 : 7D                  WAG:	LD	A, L		;WAGENRUECKLAUF
+(1)  528/    F23A : E6 C0               	AND	0C0H		;ZEILENANFANG EINSTELLEN
+(1)  529/    F23C : 6F                  	LD	L, A
+(1)  530/    F23D : 18 E6               	JR	CO3
+(1)  531/    F23F : 19                  ZVOR:	ADD	HL, DE
+ AS V1.42 Beta [Bld 139] - source file monitor_f000.asm(io_f000.asm) - page 10 - 8/24/2019 16:48:31
+I-O MONITOR Y23VO
+
+
+(1)  532/    F240 : 18 E3               	JR	CO3
+(1)  533/    F242 : ED 52               CUP:	SBC	HL, DE
+(1)  534/    F244 : 18 E2               	JR	CO1
+(1)  535/    F246 : 19                  NL:	ADD	HL, DE
+(1)  536/    F247 : 18 F0               	JR	WAG
+(1)  537/    F249 : CD 12 F3            BELL:	CALL	TON
+(1)  538/    F24C : 18 DA               	JR	CO1
+(1)  539/    F24E :                     ;STEUERZEICHENTABELLE
+(1)  540/    F24E : =F24EH              COTAB:	EQU	$
+(1)  541/    F24E : 0D                  	DB	CR		;CARRIAGE RETURN
+(1)  542/    F24F : 39 F2               	DW	WAG		;WAGENRUECKLAUF
+(1)  543/    F251 : 0A                  	DB	LF		;LINE FEED
+(1)  544/    F252 : 3F F2               	DW	ZVOR		;ZEILENVORSCHUB
+(1)  545/    F254 : 0B                  	DB	0BH		;VERT.TABULATOR
+(1)  546/    F255 : 42 F2               	DW	CUP		;CURSOR UP
+(1)  547/    F257 : 09                  	DB	9		;HOR. TABULATOR
+(1)  548/    F258 : 24 F2               	DW	HTAB
+(1)  549/    F25A : 08                  	DB	8		;BACKSTEP
+(1)  550/    F25B : 36 F2               	DW	BS
+(1)  551/    F25D : 1E                  	DB	1EH		;NEW LINE
+(1)  552/    F25E : 46 F2               	DW	NL
+(1)  553/    F260 : 07                  	DB	7		;BELL
+(1)  554/    F261 : 49 F2               	DW	BELL
+(1)  555/    F263 : FF                  	DB	0FFH
+(1)  556/    F264 :                     ;TEST AUF BILDSCHIRMUEBERLAUF
+(1)  557/    F264 : 7C                  VOLL:	LD	A, H
+(1)  558/    F265 : FE 00               	CP	HIGH(BRAM+1024)
+(1)  559/    F267 : C0                  	RET	NZ		;NOCH KEIN UEBERLAUF
+(1)  560/    F268 :                     ;ROLL UP
+(1)  561/    F268 : =F268H              ROLLA:	EQU	$
+(1)  562/    F268 : C5                  	PUSH	BC
+(1)  563/    F269 : 21 40 FC            	LD	HL, BRAM+64
+(1)  564/    F26C : 11 00 FC            	LD	DE, BRAM
+(1)  565/    F26F : 01 C0 03            	LD	BC, 1024-64
+(1)  566/    F272 : ED B0               	LDIR
+(1)  567/    F274 :                     ;LETZTE ZEILE LOESCHEN
+(1)  568/    F274 :                     ;IN:	HL ZEILENENDE
+(1)  569/    F274 :                     ;OUT:	HL - 64
+(1)  570/    F274 : 01 20 40            	LD	BC, 4020H	;64 BYTES, LEERZEICHEN
+(1)  571/    F277 : 2B                  ZLOE:	DEC	HL
+(1)  572/    F278 : 71                  	LD	(HL), C
+(1)  573/    F279 : 10 FC               	DJNZ	ZLOE
+(1)  574/    F27B : C1                  	POP	BC
+(1)  575/    F27C : C9                  	RET
+(1)  576/    F27D : E5                  BLOE:	PUSH	HL
+(1)  577/    F27E : D5                  	PUSH	DE
+(1)  578/    F27F : C5                  	PUSH	BC
+(1)  579/    F280 : 21 FF FF            	LD	HL, BRAM+1023	;BILDSCHIRM LOESCHEN
+(1)  580/    F283 : 11 FE FF            	LD	DE, BRAM+1022
+(1)  581/    F286 : 01 FF 03            	LD	BC, 1023	;ANZAHL
+(1)  582/    F289 : 36 20               	LD	(HL), ' '	;LEERZEICHEN
+(1)  583/    F28B : ED B8               	LDDR
+(1)  584/    F28D : 22 F1 FB            	LD	(CURS), HL
+(1)  585/    F290 : C1                  	POP	BC
+(1)  586/    F291 : D1                  	POP	DE
+(1)  587/    F292 : E1                  	POP	HL
+(1)  588/    F293 : C9                  	RET
+(1)  589/    F294 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  590/    F294 :                     ;SUBR. ZUR EINGABE EINES ZEICHENS UEBER DAS GERAET "I"
+(1)  591/    F294 :                     ;***IN:	-
+ AS V1.42 Beta [Bld 139] - source file monitor_f000.asm(io_f000.asm) - page 11 - 8/24/2019 16:48:31
+I-O MONITOR Y23VO
+
+
+(1)  592/    F294 :                     ;**OUT:	A...ZEICHEN
+(1)  593/    F294 :                     ;	CARRY=1...TIME OUT
+(1)  594/    F294 :                     ;*KILL:	A,F
+(1)  595/    F294 : 3A FF FB            RI:	LD	A, (IOBYT)
+(1)  596/    F297 : E6 0C               	AND	0CH		;NEG. IMSK
+(1)  597/    F299 :                     ;EINGABE UEBER TERMINAL
+(1)  598/    F299 : CA 06 F0            	JP	Z, MCI
+(1)  599/    F29C : FE 08               	CP	IL
+(1)  600/    F29E : 20 0B               	JR	NZ, RI8
+(1)  601/    F2A0 :                     ;EINGABE UEBER SERIELLE SCHNITTSTELLE
+(1)  602/    F2A0 : =F2A0H              LIN:	EQU	$
+(1)  603/    F2A0 : DB 7F               	IN	A, (7Fh)
+(1)  604/    F2A2 : CB 4F               	BIT	1, A
+(1)  605/    F2A4 : 28 FA               	JR	Z, LIN		;WARTEN AUF START-BIT
+(1)  606/    F2A6 : DB 7E               	IN	A, (7Eh)
+(1)  607/    F2A8 : E6 7F               	AND	7FH
+(1)  608/    F2AA : C9                  	RET
+(1)  609/    F2AB :                     ;EINGABE UEBER VOM ANWENDER DEF. GER.
+(1)  610/    F2AB : 3E F3               RI8:	LD	A, LOW(RULOC)
+(1)  611/    F2AD : 18 21               	JR	HUSER
+(1)  612/    F2AF :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  613/    F2AF :                     ;SUBR. ZUR AUSGABE EINES ZEICHENS AUF SERIELLE SCHNITTSTELLE
+(1)  614/    F2AF :                     ;***IN:	C...ZEICHEN
+(1)  615/    F2AF :                     ;**OUT:	-
+(1)  616/    F2AF :                     ;*KILL:	A,F
+(1)  617/    F2AF : =F2AFH              LDRU:	EQU	$
+(1)  618/    F2AF : DB 7F               	in      a, (7Fh)
+(1)  619/    F2B1 : CB 47               	bit     0, a
+(1)  620/    F2B3 : 28 FA               	jr      z, LDRU
+(1)  621/    F2B5 : 79                  	ld      a, c
+(1)  622/    F2B6 : D3 7E               	out     (7Eh), a
+(1)  623/    F2B8 : C9                  	ret
+(1)  624/    F2B9 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  625/    F2B9 :                     ;SUBR. Z. AUSG. E. ZEICH. UEBER DAS GERAET "O"
+(1)  626/    F2B9 :                     ;***IN:	C...ZEICHEN
+(1)  627/    F2B9 :                     ;**OUT:	-
+(1)  628/    F2B9 :                     ;*KILL:	A,F
+(1)  629/    F2B9 : CB B9               WO:	RES	7, C
+(1)  630/    F2BB : 79                  	LD	A, C
+(1)  631/    F2BC : B7                  	OR	A
+(1)  632/    F2BD : EA C2 F2            	JP	PE, WO0
+(1)  633/    F2C0 : CB F9               	SET	7, C
+(1)  634/    F2C2 : 3A FF FB            WO0:	LD	A, (IOBYT)
+(1)  635/    F2C5 : E6 30               	AND	30H		;NEG. OMSK
+(1)  636/    F2C7 : CA 09 F0            WO1:	JP	Z, MCO		;AUSGABE UEBER TERMINAL
+(1)  637/    F2CA : FE 20               	CP	OL
+(1)  638/    F2CC : 28 E1               	JR	Z, LDRU
+(1)  639/    F2CE :                     ;AUSGABE UEBER VOM ANWENDER DEF. GER.
+(1)  640/    F2CE : 3E F6               	LD	A, LOW(PULOC)
+(1)  641/    F2D0 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  642/    F2D0 :                     ;SUBR. ZUM AUFRUF EINES VOM ANWENDER DEF. HANDLERS
+(1)  643/    F2D0 : E5                  HUSER:	PUSH	HL
+(1)  644/    F2D1 : 21 FF FB            	LD	HL, IOBYT
+(1)  645/    F2D4 : 6F                  	LD	L, A
+(1)  646/    F2D5 : E3                  	EX	(SP), HL
+(1)  647/    F2D6 : C9                  	RET
+(1)  648/    F2D7 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  649/    F2D7 :                     ;SUBR. ZUR AUSGABE VON CR UND LF AUF DEM GERAET "L"
+(1)  650/    F2D7 :                     ;***IN:	-
+(1)  651/    F2D7 :                     ;**OUT:	-
+ AS V1.42 Beta [Bld 139] - source file monitor_f000.asm(io_f000.asm) - page 12 - 8/24/2019 16:48:31
+I-O MONITOR Y23VO
+
+
+(1)  652/    F2D7 :                     ;*KILL:	A,F,C
+(1)  653/    F2D7 : 0E 0D               LCRLF:	LD	C, CR
+(1)  654/    F2D9 : CD 0C F0            	CALL	MLO
+(1)  655/    F2DC : 0E 0A               	LD	C, LF
+(1)  656/    F2DE :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  657/    F2DE :                     ;SUBR. ZUR AUSGABE UEB. D. GER. "L" MIT TEST AUF EINGABE VON CTRL/C
+(1)  658/    F2DE :                     ;***IN:	C...ZEICHEN
+(1)  659/    F2DE :                     ;**OUT:	-
+(1)  660/    F2DE :                     ;*KILL:	A,F
+(1)  661/    F2DE : CD 07 F1            LO:	CALL	BREAK
+(1)  662/    F2E1 : 3E 1E               	LD	A, 1EH		;NEWLINE
+(1)  663/    F2E3 : B9                  	CP	C
+(1)  664/    F2E4 : 28 F1               	JR	Z, LCRLF
+(1)  665/    F2E6 : 3A FF FB            	LD	A, (IOBYT)
+(1)  666/    F2E9 : E6 C0               	AND	0C0H		;NEG. LMSK
+(1)  667/    F2EB : 28 DA               	JR	Z, WO1		;AUSGABE UEBER TERMINAL
+(1)  668/    F2ED : FE 80               	CP	LL
+(1)  669/    F2EF : 28 BE               	JR	Z, LDRU		;AUSGABE UEBER DRUCKER
+(1)  670/    F2F1 : FE C0               	CP	LU
+(1)  671/    F2F3 : 3E F9               	LD	A, LOW(ULOC)
+(1)  672/    F2F5 : 28 D9               	JR	Z, HUSER	;AUSGABE UEBER ANWENDERGERAET
+(1)  673/    F2F7 : C9                  	RET
+(1)  674/    F2F8 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  675/    F2F8 :                     ;SUBR. ZUM TEST AUF ETX-EINGABE UEBER DAS TERMINAL
+(1)  676/    F2F8 :                     ;***IN:	-
+(1)  677/    F2F8 :                     ;**OUT:	A=0... KEINE EINGABE
+(1)  678/    F2F8 :                     ;	A=-1... EINGABE
+(1)  679/    F2F8 :                     ;*KILL:	A,F
+(1)  680/    F2F8 : DB FC               CSTS:	IN	A, (PIOAD)
+(1)  681/    F2FA : E6 F1               	AND	0F1H		;1.ZEILE
+(1)  682/    F2FC : F6 0D               	or	0dh
+(1)  683/    F2FE : D3 FC               	OUT	(PIOAD),A
+(1)  684/    F300 : DB FD               	IN	A, (PIOBD)
+(1)  685/    F302 : FE EF               	CP	0EFH		;5.SPALTE
+(1)  686/    F304 : 3E FF               	LD	A, 0FFH
+(1)  687/    F306 : C8                  	RET	Z
+(1)  688/    F307 : AF                  	XOR	A
+(1)  689/    F308 : C9                  	RET
+(1)  690/    F309 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  691/    F309 :                     ;SUBR. ZUR AUSGABE VON CR UND LF AUF DEM TERMINAL
+(1)  692/    F309 :                     ;***IN:	-
+(1)  693/    F309 :                     ;**OUT:	-
+(1)  694/    F309 :                     ;*KILL:	A,F,C
+(1)  695/    F309 : CD 21 F1            CRLF:	CALL	COMC
+(1)  696/    F30C : 0D                  	DB 	CR
+(1)  697/    F30D : CD 21 F1            	CALL	COMC
+(1)  698/    F310 : 0A                  	DB	LF
+(1)  699/    F311 : C9                  	RET
+(1)  700/    F312 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  701/    F312 :                     ;SUBROUTINE TON
+(1)  702/    F312 :                     ;***IN:	-
+(1)  703/    F312 :                     ;**OUT:	TON AN PIO AD
+(1)  704/    F312 :                     ;*KILL:	PIOAD
+(1)  705/    F312 : =F312H              TON:	EQU	$
+(1)  706/    F312 : F5                  	PUSH	AF
+(1)  707/    F313 : C5                  	PUSH	BC
+(1)  708/    F314 : 0E FF               	LD	C, 0FFH		;PERIODENANZAHL
+(1)  709/    F316 : 06 30               TON1:	LD	B, 30H		;PERIODENLAENGE
+(1)  710/    F318 : 10 FE               TON2:	DJNZ	TON2		;1/2 PERIODE
+(1)  711/    F31A : DB FC               	IN	A, (PIOAD)
+ AS V1.42 Beta [Bld 139] - source file monitor_f000.asm(io_f000.asm) - page 13 - 8/24/2019 16:48:31
+I-O MONITOR Y23VO
+
+
+(1)  712/    F31C : CB 6F               	BIT	5, A
+(1)  713/    F31E : 28 0A               	JR	Z, TON3
+(1)  714/    F320 : CB AF               	RES	5, A
+(1)  715/    F322 : D3 FC               TON4:	OUT	(PIOAD),A
+(1)  716/    F324 : 0D                  	DEC	C
+(1)  717/    F325 : 20 EF               	JR	NZ, TON1
+(1)  718/    F327 : C1                  	POP	BC
+(1)  719/    F328 : F1                  	POP	AF
+(1)  720/    F329 : C9                  	RET
+(1)  721/    F32A : CB EF               TON3:	SET	5, A
+(1)  722/    F32C : 18 F4               	JR	TON4
+(1)  723/    F32E :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  724/    F32E :                     ;ZUWEISUNG PERIPHERIEGERAETE
+(1)  725/    F32E : =F32EH              LKOM:	EQU	$		;LISTER
+(1)  726/    F32E : 06 3F               	LD	B, LMSK		;LISTER-MASKE
+(1)  727/    F330 : CD 0C F1            	CALL	TI
+(1)  728/    F333 : FE 4C               	CP	'L'
+(1)  729/    F335 : 28 08               	JR	Z, LKL
+(1)  730/    F337 : FE 55               	CP	'U'
+(1)  731/    F339 : 28 08               	JR	Z, LKU
+(1)  732/    F33B : 0E 00               	LD	C, LT		;TERMINAL
+(1)  733/    F33D : 18 1F               	JR	ASGN
+(1)  734/    F33F : 0E 80               LKL:	LD	C, LL
+(1)  735/    F341 : 18 1B               	JR	ASGN
+(1)  736/    F343 : 0E C0               LKU:	LD	C, LU
+(1)  737/    F345 : 18 17               	JR	ASGN
+(1)  738/    F347 : =F347H              INK:	EQU	$		;INPUT-KANAL
+(1)  739/    F347 : 06 F3               	LD	B, IMSK
+(1)  740/    F349 : CD 0C F1            	CALL	TI
+(1)  741/    F34C : FE 55               	CP	'U'
+(1)  742/    F34E : 28 0C               	JR	Z, IKU
+(1)  743/    F350 : FE 4C               	CP	'L'
+(1)  744/    F352 : 28 04               	JR	Z, IKL
+(1)  745/    F354 : 0E 00               	LD	C, IT		;TERMINLA
+(1)  746/    F356 : 18 06               	JR	ASGN
+(1)  747/    F358 : 0E 08               IKL:	LD	C, IL		;   LINE
+(1)  748/    F35A : 18 02               	JR	ASGN
+(1)  749/    F35C : 0E 0C               IKU:	LD	C, IU		;   USER
+(1)  750/    F35E :                     ;GERAET IM I/O-BYTE EINTRAGEN
+(1)  751/    F35E : CD F8 F0            ASGN:	CALL	IOCHK
+(1)  752/    F361 : A0                  	AND	B
+(1)  753/    F362 : B1                  	OR	C
+(1)  754/    F363 : 4F                  	LD	C, A
+(1)  755/    F364 : CD FC F0            	CALL	IOSET
+(1)  756/    F367 : C9                  	RET
+(1)  757/    F368 : =F368H              OUTK:	EQU	$		;OUT-KOMMANDO
+(1)  758/    F368 : 06 CF               	LD	B, OMSK
+(1)  759/    F36A : CD 0C F1            	CALL	TI
+(1)  760/    F36D : FE 4C               	CP	'L'
+(1)  761/    F36F : 28 08               	JR	Z, OKL
+(1)  762/    F371 : FE 55               	CP	'U'
+(1)  763/    F373 : 28 08               	JR	Z, OKU
+(1)  764/    F375 : 0E 00               	LD	C, OT
+(1)  765/    F377 : 18 E5               	JR	ASGN
+(1)  766/    F379 : 0E 20               OKL:	LD	C, OL
+(1)  767/    F37B : 18 E1               	JR	ASGN
+(1)  768/    F37D : 0E 30               OKU:	LD	C, OU
+(1)  769/    F37F : 18 DD               	JR	ASGN
+(1)  770/    F381 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  771/    F381 :                     ;KOMMANDO COPY
+ AS V1.42 Beta [Bld 139] - source file monitor_f000.asm(io_f000.asm) - page 14 - 8/24/2019 16:48:31
+I-O MONITOR Y23VO
+
+
+(1)  772/    F381 : =F381H              COPY:	EQU	$
+(1)  773/    F381 : CD 12 F0            	CALL	MRI
+(1)  774/    F384 : FE 03               	CP	ETX
+(1)  775/    F386 : C8                  	RET	Z
+(1)  776/    F387 : 4F                  	LD	C, A
+(1)  777/    F388 : CD 0C F0            	CALL	MLO
+(1)  778/    F38B : 18 F4               	JR	COPY
+(1)  779/    F38D :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  780/    F3CE :                     	ORG	3CEH+ROM
+(1)  781/    F3CE :                     ;SYSTEMTABELLEN
+(1)  782/    F3CE : =F3CEH              TOS:	EQU	$
+(1)  783/    F3CE : =F3C6H              USER:	EQU	TOS-8
+(1)  784/    F3CE :                     ;TABELLE DER REGISTERINHALTE DES ANWENDERPROGRAMMS
+(1)  785/    F3CE : EE                  ELOC:	DB	0EEH
+(1)  786/    F3CF : DD                  DLOC:	DB	0DDH
+(1)  787/    F3D0 : CC                  CLOC:	DB	0CCH
+(1)  788/    F3D1 : BB                  BLOC:	DB	0BBH
+(1)  789/    F3D2 : FF                  FLOC:	DB	0FFH
+(1)  790/    F3D3 : AA                  ALOC:	DB	0AAH
+(1)  791/    F3D4 : 34 12               XLOC:	DW	1234H
+(1)  792/    F3D6 : 78 56               YLOC:	DW	5678H
+(1)  793/    F3D8 : 00                  	DB	0
+(1)  794/    F3D9 : 0C                  ILOC:	DB	0CH
+(1)  795/    F3DA : 00                  LSLC:	DB	0
+(1)  796/    F3DB : 00                  HSLC:	DB	0
+(1)  797/    F3DC : 0E                  ESLC:	DB	0EH
+(1)  798/    F3DD : 0D                  DSLC:	DB	0DH
+(1)  799/    F3DE : 0C                  CSLC:	DB	0CH
+(1)  800/    F3DF : 0B                  BSLC:	DB	0BH
+(1)  801/    F3E0 : 0F                  FSLC:	DB	0FH
+(1)  802/    F3E1 : 0A                  ASLC:	DB	0AH
+(1)  803/    F3E2 : C6                  	DB	LOW(USER)
+(1)  804/    F3E3 : 00                  SLOC:	DB	0
+(1)  805/    F3E4 : 21 34 12            EXI1:	LD	HL, 1234H
+(1)  806/    F3E7 : =F3E5H              LLOC:	EQU	$-2
+(1)  807/    F3E7 : =F3E6H              HLOC:	EQU	$-1
+(1)  808/    F3E7 : FB                  	EI
+(1)  809/    F3E8 : C3 89 67            	JP	6789H
+(1)  810/    F3EB : =F3EAH              PLOC:	EQU	$-1
+(1)  811/    F3EB :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  812/    F3EB :                     ;TABELLE DER HALTEPUNKTE
+(1)  813/    F3EB : 00 00               TLOC:	DW	0
+(1)  814/    F3ED : 00                  	DB	0
+(1)  815/    F3EE : 00 00               	DW	0
+(1)  816/    F3F0 : 00                  	DB	0
+(1)  817/    F3F1 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  818/    F3F1 : 00 FC               PLA:	DW	BRAM
+(1)  819/    F3F3 : =F3F3H              RULOC:	EQU	$
+(1)  820/    F3F3 : C3 00 00            	JP	0
+(1)  821/    F3F6 : =F3F6H              PULOC:	EQU	$
+(1)  822/    F3F6 : C3 00 F4            	JP	0F400h
+(1)  823/    F3F9 : =F3F9H              ULOC:	EQU	$
+(1)  824/    F3F9 : C3 D7 F7            	JP	0F7D7h
+(1)  825/    F3FC : DA                  ZK:	DB	0DAh		;xx F.50 BAUD
+(1)  826/    F3FD : 01                  	DB	01		;2 F. 50 BAUD
+(1)  827/    F3FE : 02                  FLG:	DB	2		;FLGIO
+(1)  828/    F3FF : 20                  IOB:	DB	20H		;IOBYT
+(1)  829/    F400 : =32H                LTOS:	EQU	$-TOS
+(1)  830/    F400 :                     		;END
+(1)  831/    F400 :                     
+ AS V1.42 Beta [Bld 139] - source file monitor_f000.asm(io_f000.asm) - page 15 - 8/24/2019 16:48:31
+I-O MONITOR Y23VO
+
+
+      10/    F400 :                     
+      11/    F400 :                     		org	0F400h
+      12/    F400 :                     		include	de.asm
+(1)    1/    F400 :                     	;PN	DE
+(1)    2/    F400 :                     
+(1)    3/    F400 :                     	TITLE	"Y23VO  DEBUGGER"
+(1)    4/    F400 :                     
+(1)    5/    F400 :                     ;CR:	EQU 	00DH		;WAGEN-RUECKLAUF
+(1)    6/    F400 :                     ;LF: 	EQU 	00AH 		;ZEILENVORSCHUB
+(1)    7/    F400 :                     ;ETX:	EQU	003H		;CONTROL/C (END OF TEXT)
+(1)    8/    F400 :                     ;EOM: 	EQU 	0F00H 		;SYSTEMRAM-BEGINN
+(1)    9/    F400 : =FBEBH              RAM.TLOC:	EQU	EOM+000EBH
+(1)   10/    F400 : =FBE5H              RAM.LLOC:	EQU	EOM+000E5H
+(1)   11/    F400 : =FBEAH              RAM.PLOC:	EQU	EOM+000EAH
+(1)   12/    F400 : =FBE4H              RAM.EXI1:	EQU	EOM+000E4H
+(1)   13/    F400 :                     
+(1)   14/    F400 :                     ;OMSK:	EQU	0CFH
+(1)   15/    F400 :                     ;IMSK:	EQU	0F3H
+(1)   16/    F400 :                     
+(1)   17/    F400 :                     
+(1)   18/    F400 :                     ;RUECKSPRUNG IN DEN MONITOR
+(1)   19/    F400 :                     ;RETTEN DER REGISTERINHALTE DES ANWENDERPROGRAMMS
+(1)   20/    F400 :                     ;RESTR:	EQU	$
+(1)   21/    F400 : F3                  	DI
+(1)   22/    F401 : E5                  	PUSH	HL
+(1)   23/    F402 : D5                  	PUSH	DE
+(1)   24/    F403 : C5                  	PUSH	BC
+(1)   25/    F404 : F5                  	PUSH	AF
+(1)   26/    F405 : DD E5               	PUSH	IX
+(1)   27/    F407 : FD E5               	PUSH	IY
+(1)   28/    F409 : ED 57               	LD	A,I
+(1)   29/    F40B : F5                  	PUSH	AF
+(1)   30/    F40C : 08                  	EX	AF,AF'
+(1)   31/    F40D : D9                  	EXX
+(1)   32/    F40E : E5                  	PUSH	HL
+(1)   33/    F40F : D5                  	PUSH	DE
+(1)   34/    F410 : C5                  	PUSH	BC
+(1)   35/    F411 : F5                  	PUSH	AF
+(1)   36/    F412 : D9                  	EXX
+(1)   37/    F413 : 08                  	EX	AF,AF'
+(1)   38/    F414 :                     ;REGISTER AUF TAB.IM SYST.-RAM UMSPEICHERN
+(1)   39/    F414 : 21 18 00            	LD	HL,24
+(1)   40/    F417 : 39                  	ADD	HL,SP
+(1)   41/    F418 : 06 0B               	LD	B,11
+(1)   42/    F41A : EB                  	EX	DE,HL
+(1)   43/    F41B : 21 E4 FB            	LD	HL,RAM.EXI1
+(1)   44/    F41E : 2B                  RST0:	DEC	HL
+(1)   45/    F41F : 72                  	LD	(HL),D
+(1)   46/    F420 : 2B                  	DEC	HL
+(1)   47/    F421 : 73                  	LD	(HL),E
+(1)   48/    F422 : D1                  	POP	DE
+(1)   49/    F423 : 10 F9               	DJNZ	RST0
+(1)   50/    F425 :                     ;TEST OB HALTEPUNKT ERREICHT IST
+(1)   51/    F425 : C1                  	POP	BC
+(1)   52/    F426 : 0B                  	DEC	BC
+(1)   53/    F427 : F9                  	LD	SP,HL
+(1)   54/    F428 : 21 EB FB            	LD	HL,RAM.TLOC
+(1)   55/    F42B : 7E                  	LD	A,(HL)
+(1)   56/    F42C : 91                  	SUB	C
+(1)   57/    F42D : 23                  	INC	HL
+ AS V1.42 Beta [Bld 139] - source file monitor_f000.asm(de.asm) - page 16 - 8/24/2019 16:48:31
+Y23VO  DEBUGGER
+
+
+(1)   58/    F42E : 20 04               	JR	NZ,RSTA
+(1)   59/    F430 : 7E                  	LD	A,(HL)
+(1)   60/    F431 : 98                  	SBC	A,B
+(1)   61/    F432 : 28 0C               	JR	Z,RST1		;HALTEPUNKT 1 ERREICHT
+(1)   62/    F434 :                     ;TEST, OB HALTEPUNKT 2 ERREICHT WURDE
+(1)   63/    F434 : 23                  RSTA:	INC	HL
+(1)   64/    F435 : 23                  	INC	HL
+(1)   65/    F436 : 7E                  	LD	A,(HL)
+(1)   66/    F437 : 91                  	SUB	C
+(1)   67/    F438 : 23                  	INC	HL
+(1)   68/    F439 : 20 04               	JR	NZ,RSTB
+(1)   69/    F43B : 7E                  	LD	A,(HL)
+(1)   70/    F43C : 98                  	SBC	A,B
+(1)   71/    F43D : 28 01               	JR	Z,RST1		;HALTEPUNKT 2 ERREICHT
+(1)   72/    F43F :                     ;KEIN HALTEPUNKT ERREICHT
+(1)   73/    F43F : 03                  RSTB:	INC	BC
+(1)   74/    F440 :                     ;RETTEN VON HL
+(1)   75/    F440 : 21 E5 FB            RST1:	LD	HL,RAM.LLOC
+(1)   76/    F443 : 73                  	LD	(HL),E
+(1)   77/    F444 : 23                  	INC	HL
+(1)   78/    F445 : 72                  	LD	(HL),D
+(1)   79/    F446 :                     ; RETTEN VON PC
+(1)   80/    F446 : 2E E9               	LD	L,LOW(RAM.PLOC-1)
+(1)   81/    F448 : 71                  	LD	(HL),C
+(1)   82/    F449 : 23                  	INC	HL
+(1)   83/    F44A : 70                  	LD	(HL),B
+(1)   84/    F44B :                     ;AUSGABE DER STOP-ADRESSE
+(1)   85/    F44B : C5                  	PUSH	BC
+(1)   86/    F44C : CD 21 F1            	CALL	COMC
+(1)   87/    F44F : 40                  	DB	'@'
+(1)   88/    F450 : E1                  	POP	HL
+(1)   89/    F451 : CD B0 F4            	CALL	LADR
+(1)   90/    F454 :                     ;RESTAURIEREN DES SPEICHERINHALTES AN DEN HALTEPUNKTEN
+(1)   91/    F454 :                     ;UND LOESCHEN DER TABELLE FUER DIE HALTEPUNKTE
+(1)   92/    F454 : 21 EB FB            	LD	HL,RAM.TLOC
+(1)   93/    F457 : 16 02               	LD	D,2
+(1)   94/    F459 : 4E                  RST2:	LD	C,(HL)
+(1)   95/    F45A : AF                  	XOR	A
+(1)   96/    F45B : 77                  	LD	(HL),A
+(1)   97/    F45C : 23                  	INC	HL
+(1)   98/    F45D : 46                  	LD	B,(HL)
+(1)   99/    F45E : 77                  	LD	(HL),A
+(1)  100/    F45F : 23                  	INC	HL
+(1)  101/    F460 : 79                  	LD	A,C
+(1)  102/    F461 : B0                  	OR	B
+(1)  103/    F462 : 28 02               	JR	Z,RST3
+(1)  104/    F464 : 7E                  	LD	A,(HL)
+(1)  105/    F465 : 02                  	LD	(BC),A
+(1)  106/    F466 : 23                  RST3:	INC	HL
+(1)  107/    F467 : 15                  	DEC	D
+(1)  108/    F468 : 20 EF               	JR	NZ,RST2
+(1)  109/    F46A : C3 6D F0            	JP	START
+(1)  110/    F46D :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  111/    F46D :                     ;RUECKSPRUNGROUTINE ZUM STARTEN EINES ANWENDERPROGRAMMS
+(1)  112/    F46D : D1                  EXIT:	POP	DE
+(1)  113/    F46E : C1                  	POP	BC
+(1)  114/    F46F : F1                  	POP	AF
+(1)  115/    F470 : DD E1               	POP	IX
+(1)  116/    F472 : FD E1               	POP	IY
+(1)  117/    F474 : 08                  	EX	AF,AF'
+ AS V1.42 Beta [Bld 139] - source file monitor_f000.asm(de.asm) - page 17 - 8/24/2019 16:48:31
+Y23VO  DEBUGGER
+
+
+(1)  118/    F475 : D9                  	EXX
+(1)  119/    F476 : F1                  	POP	AF
+(1)  120/    F477 : ED 47               	LD	I,A
+(1)  121/    F479 : E1                  	POP	HL
+(1)  122/    F47A : D1                  	POP	DE
+(1)  123/    F47B : C1                  	POP	BC
+(1)  124/    F47C : F1                  	POP	AF
+(1)  125/    F47D : D9                  	EXX
+(1)  126/    F47E : 08                  	EX	AF,AF'
+(1)  127/    F47F : E1                  	POP	HL
+(1)  128/    F480 : F9                  	LD	SP,HL
+(1)  129/    F481 : C3 E4 FB            	JP	RAM.EXI1
+(1)  130/    F484 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  131/    F484 :                     ;SUBR. ZUM INKREMENTIEREN VON HL UND VERGLEICHEN MIT DE
+(1)  132/    F484 :                     ;***IN: HL...1. OPERAND
+(1)  133/    F484 :                     ;       DE...2. OPERAND
+(1)  134/    F484 :                     ;**OUT: HL=HL+1
+(1)  135/    F484 :                     ;       CARRY=0: HL<=DE
+(1)  136/    F484 :                     ;       CARRY=1: HL>DE,HL=0
+(1)  137/    F484 :                     ;*KILL: A,F,H,L
+(1)  138/    F484 : 23                  HILO:	INC	HL
+(1)  139/    F485 : 7C                  	LD	A,H
+(1)  140/    F486 : B5                  	OR	L
+(1)  141/    F487 : 37                  	SCF
+(1)  142/    F488 : C8                  	RET	Z
+(1)  143/    F489 : 7B                  	LD	A,E
+(1)  144/    F48A : 95                  	SUB	L
+(1)  145/    F48B : 7A                  	LD	A,D
+(1)  146/    F48C : 9C                  	SBC	A,H
+(1)  147/    F48D : C9                  	RET
+(1)  148/    F48E :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  149/    F48E :                     ;SUBR. ZUR AUSGABE EINES ZEICHENS UEBER DAS GERAET "O"
+(1)  150/    F48E :                     ;***IN: ZEICHEN AUF SPEICHERPLATZ HINTER CALL
+(1)  151/    F48E :                     ;**OUT: C...ZEICHEN
+(1)  152/    F48E :                     ;       (SP)=(SP)+1
+(1)  153/    F48E :                     ;*KILL: A,F,C
+(1)  154/    F48E : E3                  POC:	EX	(SP),HL
+(1)  155/    F48F : 4E                  	LD	C,(HL)
+(1)  156/    F490 : 23                  	INC	HL
+(1)  157/    F491 : E3                  	EX	(SP),HL
+(1)  158/    F492 : C3 0F F0            	JP	MWO
+(1)  159/    F495 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  160/    F495 :                     ;SUBR. ZUR KONVERTIERUNG EINES HALBBYTES IN EIN HEXADEZ. ASCII-ZEICHEN
+(1)  161/    F495 :                     ;***IN: A...HALBBYTE
+(1)  162/    F495 :                     ;**OUT: A,C...HEXADEZ. ASCII-ZEICHEN
+(1)  163/    F495 :                     ;*KILL: A,F,C
+(1)  164/    F495 : E6 0F               CONV:	AND	0FH
+(1)  165/    F497 : C6 90               	ADD	A,90H
+(1)  166/    F499 : 27                  	DAA
+(1)  167/    F49A : CE 40               	ADC	A,40H
+(1)  168/    F49C : 27                  	DAA
+(1)  169/    F49D : 4F                  	LD	C,A
+(1)  170/    F49E : C9                  	RET
+(1)  171/    F49F :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  172/    F49F :                     ;SUBR. ZUR AUSGABE EINES REGISTERINHALTES UEBER DAS GERAET "L"
+(1)  173/    F49F :                     ;***IN: HL...TABELLENPLATZ DES REGISTERS
+(1)  174/    F49F :                     ;**OUT: HL=HL+3
+(1)  175/    F49F :                     ;*KILL: A,F,B,C,D,E,H,L
+(1)  176/    F49F : 23                  LREG:	INC	HL
+(1)  177/    F4A0 : 5E                  	LD	E,(HL)
+ AS V1.42 Beta [Bld 139] - source file monitor_f000.asm(de.asm) - page 18 - 8/24/2019 16:48:31
+Y23VO  DEBUGGER
+
+
+(1)  178/    F4A1 : 16 FB               	LD	D,HIGH(EOM)	;   EOM/256
+(1)  179/    F4A3 : 23                  	INC	HL
+(1)  180/    F4A4 : 46                  	LD	B,(HL)
+(1)  181/    F4A5 : 23                  	INC	HL
+(1)  182/    F4A6 : 1A                  	LD	A,(DE)
+(1)  183/    F4A7 : CD B5 F4            	CALL	LBYTE
+(1)  184/    F4AA : 05                  	DEC	B
+(1)  185/    F4AB : F8                  	RET	M
+(1)  186/    F4AC : 1B                  	DEC	DE
+(1)  187/    F4AD : 1A                  	LD	A,(DE)
+(1)  188/    F4AE : 18 05               	JR	LBYTE
+(1)  189/    F4B0 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  190/    F4B0 :                     ;SUBR. ZUR AUSGABE VON 16 BIT BIN. INF. ALS ASCII-ZEICHEN
+(1)  191/    F4B0 :                     ;UEBER DAS GERAET "L"
+(1)  192/    F4B0 :                     ;***IN: HL...BIN. INF.
+(1)  193/    F4B0 :                     ;**OUT: -
+(1)  194/    F4B0 :                     ;*KILL: A,F,C
+(1)  195/    F4B0 : 7C                  LADR:	LD	A,H
+(1)  196/    F4B1 : CD B5 F4            	CALL	LBYTE
+(1)  197/    F4B4 : 7D                  	LD	A,L
+(1)  198/    F4B5 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  199/    F4B5 :                     ;SUBR. ZUR AUSGABE VON 8 BIT BIN. INF. ALS ASCII-ZEICHEN
+(1)  200/    F4B5 :                     ;UEBER DAS GERAET "L"
+(1)  201/    F4B5 :                     ;***IN: A...BIN. INF.
+(1)  202/    F4B5 :                     ;**OUT: -
+(1)  203/    F4B5 :                     ;*KILL: A,F,C
+(1)  204/    F4B5 : F5                  LBYTE:	PUSH	AF
+(1)  205/    F4B6 : 0F                  	RRCA
+(1)  206/    F4B7 : 0F                  	RRCA
+(1)  207/    F4B8 : 0F                  	RRCA
+(1)  208/    F4B9 : 0F                  	RRCA
+(1)  209/    F4BA : CD 95 F4            	CALL	CONV
+(1)  210/    F4BD : CD 0C F0            	CALL	MLO
+(1)  211/    F4C0 : F1                  	POP	AF
+(1)  212/    F4C1 : CD 95 F4            	CALL	CONV
+(1)  213/    F4C4 : C3 0C F0            	JP	MLO
+(1)  214/    F4C7 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  215/    F4C7 :                     ;SUBR. ZUR EINGABE VON HEXADEZ. PARAMETERN UEBER DAS TERMINAL
+(1)  216/    F4C7 :                     ;***IN: C...ZAHL DER PARAMETER
+(1)  217/    F4C7 :                     ;**OUT: PARAMETER IM STACK
+(1)  218/    F4C7 :                     ;       SP=SP-2*C
+(1)  219/    F4C7 :                     ;*KILL: A,F,B,C,H,L,SP
+(1)  220/    F4C7 : CD D7 F4            EXPR:	CALL	PARAM
+(1)  221/    F4CA : E3                  	EX	(SP),HL
+(1)  222/    F4CB : E5                  	PUSH	HL
+(1)  223/    F4CC : 0D                  	DEC	C
+(1)  224/    F4CD : 30 03               	JR	NC,EX0
+(1)  225/    F4CF : 20 03               	JR	NZ,ERR1
+(1)  226/    F4D1 : C9                  	RET
+(1)  227/    F4D2 : 20 F3               EX0:	JR	NZ,EXPR
+(1)  228/    F4D4 : C3 66 F0            ERR1:	JP	ERROR
+(1)  229/    F4D7 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  230/    F4D7 :                     ;SUBR. ZUR EINGABE VON 24 BIT BIN. INF. ALS HEXADEZ. ASCII-ZEICHEN
+(1)  231/    F4D7 :                     ; UEBER DAS TERMINAL
+(1)  232/    F4D7 :                     ;***IN: -
+(1)  233/    F4D7 :                     ;**OUT: A,H,L...BIN. INF.
+(1)  234/    F4D7 :                     ;       B...TRENNZEICHEN
+(1)  235/    F4D7 :                     ;*KILL: A,F,B,H,L
+(1)  236/    F4D7 : CD 18 F5            PARAM:	CALL	PCHK
+(1)  237/    F4DA : 28 F8               	JR	Z,ERR1
+ AS V1.42 Beta [Bld 139] - source file monitor_f000.asm(de.asm) - page 19 - 8/24/2019 16:48:31
+Y23VO  DEBUGGER
+
+
+(1)  238/    F4DC : C5                  PA0:	PUSH	BC
+(1)  239/    F4DD : 21 00 00            	LD	HL,0
+(1)  240/    F4E0 : 4C                  	LD	C,H
+(1)  241/    F4E1 : 47                  PA1:	LD	B,A
+(1)  242/    F4E2 : CD 06 F5            	CALL	NIBLE
+(1)  243/    F4E5 : 38 13               	JR	C,PA2
+(1)  244/    F4E7 : 47                  	LD	B,A
+(1)  245/    F4E8 : 79                  	LD	A,C
+(1)  246/    F4E9 : 29                  	ADD	HL,HL
+(1)  247/    F4EA : 17                  	RLA
+(1)  248/    F4EB : 29                  	ADD	HL,HL
+(1)  249/    F4EC : 17                  	RLA
+(1)  250/    F4ED : 29                  	ADD	HL,HL
+(1)  251/    F4EE : 17                  	RLA
+(1)  252/    F4EF : 29                  	ADD	HL,HL
+(1)  253/    F4F0 : 17                  	RLA
+(1)  254/    F4F1 : 4F                  	LD	C,A
+(1)  255/    F4F2 : 78                  	LD	A,B
+(1)  256/    F4F3 : B5                  	OR	L
+(1)  257/    F4F4 : 6F                  	LD	L,A
+(1)  258/    F4F5 : CD 0C F1            	CALL	TI
+(1)  259/    F4F8 : 18 E7               	JR	PA1
+(1)  260/    F4FA : 78                  PA2:	LD	A,B
+(1)  261/    F4FB : CD 1B F5            	CALL	P2C
+(1)  262/    F4FE : 20 D4               	JR	NZ,ERR1
+(1)  263/    F500 : E3                  	EX	(SP),HL
+(1)  264/    F501 : 60                  	LD	H,B
+(1)  265/    F502 : E3                  	EX	(SP),HL
+(1)  266/    F503 : 79                  	LD	A,C
+(1)  267/    F504 : C1                  	POP	BC
+(1)  268/    F505 : C9                  	RET
+(1)  269/    F506 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  270/    F506 :                     ;SUBR. ZUR KONVERTIERUNG VON 1 HEXAD. ASCII-Z. IN 1 HALBBYTE BIN. INF.
+(1)  271/    F506 :                     ;***IN: A...HEXADEZ. ASCII-Z.
+(1)  272/    F506 :                     ;**OUT: A...HALBBYTE
+(1)  273/    F506 :                     ;       CARRY=1: FALSCHES ASCII-Z.
+(1)  274/    F506 :                     ;*KILL: A,F
+(1)  275/    F506 : D6 30               NIBLE:	SUB	'0'
+(1)  276/    F508 : D8                  	RET	C
+(1)  277/    F509 : C6 E9               	ADD	A,0E9H
+(1)  278/    F50B : D8                  	RET	C
+(1)  279/    F50C : C6 06               	ADD	A,6
+(1)  280/    F50E : F2 14 F5            	JP	P,NI0
+(1)  281/    F511 : C6 07               	ADD	A,7
+(1)  282/    F513 : D8                  	RET	C
+(1)  283/    F514 : C6 0A               NI0:	ADD	A,10
+(1)  284/    F516 : B7                  	OR	A
+(1)  285/    F517 : C9                  	RET
+(1)  286/    F518 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  287/    F518 :                     ;SUBR. ZUR EINGABE EINES ZEICHENS UEBER DAS TERMINAL
+(1)  288/    F518 :                     ;UND TEST AUF ERLAUBTE TRENNZEICHEN
+(1)  289/    F518 :                     ;***IN: -
+(1)  290/    F518 :                     ;**OUT: A...EINGEGEBENES ZEICHEN
+(1)  291/    F518 :                     ;       CARRY=1: EINGEG. Z. IST CR
+(1)  292/    F518 :                     ;        ZERO=1: EINGEG. Z. IST LEERZ., KOMMA ODER CR
+(1)  293/    F518 :                     ;*KILL: A,F,C
+(1)  294/    F518 : CD 0C F1            PCHK:	CALL	TI
+(1)  295/    F51B :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  296/    F51B :                     ;SUBR. ZUM TEST AUF ERLAUBTE TRENNZEICHEN
+(1)  297/    F51B :                     ;***IN: A...ZEICHEN
+ AS V1.42 Beta [Bld 139] - source file monitor_f000.asm(de.asm) - page 20 - 8/24/2019 16:48:31
+Y23VO  DEBUGGER
+
+
+(1)  298/    F51B :                     ;**OUT: -
+(1)  299/    F51B :                     ;       CARRY=1: EINGEG. Z. IST CR
+(1)  300/    F51B :                     ;        ZERO=1: EINGEG. Z. IST LEERZ., KOMMA ODER CR
+(1)  301/    F51B :                     ;*KILL: F
+(1)  302/    F51B : FE 20               P2C:	CP	' '
+(1)  303/    F51D : C8                  	RET	Z
+(1)  304/    F51E : FE 2C               	CP	','
+(1)  305/    F520 : C8                  	RET	Z
+(1)  306/    F521 : FE 0D               	CP	0DH
+(1)  307/    F523 : 37                  	SCF
+(1)  308/    F524 : C8                  	RET	Z
+(1)  309/    F525 : 3F                  	CCF
+(1)  310/    F526 : C9                  	RET
+(1)  311/    F527 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  312/    F527 :                     ;SUBR. ZUR EINGABE EINES BIN. BYTES UEBER DAS LOG. GERAET "I"
+(1)  313/    F527 :                     ;UND ADDIEREN DES BYTES ZUM INHALT VON D
+(1)  314/    F527 :                     ;***IN: -
+(1)  315/    F527 :                     ;**OUT: A...EINGEGEBENES BYTE
+(1)  316/    F527 :                     ;       D=D+A
+(1)  317/    F527 :                     ;       FLAGS...ENTSPR. DEM ERGEBNIS DER ADD.
+(1)  318/    F527 :                     ;*KILL: A,F,D
+(1)  319/    F527 : C5                  IBYTE:	PUSH	BC
+(1)  320/    F528 : CD 12 F0            	CALL	MRI
+(1)  321/    F52B : CD 06 F5            	CALL	NIBLE
+(1)  322/    F52E : 07                  	RLCA
+(1)  323/    F52F : 07                  	RLCA
+(1)  324/    F530 : 07                  	RLCA
+(1)  325/    F531 : 07                  	RLCA
+(1)  326/    F532 : 4F                  	LD	C,A
+(1)  327/    F533 : CD 12 F0            	CALL	MRI
+(1)  328/    F536 : CD 06 F5            	CALL	NIBLE
+(1)  329/    F539 : B1                  	OR	C
+(1)  330/    F53A : 4F                  	LD	C,A
+(1)  331/    F53B : 82                  	ADD	A,D
+(1)  332/    F53C : 57                  	LD	D,A
+(1)  333/    F53D : 79                  	LD	A,C
+(1)  334/    F53E : C1                  	POP	BC
+(1)  335/    F53F : C9                  	RET
+(1)  336/    F540 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  337/    F540 :                     ;SUBR. ZUR AUSGABE VON 16 BIT BIN. INF. ALS ASCII-Z. UEBER GERAET "O"
+(1)  338/    F540 :                     ;***IN: HL...BIN. INF.
+(1)  339/    F540 :                     ;**OUT: -
+(1)  340/    F540 :                     ;*KILL: A,F,C
+(1)  341/    F540 : 7C                  OADR:	LD	A,H
+(1)  342/    F541 : CD 45 F5            	CALL	OBYTE
+(1)  343/    F544 : 7D                  	LD	A,L
+(1)  344/    F545 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  345/    F545 :                     ;SUBR. ZUR AUSGABE VON  8 BIT BIN. INF. ALS ASCII-Z. UEBER GERAET "O"
+(1)  346/    F545 :                     ;***IN: A...BIN. INF.
+(1)  347/    F545 :                     ;**OUT: -
+(1)  348/    F545 :                     ;*KILL: A,F,C
+(1)  349/    F545 : 5F                  OBYTE:	LD	E,A
+(1)  350/    F546 : 0F                  	RRCA
+(1)  351/    F547 : 0F                  	RRCA
+(1)  352/    F548 : 0F                  	RRCA
+(1)  353/    F549 : 0F                  	RRCA
+(1)  354/    F54A : CD 95 F4            	CALL	CONV
+(1)  355/    F54D : CD 0F F0            	CALL	MWO
+(1)  356/    F550 : 7B                  	LD	A,E
+(1)  357/    F551 : CD 95 F4            	CALL	CONV
+ AS V1.42 Beta [Bld 139] - source file monitor_f000.asm(de.asm) - page 21 - 8/24/2019 16:48:31
+Y23VO  DEBUGGER
+
+
+(1)  358/    F554 : CD 0F F0            	CALL	MWO
+(1)  359/    F557 : 7B                  	LD	A,E
+(1)  360/    F558 : 82                  	ADD	A,D
+(1)  361/    F559 : 57                  	LD	D,A
+(1)  362/    F55A : C9                  	RET
+(1)  363/    F55B :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  364/    F55B :                     ;SUBR. ZUR AUSGABE VON CR UND LF AUF DEM GERAET "O"
+(1)  365/    F55B :                     ;***IN: -
+(1)  366/    F55B :                     ;**OUT: -
+(1)  367/    F55B :                     ;*KILL: A,F,C
+(1)  368/    F55B : CD 8E F4            OCRLF:	CALL	POC
+(1)  369/    F55E : 0D                  	DB	0DH
+(1)  370/    F55F : CD 8E F4            	CALL	POC
+(1)  371/    F562 : 0A                  	DB	0AH
+(1)  372/    F563 : C9                  	RET
+(1)  373/    F564 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  374/    F564 :                     ;DISPLAY-KOMMANDO
+(1)  375/    F564 : =F564H              DISP:	EQU	$
+(1)  376/    F564 : CD C7 F4            	CALL	EXPR
+(1)  377/    F567 : D1                  	POP	DE		;ENDADRESSE IN DE
+(1)  378/    F568 : E1                  	POP	HL		;ANFANGSADRESSE IN HL
+(1)  379/    F569 :                     ;AUSGABE DER ADRESSE
+(1)  380/    F569 : CD D7 F2            DI0:	CALL	LCRLF
+(1)  381/    F56C : CD B0 F4            	CALL	LADR
+(1)  382/    F56F :                     ;AUSGABE EINES LEERZEICHENS
+(1)  383/    F56F : 0E 20               DI1:	LD	C,' '
+(1)  384/    F571 : CD DE F2            	CALL	LO
+(1)  385/    F574 :                     ;AUSGABE EINES BYTES
+(1)  386/    F574 : 7E                  	LD	A,(HL)
+(1)  387/    F575 : CD B5 F4            	CALL	LBYTE
+(1)  388/    F578 :                     ;KOMMANDO-ENDE ?
+(1)  389/    F578 : CD 84 F4            	CALL	HILO
+(1)  390/    F57B : DA D7 F2            	JP	C,LCRLF
+(1)  391/    F57E :                     ;ZEILENENDE ?
+(1)  392/    F57E : 7D                  	LD	A,L
+(1)  393/    F57F : E6 0F               	AND	0FH
+(1)  394/    F581 : 20 EC               	JR	NZ,DI1
+(1)  395/    F583 : 18 E4               	JR	DI0
+(1)  396/    F585 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  397/    F585 :                     ;END-FILE KOMMANDO
+(1)  398/    F585 : =F585H              EOF:	EQU	$
+(1)  399/    F585 : 0D                  	DEC	C
+(1)  400/    F586 : CD C7 F4            	CALL	EXPR		;EINGABE DER STARTADRESSE
+(1)  401/    F589 :                     ;AUSGABE VON ":"
+(1)  402/    F589 : CD 8E F4            	CALL	POC
+(1)  403/    F58C : 3A                  	DB	':'
+(1)  404/    F58D :                     ;AUSGABE DER REKORDLAENGE 0
+(1)  405/    F58D : AF                  	XOR	A
+(1)  406/    F58E : 57                  	LD	D,A
+(1)  407/    F58F : CD 45 F5            	CALL	OBYTE
+(1)  408/    F592 :                     ;AUSGABE DER STARTADRESSE
+(1)  409/    F592 : E1                  	POP	HL
+(1)  410/    F593 : CD 40 F5            	CALL	OADR
+(1)  411/    F596 :                     ;AUSGABE DES DATENTYPS
+(1)  412/    F596 : 3E 01               	LD	A,1
+(1)  413/    F598 : CD 45 F5            	CALL	OBYTE
+(1)  414/    F59B :                     ;BERECHNUNG UND AUSGABE DER CHECKSUMME
+(1)  415/    F59B : AF                  	XOR	A
+(1)  416/    F59C : 92                  	SUB	D
+(1)  417/    F59D : CD 45 F5            	CALL	OBYTE
+ AS V1.42 Beta [Bld 139] - source file monitor_f000.asm(de.asm) - page 22 - 8/24/2019 16:48:31
+Y23VO  DEBUGGER
+
+
+(1)  418/    F5A0 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  419/    F5A0 :                     ;SUBR. ZUR AUSGABE VON 60 LEERSTELLEN AUF DEM GERAET "O"
+(1)  420/    F5A0 :                     ;***IN: -
+(1)  421/    F5A0 :                     ;**OUT: -
+(1)  422/    F5A0 :                     ;*KILL: A,F,B,C
+(1)  423/    F5A0 : 06 3C               LEAD:	LD	B,60
+(1)  424/    F5A2 : CD 8E F4            LE0:	CALL	POC
+(1)  425/    F5A5 : 00                  	DB	0
+(1)  426/    F5A6 : 10 FA               	DJNZ	LE0
+(1)  427/    F5A8 : C9                  	RET
+(1)  428/    F5A9 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  429/    F5A9 :                     ;FILL-KOMMANDO
+(1)  430/    F5A9 : =F5A9H              FILL:	EQU	$
+(1)  431/    F5A9 : 0C                  	INC	C
+(1)  432/    F5AA : CD C7 F4            	CALL	EXPR
+(1)  433/    F5AD : C1                  	POP	BC		;KONSTANTE IN C
+(1)  434/    F5AE : D1                  	POP	DE		;ENDADRESSE IN DE
+(1)  435/    F5AF : E1                  	POP	HL		;ANFANGSADRESSE IN HL
+(1)  436/    F5B0 : 71                  FI0:	LD	(HL),C
+(1)  437/    F5B1 : CD 84 F4            	CALL	HILO
+(1)  438/    F5B4 : 30 FA               	JR	NC,FI0
+(1)  439/    F5B6 : C9                  	RET
+(1)  440/    F5B7 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  441/    F5B7 :                     ;GO-KOMMANDO
+(1)  442/    F5B7 : =F5B7H              GOTO:	EQU	$
+(1)  443/    F5B7 :                     ;VORBEREITEN DES SPRUNGES IN DAS ANWENDERPROGRAMM
+(1)  444/    F5B7 : 21 6D F4            	LD	HL,EXIT
+(1)  445/    F5BA : E3                  	EX	(SP),HL
+(1)  446/    F5BB :                     ;STARTADRESSE ?
+(1)  447/    F5BB : CD 18 F5            	CALL	PCHK
+(1)  448/    F5BE : 28 0A               	JR	Z,GO0		;KEINE STARTADRESSE ANGEGEBEN
+(1)  449/    F5C0 :                     ;EINGABE DER STARTADRESSE
+(1)  450/    F5C0 : CD DC F4            	CALL	PA0
+(1)  451/    F5C3 : EB                  	EX	DE,HL
+(1)  452/    F5C4 : 21 EA FB            	LD	HL,RAM.PLOC
+(1)  453/    F5C7 : 72                  	LD	(HL),D
+(1)  454/    F5C8 : 2B                  	DEC	HL
+(1)  455/    F5C9 : 73                  	LD	(HL),E
+(1)  456/    F5CA : 38 25               GO0:	JR	C,GO4		;KEINE HALTEPUNKTE ANGEGEBEN
+(1)  457/    F5CC : 11 02 00            	LD	DE,2
+(1)  458/    F5CF :                     ;EINGABE DES HALTEPUNKTES
+(1)  459/    F5CF : CD 21 F1            GO1:	CALL	COMC
+(1)  460/    F5D2 : 2D                  	DB	'-'
+(1)  461/    F5D3 : CD D7 F4            	CALL	PARAM
+(1)  462/    F5D6 : E5                  	PUSH	HL
+(1)  463/    F5D7 : 14                  	INC	D
+(1)  464/    F5D8 : 38 06               	JR	C,GO2		;NUR EIN HALTEPUNKT
+(1)  465/    F5DA : 1D                  	DEC	E
+(1)  466/    F5DB : 20 F2               	JR	NZ,GO1
+(1)  467/    F5DD : D2 66 F0            	JP	NC,ERROR
+(1)  468/    F5E0 : 21 EB FB            GO2:	LD	HL,RAM.TLOC
+(1)  469/    F5E3 :                     ;ADRESSE DER HALTEPUNKTE IN TABELLE
+(1)  470/    F5E3 : C1                  GO3:	POP	BC
+(1)  471/    F5E4 : 71                  	LD	(HL),C
+(1)  472/    F5E5 : 23                  	INC	HL
+(1)  473/    F5E6 : 70                  	LD	(HL),B
+(1)  474/    F5E7 : 23                  	INC	HL
+(1)  475/    F5E8 :                     ;RETTEN DES SPEICHERINHALTES AM HALTEPUNKT
+(1)  476/    F5E8 : 0A                  	LD	A,(BC)
+(1)  477/    F5E9 : 77                  	LD	(HL),A
+ AS V1.42 Beta [Bld 139] - source file monitor_f000.asm(de.asm) - page 23 - 8/24/2019 16:48:31
+Y23VO  DEBUGGER
+
+
+(1)  478/    F5EA : 23                  	INC	HL
+(1)  479/    F5EB :                     ;SETZEN DES HALTEPUNKTES
+(1)  480/    F5EB : 3E FF               	LD	A,0FFH		;RST 56
+(1)  481/    F5ED : 02                  	LD	(BC),A
+(1)  482/    F5EE : 15                  	DEC	D
+(1)  483/    F5EF : 20 F2               	JR	NZ,GO3
+(1)  484/    F5F1 : C3 09 F3            GO4:	JP	CRLF		;SPRUNG IN ANWENDERPROGRAMM
+(1)  485/    F5F4 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  486/    F5F4 :                     ;ADDITION UND SUBTRAKTION VON HEXADEZIMALZAHLEN
+(1)  487/    F5F4 : =F5F4H              HEXN:	EQU	$
+(1)  488/    F5F4 : CD C7 F4            	CALL	EXPR
+(1)  489/    F5F7 : CD 09 F3            	CALL	CRLF
+(1)  490/    F5FA : D1                  	POP	DE		;2. OPERAND IN DE
+(1)  491/    F5FB : E1                  	POP	HL		;1. OPERAND IN HL
+(1)  492/    F5FC : E5                  	PUSH	HL
+(1)  493/    F5FD : 19                  	ADD	HL,DE		;ADDITION
+(1)  494/    F5FE : CD B0 F4            	CALL	LADR		;AUSGABE DER SUMME
+(1)  495/    F601 : CD FD F1            	CALL	BLK
+(1)  496/    F604 : E1                  	POP	HL
+(1)  497/    F605 : B7                  	OR	A
+(1)  498/    F606 : ED 52               	SBC	HL,DE		;SUBTRAKTION
+(1)  499/    F608 : C3 B0 F4            	JP	LADR		;AUSGABE DER DIFFERENZ
+(1)  500/    F60B :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  501/    F60B :                     ;MOVE-KOMMANDO
+(1)  502/    F60B : =F60BH              MOVE:	EQU	$
+(1)  503/    F60B : 0C                  	INC	C
+(1)  504/    F60C : CD C7 F4            	CALL	EXPR
+(1)  505/    F60F : C1                  	POP	BC		;ADRESSE DES ZIELGEBIETES IN BC
+(1)  506/    F610 : D1                  	POP	DE		;ENDADRESSE DES QUELLGEB. IN DE
+(1)  507/    F611 : E1                  	POP	HL		;ANFANGSADRESSE DES QUELLGEB. IN HL
+(1)  508/    F612 : 7E                  MV0:	LD	A,(HL)
+(1)  509/    F613 : 02                  	LD	(BC),A
+(1)  510/    F614 : 03                  	INC	BC
+(1)  511/    F615 : CD 89 F0            	CALL	ZS		;ERHOLZEIT PROG.-MONO
+(1)  512/    F618 : CD 84 F4            	CALL	HILO
+(1)  513/    F61B : 30 F5               	JR	NC,MV0
+(1)  514/    F61D : C9                  	RET
+(1)  515/    F61E :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  516/    F61E :                     ;READ-KOMMANDO
+(1)  517/    F61E : =F61EH              READ:	EQU	$
+(1)  518/    F61E : 0D                  	DEC	C
+(1)  519/    F61F : CD C7 F4            	CALL	EXPR		;EINGABE DES OFFSET
+(1)  520/    F622 : CD 09 F3            	CALL	CRLF
+(1)  521/    F625 :                     ;WARTEN AUF EINGABE VON ":"
+(1)  522/    F625 : CD 12 F0            RED0:	CALL	MRI
+(1)  523/    F628 : FE 3A               	CP	':'
+(1)  524/    F62A : 20 F9               	JR	NZ,RED0
+(1)  525/    F62C : AF                  	XOR	A
+(1)  526/    F62D : 57                  	LD	D,A
+(1)  527/    F62E : CD 27 F5            	CALL	IBYTE		;EINGABE DER REKORDLAENGE
+(1)  528/    F631 : 28 2F               	JR	Z,RED3		;REKORDLAENGE = 0
+(1)  529/    F633 : 5F                  	LD	E,A
+(1)  530/    F634 :                     ;EINGABE DER REKORDADRESSE
+(1)  531/    F634 : CD 27 F5            	CALL	IBYTE
+(1)  532/    F637 : 67                  	LD	H,A
+(1)  533/    F638 : CD 27 F5            	CALL	IBYTE
+(1)  534/    F63B : 6F                  	LD	L,A
+(1)  535/    F63C :                     ;EINGABE DES DATENTYPS
+(1)  536/    F63C : CD 27 F5            	CALL	IBYTE
+(1)  537/    F63F : 4B                  	LD	C,E
+ AS V1.42 Beta [Bld 139] - source file monitor_f000.asm(de.asm) - page 24 - 8/24/2019 16:48:31
+Y23VO  DEBUGGER
+
+
+(1)  538/    F640 :                     ;EINGABE DER REKORDINFORMATION IN PUFFER
+(1)  539/    F640 : E5                  	PUSH	HL
+(1)  540/    F641 : 21 00 FF            	LD	HL,0FF00H
+(1)  541/    F644 : 39                  	ADD	HL,SP
+(1)  542/    F645 : CD 27 F5            RED1:	CALL	IBYTE
+(1)  543/    F648 : 77                  	LD	(HL),A
+(1)  544/    F649 : 23                  	INC	HL
+(1)  545/    F64A : 1D                  	DEC	E
+(1)  546/    F64B : 20 F8               	JR	NZ,RED1
+(1)  547/    F64D : CD 27 F5            	CALL	IBYTE		;EINGABE DER CHECKSUMME
+(1)  548/    F650 : C2 66 F0            	JP	NZ,ERROR	;FALSCHE CHECKSUMME
+(1)  549/    F653 :                     ;BERECHNUNG DER LADEADRESSE
+(1)  550/    F653 : D1                  	POP	DE
+(1)  551/    F654 : E3                  	EX	(SP),HL
+(1)  552/    F655 : EB                  	EX	DE,HL
+(1)  553/    F656 : 19                  	ADD	HL,DE
+(1)  554/    F657 : 06 00               	LD	B,0
+(1)  555/    F659 : 09                  	ADD	HL,BC
+(1)  556/    F65A : EB                  	EX	DE,HL
+(1)  557/    F65B : E3                  	EX	(SP),HL
+(1)  558/    F65C :                     ;LADEN DES GELESENEN REKORDS
+(1)  559/    F65C : 2B                  RED2:	DEC	HL
+(1)  560/    F65D : 1B                  	DEC	DE
+(1)  561/    F65E : ED B8               	LDDR
+(1)  562/    F660 : 18 C3               	JR	RED0
+(1)  563/    F662 :                     ;LADEN DER STARTADRESSE
+(1)  564/    F662 : 21 EA FB            RED3:	LD	HL,RAM.PLOC
+(1)  565/    F665 : CD 27 F5            	CALL	IBYTE
+(1)  566/    F668 : 77                  	LD	(HL),A
+(1)  567/    F669 : 2B                  	DEC	HL
+(1)  568/    F66A : CD 27 F5            	CALL	IBYTE
+(1)  569/    F66D : 77                  	LD	(HL),A
+(1)  570/    F66E : E1                  	POP	HL
+(1)  571/    F66F : C9                  	RET
+(1)  572/    F670 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  573/    F670 :                     ;SUBSTITUTE-KOMMANDO
+(1)  574/    F670 : =F670H              SUBS:	EQU	$
+(1)  575/    F670 : CD D7 F4            	CALL	PARAM		;EINGABE DER 1. ADRESSE (HL)
+(1)  576/    F673 : D8                  	RET	C
+(1)  577/    F674 :                     ;ANZEIGE DES BYTES
+(1)  578/    F674 : 7E                  SU0:	LD	A,(HL)
+(1)  579/    F675 : CD B5 F4            	CALL	LBYTE
+(1)  580/    F678 : CD 21 F1            	CALL	COMC
+(1)  581/    F67B : 2D                  	DB	'-'
+(1)  582/    F67C : CD 18 F5            	CALL	PCHK
+(1)  583/    F67F : D8                  	RET	C		;ENDE DES KOMMANDOS (CR)
+(1)  584/    F680 : 28 07               	JR	Z,SU1		;KEINE AENDERUNG DES INHALTES (LEERZ.)
+(1)  585/    F682 :                     ;EINGABE DES NEUEN SPEICHERINHALTES
+(1)  586/    F682 : EB                  	EX	DE,HL
+(1)  587/    F683 : CD DC F4            	CALL	PA0
+(1)  588/    F686 : EB                  	EX	DE,HL
+(1)  589/    F687 : 73                  	LD	(HL),E
+(1)  590/    F688 : D8                  	RET	C			;ENDE DES KOMMANDOS (CR)
+(1)  591/    F689 : 23                  SU1:	INC	HL
+(1)  592/    F68A : 18 E8               	JR	SU0
+(1)  593/    F68C :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  594/    F68C :                     ;SPEICHERTEST
+(1)  595/    F68C : =F68CH              KNOW:	EQU	$
+(1)  596/    F68C : CD C7 F4            	CALL	EXPR
+(1)  597/    F68F : 06 00               	LD	B,0
+ AS V1.42 Beta [Bld 139] - source file monitor_f000.asm(de.asm) - page 25 - 8/24/2019 16:48:31
+Y23VO  DEBUGGER
+
+
+(1)  598/    F691 : D1                  	POP	DE		;ENDEADR
+(1)  599/    F692 : E1                  ST1:	POP	HL		;ANF-ADR
+(1)  600/    F693 : E5                  	PUSH	HL
+(1)  601/    F694 : 7D                  ST2:	LD	A,L		;FILL
+(1)  602/    F695 : AC                  	XOR	H
+(1)  603/    F696 : A8                  	XOR	B
+(1)  604/    F697 : 77                  	LD	(HL),A
+(1)  605/    F698 : CD 84 F4            	CALL	HILO
+(1)  606/    F69B : 30 F7               	JR	NC,ST2
+(1)  607/    F69D : E1                  	POP	HL
+(1)  608/    F69E : 7D                  ST3:	LD	A,L
+(1)  609/    F69F : AC                  	XOR	H
+(1)  610/    F6A0 : A8                  	XOR	B
+(1)  611/    F6A1 : BE                  	CP	(HL)
+(1)  612/    F6A2 : 20 57               	JR	NZ,V1
+(1)  613/    F6A4 : CD 84 F4            	CALL	HILO
+(1)  614/    F6A7 : 30 F5               	JR	NC,ST3
+(1)  615/    F6A9 : C9                  	RET
+(1)  616/    F6AA :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  617/    F6AA :                     ;WRITE-KOMMANDO
+(1)  618/    F6AA : =F6AAH              WRITE:	EQU	$
+(1)  619/    F6AA : CD C7 F4            	CALL	EXPR
+(1)  620/    F6AD : CD 09 F3            	CALL	CRLF
+(1)  621/    F6B0 : D1                  	POP	DE		;ENDADRESSE IN DE
+(1)  622/    F6B1 : E1                  	POP	HL		;ANFANGSADRESSE IN HL
+(1)  623/    F6B2 :                     ;AUSGABE VON ":"
+(1)  624/    F6B2 : CD 8E F4            WR0:	CALL	POC
+(1)  625/    F6B5 : 3A                  	DB	':'
+(1)  626/    F6B6 :                     ;BESTIMMEN DER REKORDLAENGE
+(1)  627/    F6B6 : 01 10 00            	LD	BC,16
+(1)  628/    F6B9 : E5                  	PUSH	HL
+(1)  629/    F6BA : 04                  WR1:	INC	B
+(1)  630/    F6BB : 0D                  	DEC	C
+(1)  631/    F6BC : 28 05               	JR	Z,WR2
+(1)  632/    F6BE : CD 84 F4            	CALL	HILO
+(1)  633/    F6C1 : 30 F7               	JR	NC,WR1
+(1)  634/    F6C3 : E1                  WR2:	POP	HL
+(1)  635/    F6C4 : D5                  	PUSH	DE
+(1)  636/    F6C5 : 16 00               	LD	D,0
+(1)  637/    F6C7 : 78                  	LD	A,B
+(1)  638/    F6C8 : CD 45 F5            	CALL	OBYTE		;AUSGABE DER REKORDLAENGE
+(1)  639/    F6CB : CD 40 F5            	CALL	OADR		;AUSGABE DER REKORDADRESSE
+(1)  640/    F6CE :                     ;AUSGABE DES DATENTYPS
+(1)  641/    F6CE : AF                  	XOR	A
+(1)  642/    F6CF : CD 45 F5            	CALL	OBYTE
+(1)  643/    F6D2 :                     ;AUSGABE DER REKORDINFORMATION
+(1)  644/    F6D2 : 7E                  WR3:	LD	A,(HL)
+(1)  645/    F6D3 : CD 45 F5            	CALL	OBYTE
+(1)  646/    F6D6 : 23                  	INC	HL
+(1)  647/    F6D7 : 10 F9               	DJNZ	WR3
+(1)  648/    F6D9 :                     ;BERECHNUNG UND AUSGABE DER CHECKSUMME
+(1)  649/    F6D9 : AF                  	XOR	A
+(1)  650/    F6DA : 92                  	SUB	D
+(1)  651/    F6DB : CD 45 F5            	CALL	OBYTE
+(1)  652/    F6DE : D1                  	POP	DE
+(1)  653/    F6DF : 2B                  	DEC	HL
+(1)  654/    F6E0 :                     ;AUSGABE VON CR,LF
+(1)  655/    F6E0 : CD 5B F5            	CALL	OCRLF
+(1)  656/    F6E3 : CD 84 F4            	CALL	HILO
+(1)  657/    F6E6 : 30 CA               	JR	NC,WR0
+ AS V1.42 Beta [Bld 139] - source file monitor_f000.asm(de.asm) - page 26 - 8/24/2019 16:48:31
+Y23VO  DEBUGGER
+
+
+(1)  658/    F6E8 : C9                  	RET
+(1)  659/    F6E9 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  660/    F6E9 :                     ;VERGLEICH VON SPEICHERINHALTEN
+(1)  661/    F6E9 : =F6E9H              VER:	EQU	$
+(1)  662/    F6E9 : 0C                  	INC	C
+(1)  663/    F6EA : CD C7 F4            	CALL	EXPR
+(1)  664/    F6ED : C1                  	POP	BC		;ZIEL
+(1)  665/    F6EE : D1                  	POP	DE		;ENDE
+(1)  666/    F6EF : E1                  	POP	HL		;START
+(1)  667/    F6F0 : 0A                  V2:	LD	A,(BC)
+(1)  668/    F6F1 : BE                  	CP	(HL)
+(1)  669/    F6F2 : 20 07               	JR	NZ,V1		;BEI FEHLER
+(1)  670/    F6F4 : 03                  	INC	BC
+(1)  671/    F6F5 : CD 84 F4            	CALL	HILO
+(1)  672/    F6F8 : 30 F6               	JR	NC,V2
+(1)  673/    F6FA : C9                  	RET
+(1)  674/    F6FB : CD 09 F3            V1:	CALL	CRLF
+(1)  675/    F6FE : CD B0 F4            	CALL	LADR
+(1)  676/    F701 : C9                  	RET
+(1)  677/    F702 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  678/    F702 :                     ;X-KOMMANDO
+(1)  679/    F702 : =F702H              X:	EQU	$
+(1)  680/    F702 : 21 57 F7            	LD	HL,ACTBL
+(1)  681/    F705 : CD 18 F5            	CALL	PCHK
+(1)  682/    F708 : 38 37               	JR	C,X5		;AUSGABE ALLER REGISTER
+(1)  683/    F70A :                     ;BESTIMMUNG DER AUSZUGEBENDEN REGISTER
+(1)  684/    F70A : 0E 0B               	LD	C,NREGS
+(1)  685/    F70C : BE                  X0:	CP	(HL)
+(1)  686/    F70D : 28 09               	JR	Z,MX1
+(1)  687/    F70F : 23                  	INC	HL
+(1)  688/    F710 : 23                  	INC	HL
+(1)  689/    F711 : 23                  	INC	HL
+(1)  690/    F712 : 0D                  	DEC	C
+(1)  691/    F713 : 20 F7               	JR	NZ,X0
+(1)  692/    F715 : C3 66 F0            	JP	ERROR
+(1)  693/    F718 : CD FD F1            MX1:	CALL	BLK
+(1)  694/    F71B :                     ;AUSGABE DES AKTUELLEN REGISTERINHALTES
+(1)  695/    F71B : CD 9F F4            MX2:	CALL	LREG
+(1)  696/    F71E : CD 21 F1            	CALL	COMC
+(1)  697/    F721 : 2D                  	DB	'-'
+(1)  698/    F722 : CD 18 F5            	CALL	PCHK
+(1)  699/    F725 : D8                  	RET	C		;ENDE DES KOMMANDOS (CR)
+(1)  700/    F726 : 28 10               	JR	Z,X4		;ANZEIGE DES NAECHSTEN REG. (LEERZ.)
+(1)  701/    F728 : E5                  	PUSH	HL
+(1)  702/    F729 : C5                  	PUSH	BC
+(1)  703/    F72A :                     ;EINGABE EINES NEUEN REGISTERINHALTES
+(1)  704/    F72A : CD DC F4            	CALL	PA0
+(1)  705/    F72D : 7D                  	LD	A,L
+(1)  706/    F72E : 12                  	LD	(DE),A
+(1)  707/    F72F : F1                  	POP	AF
+(1)  708/    F730 : B7                  	OR	A
+(1)  709/    F731 : FA 37 F7            	JP	M,X3		; 8 BIT-REGISTER
+(1)  710/    F734 :                     ;16 BIT-REGISTER
+(1)  711/    F734 : 13                  	INC	DE
+(1)  712/    F735 : 7C                  	LD	A,H
+(1)  713/    F736 : 12                  	LD	(DE),A
+(1)  714/    F737 : E1                  X3:	POP	HL
+(1)  715/    F738 : AF                  X4:	XOR	A
+(1)  716/    F739 : B6                  	OR	(HL)
+(1)  717/    F73A : F8                  	RET	M		;ALLE REGISTER ANGEZEIGT
+ AS V1.42 Beta [Bld 139] - source file monitor_f000.asm(de.asm) - page 27 - 8/24/2019 16:48:31
+Y23VO  DEBUGGER
+
+
+(1)  718/    F73B : 78                  	LD	A,B
+(1)  719/    F73C : FE 0D               	CP	0DH
+(1)  720/    F73E : C8                  	RET	Z			;ENDE DES KOMMANDOS
+(1)  721/    F73F : 18 DA               	JR	MX2
+(1)  722/    F741 :                     ;ANZEIGE ALLER REGISTER
+(1)  723/    F741 : CD 09 F3            X5:	CALL	CRLF
+(1)  724/    F744 : CD FD F1            X6:	CALL	BLK
+(1)  725/    F747 : AF                  	XOR	A
+(1)  726/    F748 : B6                  	OR	(HL)
+(1)  727/    F749 : F8                  	RET	M		;TABELLENENDE MINUS=FF
+(1)  728/    F74A : 4E                  	LD	C,(HL)
+(1)  729/    F74B : CD 09 F0            	CALL	MCO		;AUSGABE DES REGISTER-NAMENS
+(1)  730/    F74E : CD 21 F1            	CALL	COMC
+(1)  731/    F751 : 3D                  	DB	'='
+(1)  732/    F752 : CD 9F F4            	CALL	LREG		;AUSGABE DES REGISTER-INHALTES
+(1)  733/    F755 : 18 ED               	JR	X6
+(1)  734/    F757 :                     ;TABELLE DER REGISTER-ADRESSEN
+(1)  735/    F757 : 41                  ACTBL:	DB	'A'
+(1)  736/    F758 : D3                  	DB	LOW(ALOC)
+(1)  737/    F759 : 00                  	DB	0
+(1)  738/    F75A : 42                  	DB	'B'
+(1)  739/    F75B : D1                  	DB	LOW(BLOC)
+(1)  740/    F75C : 00                  	DB	0
+(1)  741/    F75D : 43                  	DB	'C'
+(1)  742/    F75E : D0                  	DB	LOW(CLOC)
+(1)  743/    F75F : 00                  	DB	0
+(1)  744/    F760 : 44                  	DB	'D'
+(1)  745/    F761 : CF                  	DB	LOW(DLOC)
+(1)  746/    F762 : 00                  	DB	0
+(1)  747/    F763 : 45                  	DB	'E'
+(1)  748/    F764 : CE                  	DB	LOW(ELOC)
+(1)  749/    F765 : 00                  	DB	0
+(1)  750/    F766 : 46                  	DB	'F'
+(1)  751/    F767 : D2                  	DB	LOW(FLOC)
+(1)  752/    F768 : 00                  	DB	0
+(1)  753/    F769 : 48                  	DB	'H'
+(1)  754/    F76A : E6                  	DB	LOW(HLOC)
+(1)  755/    F76B : 00                  	DB	0
+(1)  756/    F76C : 4C                  	DB	'L'
+(1)  757/    F76D : E5                  	DB	LOW(RAM.LLOC)
+(1)  758/    F76E : 00                  	DB	0
+(1)  759/    F76F : 4D                  	DB	'M'
+(1)  760/    F770 : E6                  	DB	LOW(HLOC)
+(1)  761/    F771 : 01                  	DB	1
+(1)  762/    F772 : 50                  	DB	'P'
+(1)  763/    F773 : EA                  	DB	LOW(RAM.PLOC)
+(1)  764/    F774 : 01                  	DB	1
+(1)  765/    F775 : 53                  	DB	'S'
+(1)  766/    F776 : E3                  	DB	LOW(SLOC)
+(1)  767/    F777 : 01                  	DB	1
+(1)  768/    F778 : FF                  	DB	0FFH
+(1)  769/    F779 : =BH                 NREGS	EQU	($-ACTBL)/3
+(1)  770/    F779 :                     ;*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*---*
+(1)  771/    F779 :                     ;Z-KOMMANDO
+(1)  772/    F779 : =F779H              ZR:	EQU	$
+(1)  773/    F779 : 21 86 F7            	LD	HL,ZACTL
+(1)  774/    F77C : CD 18 F5            	CALL	PCHK
+(1)  775/    F77F : 38 C0               	JR	C,X5		;ANZEIGE ALLER REGISTER
+(1)  776/    F781 : 0E 0B               	LD	C,ZREGS
+(1)  777/    F783 : C3 0C F7            	JP	X0
+ AS V1.42 Beta [Bld 139] - source file monitor_f000.asm(de.asm) - page 28 - 8/24/2019 16:48:31
+Y23VO  DEBUGGER
+
+
+(1)  778/    F786 :                     ;TABELLE DER REGISTERADRESSEN
+(1)  779/    F786 : 41                  ZACTL:	DB	'A'
+(1)  780/    F787 : E1                  	DB	LOW(ASLC)
+(1)  781/    F788 : 00                  	DB	0
+(1)  782/    F789 : 42                  	DB	'B'
+(1)  783/    F78A : DF                  	DB	LOW(BSLC)
+(1)  784/    F78B : 00                  	DB	0
+(1)  785/    F78C : 43                  	DB	'C'
+(1)  786/    F78D : DE                  	DB	LOW(CSLC)
+(1)  787/    F78E : 00                  	DB	0
+(1)  788/    F78F : 44                  	DB	'D'
+(1)  789/    F790 : DD                  	DB	LOW(DSLC)
+(1)  790/    F791 : 00                  	DB	0
+(1)  791/    F792 : 45                  	DB	'E'
+(1)  792/    F793 : DC                  	DB	LOW(ESLC)
+(1)  793/    F794 : 00                  	DB	0
+(1)  794/    F795 : 46                  	DB	'F'
+(1)  795/    F796 : E0                  	DB	LOW(FSLC)
+(1)  796/    F797 : 00                  	DB	0
+(1)  797/    F798 : 48                  	DB	'H'
+(1)  798/    F799 : DB                  	DB	LOW(HSLC)
+(1)  799/    F79A : 00                  	DB	0
+(1)  800/    F79B : 4C                  	DB	'L'
+(1)  801/    F79C : DA                  	DB	LOW(LSLC)
+(1)  802/    F79D : 00                  	DB	0
+(1)  803/    F79E : 49                  	DB	'I'
+(1)  804/    F79F : D9                  	DB	LOW(ILOC)
+(1)  805/    F7A0 : 00                  	DB	0
+(1)  806/    F7A1 : 58                  	DB	'X'
+(1)  807/    F7A2 : D5                  	DB	LOW(XLOC+1)
+(1)  808/    F7A3 : 01                  	DB	1
+(1)  809/    F7A4 : 59                  	DB	'Y'
+(1)  810/    F7A5 : D7                  	DB	LOW(YLOC+1)
+(1)  811/    F7A6 : 01                  	DB	1
+(1)  812/    F7A7 : FF                  	DB	0FFH
+(1)  813/    F7A8 : =BH                 ZREGS	EQU	($-ZACTL)/3
+(1)  814/    F7A8 :                     	;END
+(1)  815/    F7A8 :                     
+      13/    F7A8 :                     		
+      14/    F7A8 :                     ;Kdo Y, wird auch bei Start aufgerufen. Funktion unklar
+      15/    F7B0 :                     		org	0f7b0h
+      16/    F7B0 : C9                  		ret
+      17/    F7B1 :                     
+      18/    F7B1 :                     ;uloc anwendergeraet drucker; Code unbekannt
+      19/    F7D7 :                     		org	0F7D7h	
+      20/    F7D7 : C9                  		ret		
+      21/    F7D8 :                     		
+      22/    F7D8 :                     		END
+ AS V1.42 Beta [Bld 139] - source file monitor_f000.asm - page 29 - 8/24/2019 16:48:31
+Y23VO  DEBUGGER
+
+
+  symbol table (* = unused):
+  ------------------------
+
+ ACTBL :                       F757 C |  ALOC :                        F3D3 C |
+*APST :                          27 - | *ARCHITECTURE :  i386-unknown-win32 - |
+ ASGN :                        F35E C |  ASLC :                        F3E1 C |
+ ASS :                         C800 - |  BASIC :                       8000 - |
+ BEGIN :                       F01B - |  BELL :                        F249 C |
+*BIGENDIAN :                      0 - |  BLK :                         F1FD C |
+ BLOC :                        F3D1 C |  BLOE :                        F27D C |
+ BRAM :                        FC00 - | *BRANCHEXT :                      0 - |
+ BREAK :                       F107 C |  BS :                          F236 C |
+ BSLC :                        F3DF C | *CASESENSITIVE :                  0 - |
+ CI :                          F132 - |  CI0 :                         F13C C |
+ CI1 :                         F14F C |  CI2 :                         F142 C |
+ CI3 :                         F161 C |  CI4 :                         F165 C |
+ CLOC :                        F3D0 C |  CO :                          F1FF - |
+ CO0 :                         F221 C |  CO1 :                         F228 C |
+*CO2 :                         F22C C |  CO3 :                         F225 C |
+ COMC :                        F121 C | *CONSTPI :        3.141592653589793 - |
+ CONT :                        F1C2 C |  CONV :                        F495 C |
+ COPY :                        F381 - |  COTAB :                       F24E - |
+ CR :                             D - |  CRLF :                        F309 C |
+ CSLC :                        F3DE C |  CSTS :                        F2F8 C |
+ CUP :                         F242 C |  CURS :                        FBF1 - |
+ CVTA :                        F18B C |  CVTA0 :                       F18E C |
+ CVTA1 :                       F198 C | *DATE :                   8/24/2019 - |
+ DI0 :                         F569 C |  DI1 :                         F56F C |
+ DISP :                        F564 - |  DLOC :                        F3CF C |
+ DSLC :                        F3DD C |  ELOC :                        F3CE C |
+ EOF :                         F585 - |  EOM :                         FB00 - |
+ EOT :                           FF - |  ERR1 :                        F4D4 C |
+ ERROR :                       F066 C |  ESLC :                        F3DC C |
+ ETX :                            3 - |  EX0 :                         F4D2 C |
+*EXI1 :                        F3E4 C |  EXIT :                        F46D C |
+ EXPR :                        F4C7 C | *FALSE :                          0 - |
+ FCGA :                        F096 - |  FCGA1 :                       F098 - |
+ FCGA2 :                       F0A5 - |  FCGA3 :                       F0AE - |
+ FCGA4 :                       F0B0 - |  FI0 :                         F5B0 C |
+ FILL :                        F5A9 - | *FLG :                         F3FE C |
+ FLGIO :                       FBFE - |  FLOC :                        F3D2 C |
+ FSLC :                        F3E0 C | *FULLPMMU :                       1 - |
+ GO0 :                         F5CA C |  GO1 :                         F5CF C |
+ GO2 :                         F5E0 C |  GO3 :                         F5E3 C |
+ GO4 :                         F5F1 C |  GOTO :                        F5B7 - |
+*HAS64 :                          1 - | *HASDSP :                         0 - |
+*HASFPU :                         0 - | *HASPMMU :                        0 - |
+ HEXN :                        F5F4 - |  HILO :                        F484 C |
+ HLOC :                        F3E6 - |  HSLC :                        F3DB C |
+ HTAB :                        F224 C |  HUSER :                       F2D0 C |
+ IBYTE :                       F527 C |  IKL :                         F358 C |
+ IKU :                         F35C C |  IL :                             8 - |
+ ILOC :                        F3D9 C |  IMSK :                          F3 - |
+*INEXTMODE :                      0 - |  INK :                         F347 - |
+*INLWORDMODE :                    0 - | *INMAXMODE :                      0 - |
+*INSRCMODE :                      0 - | *INSUPMODE :                      0 - |
+*IOB :                         F3FF C |  IOBYT :                       FBFF - |
+ IOCHK :                       F0F8 C |  IOSET :                       F0FC C |
+ IT :                             0 - |  IU :                             C - |
+ JPTBL :                       F0B2 - |  KNOW :                        F68C - |
+ AS V1.42 Beta [Bld 139] - source file monitor_f000.asm - page 30 - 8/24/2019 16:48:31
+Y23VO  DEBUGGER
+
+
+ LADR :                        F4B0 C |  LBYTE :                       F4B5 C |
+ LCRLF :                       F2D7 C |  LDRU :                        F2AF - |
+ LE0 :                         F5A2 C | *LEAD :                        F5A0 C |
+ LF :                             A - |  LIN :                         F2A0 - |
+*LISTON :                         1 - |  LKL :                         F33F C |
+ LKOM :                        F32E - |  LKU :                         F343 C |
+ LL :                            80 - | *LLOC :                        F3E5 - |
+ LMSK :                          3F - |  LO :                          F2DE C |
+ LPIOA :                          3 - |  LPIOB :                          3 - |
+ LREG :                        F49F C |  LSLC :                        F3DA C |
+ LT :                             0 - |  LTOS :                          32 - |
+*LTTAB :                         38 - |  LU :                            C0 - |
+*MACEXP :                         7 - |  MCI :                         F006 C |
+ MCO :                         F009 C | *MCSTS :                       F003 C |
+*MIOC :                        F015 C | *MIOS :                        F018 C |
+ MLO :                         F00C C | *MOMCPU :                        80 - |
+*MOMCPUNAME :                   Z80 - |  MOVE :                        F60B - |
+ MRI :                         F012 C |  MV0 :                         F612 C |
+ MWO :                         F00F C |  MX1 :                         F718 C |
+ MX2 :                         F71B C | *NESTMAX :                      100 - |
+ NI0 :                         F514 C |  NIBLE :                       F506 C |
+ NL :                          F246 C |  NREGS :                          B - |
+ OADR :                        F540 C |  OBYTE :                       F545 C |
+ OCRLF :                       F55B C |  OKL :                         F379 C |
+ OKU :                         F37D C |  OL :                            20 - |
+ OMSK :                          CF - |  OT :                             0 - |
+ OU :                            30 - |  OUTK :                        F368 - |
+ P2C :                         F51B C |  PA0 :                         F4DC C |
+ PA1 :                         F4E1 C |  PA2 :                         F4FA C |
+*PACKING :                        0 - | *PADDING :                        1 - |
+ PARAM :                       F4D7 C |  PCHK :                        F518 C |
+ PIOAC :                         FE - |  PIOAD :                         FC - |
+*PIOBC :                         FF - |  PIOBD :                         FD - |
+*PLA :                         F3F1 C | *PLOC :                        F3EA - |
+ POC :                         F48E C |  PRINT :                       E800 - |
+ PULOC :                       F3F6 - |  RAM.EXI1 :                    FBE4 - |
+ RAM.LLOC :                    FBE5 - |  RAM.PLOC :                    FBEA - |
+ RAM.TLOC :                    FBEB - |  RAMZK :                       FBFC - |
+ READ :                        F61E - |  RED0 :                        F625 C |
+ RED1 :                        F645 C | *RED2 :                        F65C C |
+ RED3 :                        F662 C | *RELAXED :                        0 - |
+*RESTR :                       F400 - |  RI :                          F294 C |
+ RI8 :                         F2AB C | *ROLLA :                       F268 - |
+ ROM :                         F000 - |  RSLOC :                       FBE3 - |
+ RST0 :                        F41E C |  RST1 :                        F440 C |
+ RST2 :                        F459 C |  RST3 :                        F466 C |
+ RSTA :                        F434 C |  RSTB :                        F43F C |
+ RUFZ :                        F060 - |  RULOC :                       F3F3 - |
+ SH1 :                         F1BF C |  SH2 :                         F1BC C |
+ SHIFT :                       F1B8 - |  SLOC :                        F3E3 C |
+*ST1 :                         F692 C |  ST2 :                         F694 C |
+ ST3 :                         F69E C |  STACK :                       FBCE - |
+ START :                       F06D C |  STR :                         F128 C |
+ SU0 :                         F674 C |  SU1 :                         F689 C |
+ SUBS :                        F670 - |  TEXT :                        C000 - |
+ TI :                          F10C C | *TIME :                    16:48:31 - |
+*TLOC :                        F3EB C |  TON :                         F312 - |
+ TON1 :                        F316 C |  TON2 :                        F318 C |
+ TON3 :                        F32A C |  TON4 :                        F322 C |
+ TOS :                         F3CE - |  TPIOA :                       F101 - |
+ AS V1.42 Beta [Bld 139] - source file monitor_f000.asm - page 31 - 8/24/2019 16:48:31
+Y23VO  DEBUGGER
+
+
+ TPIOB :                       F104 - | *TRAM :                        EFA0 - |
+*TRUE :                           1 - |  TTAB :                        F1C5 C |
+ ULOC :                        F3F9 - |  ULOCR :                       FBF9 - |
+ USER :                        F3C6 - |  V1 :                          F6FB C |
+ V2 :                          F6F0 C |  VER :                         F6E9 - |
+*VERSION :                     142F - |  VOLL :                        F264 C |
+ WAG :                         F239 C |  WO :                          F2B9 C |
+ WO0 :                         F2C2 C |  WO1 :                         F2C7 C |
+ WR0 :                         F6B2 C |  WR1 :                         F6BA C |
+ WR2 :                         F6C3 C |  WR3 :                         F6D2 C |
+ WRITE :                       F6AA - |  X :                           F702 - |
+ X0 :                          F70C C |  X3 :                          F737 C |
+ X4 :                          F738 C |  X5 :                          F741 C |
+ X6 :                          F744 C |  XLOC :                        F3D4 C |
+ YLOC :                        F3D6 C |  ZACTL :                       F786 C |
+*ZK :                          F3FC C |  ZLOE :                        F277 C |
+ ZR :                          F779 - |  ZREGS :                          B - |
+ ZS :                          F089 - |  ZS1 :                         F08E C |
+ ZVOR :                        F23F C |  ZYK1 :                        F171 C |
+ ZYK2 :                        F184 C |  ZYK3 :                        F186 C |
+ ZYKL :                        F169 - |
+
+    275 symbols
+     49 unused symbols
+
+ AS V1.42 Beta [Bld 139] - source file monitor_f000.asm - page 32 - 8/24/2019 16:48:31
+Y23VO  DEBUGGER
+
+
+  defined functions:
+  ------------------
+
+LOW                                   | HIGH                                 
+
+ AS V1.42 Beta [Bld 139] - source file monitor_f000.asm - page 33 - 8/24/2019 16:48:31
+Y23VO  DEBUGGER
+
+
+  codepages:
+  ----------
+
+STANDARD (0 changed characters)
+
+
+0.03 seconds assembly time
+
+   1669 lines source file
+      2 passes
+      0 errors
+      0 warnings

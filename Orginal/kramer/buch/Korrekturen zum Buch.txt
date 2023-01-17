@@ -1,0 +1,63 @@
+Korrekturen zum Buch
+Praktische Mikrocomputertechnik
+(funkamateur 8/87, S.411)
+
+Das große Interesse am Buch „Praktische
+Mikrocomputertechnik" hat mich sehr
+gefreut. Besonders willkommen waren
+Hinweise auf Fehler und Verbesserungs-
+vorschläge. Sie alle werden bei einer
+möglichen Nachauflage berücksichtigt.
+Leider ist es mir trotz großen Interesses
+aus Zeitgründen nicht möglich, mit eini-
+gen Hundert Gleichgesinnten in Korre-
+spondenz zu treten. Deshalb bitte ich,
+diese etwas unpersönliche Antwort zu
+entschuldigen.
+Nachstehend einige Informationen:
+Leiterplatten aus dem Buch liefert die
+Firma Ing. E.Kolbe, Postfach 137, Berlin,
+1197 (nicht die Firma Baer, wie zunächst
+geplant und im Buch angegeben). Die
+Firma Baer liefert bzw. programmiert je-
+doch EPROMs, ROMs werden nur gelie-
+fert, wenn die notwendige Stückzahl zu-
+stande kommt. Abschließend folgt noch
+eine Aufstellung der z. Zt. bekannten
+Druck- und sonstigen Fehler. Dabei sind
+die mit „*" gekennzeichneten für die
+Funktion ohne Bedeutung.
+S. 13 - Datenanschlüsse der RAMs stim-
+men auf der Leiterplatte nicht mit der
+Schaltung überein. *
+S. 29 - Taktleitung heißt 1A21, CS ab
+IS 11.6 (sh. auch S. 272).
+S. 39 - Bild 1.28 statt 1.25; über > fehlt
+„." auf der Tastatur (Tabelle 1.6.). *
+S. 45 - PEEK und POKE sind vorhanden.
+*
+S.47 - (13) Zeile 80 DEF FNP ..; Zeile
+150 .."; N (14) Zeile 50 ..L"; A$
+S. 74 - n fehlt an Aussprung nach links
+ganz unten. *
+S. 82 - Anschluß an 3 ist Pin13, an
+IS 8282 Unterschiede zwischen Schal-
+tung und Leiterplatte.
+S-109 - Bild 3.27 statt 3.30.
+S.111 - Bei B 555 D ist Pin 6 mit Pin 2 zu
+verbinden.
+S. 124 - Buspufferanschlüsse vertauscht:
+12 mit 19 usw., bei DL 257 D
+A2 = 14,4-MHz-Takt an CLK/8272.
+S. 176 - In Zeile 326 muß es heißen CAC
+E2. *
+S. 247 - Bei 8272 ist Pin 2/3 vertauscht,
+Pin 2 = /RD. *
+Ein größerer Fehler ist passiert beim Ab-
+druck des Zeichengenerators. Dieser
+ROM steckte beim Ausdruck offenbar in
+einer fehlerhaften Fassung. Nachfolgend
+steht deshalb der richtige Inhalt für den
+Maschinenkode.. (Datei zg.txt)
+
+M. Kramer, Y23VO
