@@ -14,3 +14,7 @@ Alle Baugruppen können mit EFS 29 (A-B oder A-C) Steckverbindern oder alternati
 
 Bei CPU, 2PIO und SIO sind GALs als Decoder in Verwendung. 
 Die Erstellung erfoolgte mit WinCUPL. Die Sourcen liegen im Verzeichnis
+
+
+Die Verzeichnisse Redesign 2020 und Redesign 2022 stammen von der Nachetwicklung im Robotrontechnik-Forum.
+-> ferrytale
